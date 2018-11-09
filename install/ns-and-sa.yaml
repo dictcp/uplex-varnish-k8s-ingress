@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: varnish-ingress 
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: varnish-ingress 
+  namespace: varnish-ingress

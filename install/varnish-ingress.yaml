@@ -1,0 +1,39 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: varnish-ingress
+  namespace: varnish-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: varnish-ingress
+  template:
+    metadata:
+      labels:
+        app: varnish-ingress
+    spec:
+      serviceAccountName: varnish-ingress
+      containers:
+      - image: varnish-ingress
+        imagePullPolicy: IfNotPresent
+        name: varnish-ingress
+        ports:
+        - name: http
+          containerPort: 80
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        # args:
+        #         # - -varnish-configmaps=$(POD_NAMESPACE)/varnish-config
+        #   - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
+        #   - -v=3 # Enables extensive logging. Useful for trooublshooting.
+        #   - -report-ingress-status
+        #   - -external-service=varnish-ingress
+        #  #- -enable-leader-election

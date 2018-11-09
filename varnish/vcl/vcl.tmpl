@@ -1,0 +1,83 @@
+vcl 4.0;
+
+import std;
+import directors;
+import re2;
+
+backend notfound {
+	# 192.0.2.0/24 reserved for docs & examples (RFC5737).
+	.host = "192.0.2.255";
+	.port = "80";
+}
+
+{{range $name, $svc := .AllServices -}}
+{{range $addr := $svc.Addresses -}}
+backend {{backendName $svc $addr.IP}} {
+	.host = "{{$addr.IP}}";
+	.port = "{{$addr.Port}}";
+}
+{{end -}}
+{{end}}
+
+sub vcl_init {
+{{- if .Rules}}
+	new hosts = re2.set(posix_syntax=true, literal=true, anchor=both);
+	{{- range $rule := .Rules}}
+	hosts.add("{{$rule.Host}}");
+	{{- end}}
+	hosts.compile();
+{{end}}
+
+{{- range $name, $svc := .AllServices}}
+	new {{dirName $svc}} = directors.round_robin();
+	{{- range $addr := $svc.Addresses}}
+	{{dirName $svc}}.add_backend({{backendName $svc $addr.IP}});
+	{{- end}}
+{{end}}
+{{- range $rule := .Rules}}
+	new {{urlMatcher $rule}} = re2.set(posix_syntax=true, anchor=start);
+	{{- range $path, $svc := $rule.PathMap}}
+	{{urlMatcher $rule}}.add("{{$path}}",
+				backend={{dirName $svc}}.backend());
+	{{- end}}
+	{{urlMatcher $rule}}.compile();
+{{end -}}
+}
+
+sub set_backend {
+	set req.backend_hint = notfound;
+{{- if .Rules}}
+	if (hosts.match(req.http.Host)) {
+		if (hosts.nmatches() != 1) {
+			# Fail fast when the match was not unique.
+			return (fail);
+		}
+		if (0 != 0) {
+			#
+		}
+		{{- range $i, $rule := .Rules}}
+		elsif (hosts.which() == {{plusOne $i}}) {
+			if ({{urlMatcher $rule}}.match(req.url)) {
+				set req.backend_hint = {{urlMatcher $rule}}.backend(select=FIRST);
+			}
+		}
+		{{- end}}
+	}
+{{- end}}
+
+	if (req.backend_hint == notfound) {
+{{- if ne .DefaultService.Name ""}}
+		set req.backend_hint = {{dirName .DefaultService}}.backend();
+{{- else}}
+		return (synth(404));
+{{- end}}
+	}
+}
+
+sub vcl_miss {
+	call set_backend;
+}
+
+sub vcl_pass {
+	call set_backend;
+}
