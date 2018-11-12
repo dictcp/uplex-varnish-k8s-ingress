@@ -76,4 +76,4 @@ push: docker-minikube container
 
 clean:
 	go clean ./...
-	rm main_version.go
+	rm -f main_version.go
