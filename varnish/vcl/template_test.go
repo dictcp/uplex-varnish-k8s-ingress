@@ -38,17 +38,17 @@ var coffeeSvc = Service{
 }
 
 var cafeSpec = Spec{
-	DefaultService: &Service{},
+	DefaultService: Service{},
 	Rules: []Rule{{
 		Host: "cafe.example.com",
-		PathMap: map[string]*Service{
-			"/tea":    &teaSvc,
-			"/coffee": &coffeeSvc,
+		PathMap: map[string]Service{
+			"/tea":    teaSvc,
+			"/coffee": coffeeSvc,
 		},
 	}},
-	AllServices: map[string]*Service{
-		"tea-svc":    &teaSvc,
-		"coffee-svc": &coffeeSvc,
+	AllServices: map[string]Service{
+		"tea-svc":    teaSvc,
+		"coffee-svc": coffeeSvc,
 	},
 }
 
