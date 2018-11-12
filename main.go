@@ -34,7 +34,7 @@ func main() {
 
 	config, err = rest.InClusterConfig()
 	if err != nil {
-		log.Fatal("error creating client configuration: %v", err)
+		log.Fatalf("error creating client configuration: %v", err)
 	}
 	kubeClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
