@@ -73,4 +73,5 @@ endif
 	docker push $(IMAGE)
 
 clean:
-	rm -f k8s-ingress
+	go clean ./...
+	rm main_version.go
