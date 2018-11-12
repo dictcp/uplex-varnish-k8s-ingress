@@ -56,20 +56,22 @@ k8s-ingress:
 	go fmt ./...
 	GOOS=linux go build -o k8s-ingress *.go
 
-check:
+check: k8s-ingress
 	go vet ./...
 	golint ./...
 	go test -v ./...
 
 test: check
 
-container: check k8s-ingress
-	docker build $(DOCKER_BUILD_OPTIONS) -t $(IMAGE) .
-
-push: container
+docker-minikube:
 ifeq ($(MINKUBE),1)
 	eval $(minikube docker-env)
 endif
+
+container: check docker-minikube
+	docker build $(DOCKER_BUILD_OPTIONS) -t $(IMAGE) .
+
+push: docker-minikube container
 	docker push $(IMAGE)
 
 clean:
