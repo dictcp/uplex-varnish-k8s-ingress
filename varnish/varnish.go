@@ -24,7 +24,7 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
-*/
+ */
 
 /*
 // TODO
@@ -142,7 +142,7 @@ func (vc *VarnishController) Start(errChan chan error) {
 	// XXX config the timeout
 	vsm := vsm.New()
 	if vsm == nil {
-		vc.errChan <- errors.New("Cannot initiate attachment to "+
+		vc.errChan <- errors.New("Cannot initiate attachment to " +
 			"Varnish shared memory")
 		return
 	}
@@ -196,7 +196,7 @@ func (vc *VarnishController) Update(key string, spec vcl.Spec) error {
 	wr.Flush()
 	f.Close()
 	log.Printf("Wrote new VCL config to %s", tmpPath)
-	
+
 	ctr := atomic.AddUint64(&configCtr, 1)
 	configName := fmt.Sprintf("ingress-%d", ctr)
 	if err := vc.adm.VCLLoad(configName, tmpPath); err != nil {

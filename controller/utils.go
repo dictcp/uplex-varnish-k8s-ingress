@@ -24,7 +24,7 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
-*/
+ */
 
 package controller
 
@@ -143,7 +143,7 @@ func NewTask(key string, obj interface{}) (Task, error) {
 	var k Kind
 	switch t := obj.(type) {
 	case *extensions.Ingress:
-//		ing := obj.(*extensions.Ingress)
+		//		ing := obj.(*extensions.Ingress)
 		k = Ingress
 	case *api_v1.Endpoints:
 		k = Endpoints

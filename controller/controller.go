@@ -24,7 +24,7 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
-*/
+ */
 
 package controller
 
@@ -56,6 +56,7 @@ const (
 	ingressClassKey = "kubernetes.io/ingress.class"
 	resyncPeriod    = 0
 	watchNamespace  = api_v1.NamespaceAll
+
 //	resyncPeriod    = 30 * time.Second
 )
 
@@ -436,7 +437,7 @@ func (ingc *IngressController) ing2VCLSpec(ing *extensions.Ingress) (vcl.Spec, e
 	}
 	for _, rule := range ing.Spec.Rules {
 		if rule.Host == "" {
-			return vclSpec,	fmt.Errorf("Ingress rule contains "+
+			return vclSpec, fmt.Errorf("Ingress rule contains " +
 				"empty Host")
 		}
 		vclRule := vcl.Rule{Host: rule.Host}
@@ -447,7 +448,7 @@ func (ingc *IngressController) ing2VCLSpec(ing *extensions.Ingress) (vcl.Spec, e
 		}
 		for _, path := range rule.IngressRuleValue.HTTP.Paths {
 			addrs, err := ingc.ingBackend2Addrs(path.Backend,
-				ing.Namespace);
+				ing.Namespace)
 			if err != nil {
 				return vclSpec, err
 			}
@@ -486,10 +487,10 @@ func (ingc *IngressController) ingBackend2Addrs(backend extensions.IngressBacken
 	targetPort := int32(0)
 	ingSvcPort := backend.ServicePort
 	for _, port := range svc.Spec.Ports {
-		if ((ingSvcPort.Type == intstr.Int &&
+		if (ingSvcPort.Type == intstr.Int &&
 			port.Port == int32(ingSvcPort.IntValue())) ||
 			(ingSvcPort.Type == intstr.String &&
-			port.Name == ingSvcPort.String())) {
+				port.Name == ingSvcPort.String()) {
 
 			targetPort, err = ingc.getTargetPort(&port, svc)
 			if err != nil {

@@ -10,8 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"code.uplex.de/uplex-varnish/k8s-ingress/varnish"
 	"code.uplex.de/uplex-varnish/k8s-ingress/controller"
+	"code.uplex.de/uplex-varnish/k8s-ingress/varnish"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
