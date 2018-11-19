@@ -47,8 +47,7 @@ PACKAGES = \
 	k8s.io/apimachinery/pkg/labels \
 	k8s.io/apimachinery/pkg/util/intstr \
 	k8s.io/apimachinery/pkg/util/wait \
-	code.uplex.de/uplex-varnish/varnishapi/pkg/admin \
-	code.uplex.de/uplex-varnish/varnishapi/pkg/vsm
+	code.uplex.de/uplex-varnish/varnishapi/pkg/admin
 
 k8s-ingress:
 	go get ${PACKAGES}

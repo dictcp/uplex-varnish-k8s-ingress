@@ -40,7 +40,7 @@ package varnish
 
 import (
 	"bufio"
-	"errors"
+	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -56,7 +56,6 @@ import (
 	"code.uplex.de/uplex-varnish/k8s-ingress/varnish/vcl"
 
 	"code.uplex.de/uplex-varnish/varnishapi/pkg/admin"
-	"code.uplex.de/uplex-varnish/varnishapi/pkg/vsm"
 )
 
 // XXX timeout for getting Admin connection (waiting for varnishd start)
@@ -66,6 +65,8 @@ const (
 	vclFile      = "ingress.vcl"
 	varnishLsn   = ":80"
 	varnishdPath = "/usr/sbin/varnishd"
+	admConn      = "localhost:6081"
+	secretFile   = "_.secret"
 	notFoundVCL  = `vcl 4.0;
 
 backend default { .host = "192.0.2.255"; .port = "80"; }
@@ -79,11 +80,15 @@ sub vcl_recv {
 var (
 	vclPath     = filepath.Join(vclDir, vclFile)
 	tmpPath     = filepath.Join(os.TempDir(), vclFile)
-	varnishArgs = []string{"-a", varnishLsn, "-f", vclPath, "-F"}
-	vcacheUID   int
-	varnishGID  int
-	currentIng  string
-	configCtr   = uint64(0)
+	secretPath  = filepath.Join(vclDir, secretFile)
+	varnishArgs = []string{
+		"-a", varnishLsn, "-f", vclPath, "-F", "-S", secretPath,
+		"-M", admConn,
+	}
+	vcacheUID  int
+	varnishGID int
+	currentIng string
+	configCtr  = uint64(0)
 )
 
 type VarnishController struct {
@@ -121,6 +126,22 @@ func (vc *VarnishController) Start(errChan chan error) {
 		return
 	}
 
+	secret := make([]byte, 32)
+	_, err = rand.Read(secret)
+	if err != nil {
+		vc.errChan <- err
+		return
+	}
+	if err := ioutil.WriteFile(secretPath, secret, 0400); err != nil {
+		vc.errChan <- err
+		return
+	}
+	if err := os.Chown(secretPath, vcacheUID, varnishGID); err != nil {
+		vc.errChan <- err
+		return
+	}
+	log.Print("Wrote secret file")
+
 	notFoundBytes := []byte(notFoundVCL)
 	if err := ioutil.WriteFile(vclPath, notFoundBytes, 0644); err != nil {
 		vc.errChan <- err
@@ -132,6 +153,12 @@ func (vc *VarnishController) Start(errChan chan error) {
 	}
 	log.Print("Wrote initial VCL file")
 
+	if vc.adm, err = admin.Listen(admConn); err != nil {
+		vc.errChan <- err
+		return
+	}
+	log.Print("Opened port to listen for Varnish adm connection")
+
 	vc.varnishdCmd = exec.Command(varnishdPath, varnishArgs...)
 	if err := vc.varnishdCmd.Start(); err != nil {
 		vc.errChan <- err
@@ -139,43 +166,11 @@ func (vc *VarnishController) Start(errChan chan error) {
 	}
 	log.Print("Launched varnishd")
 
-	// XXX config the timeout
-	vsm := vsm.New()
-	if vsm == nil {
-		vc.errChan <- errors.New("Cannot initiate attachment to " +
-			"Varnish shared memory")
-		return
-	}
-	defer vsm.Destroy()
-	if err := vsm.Attach(""); err != nil {
+	if err := vc.adm.Accept(secret); err != nil {
 		vc.errChan <- err
 		return
 	}
-	addr, err := vsm.GetMgmtAddr()
-	if err != nil {
-		vc.errChan <- err
-		return
-	}
-	spath, err := vsm.GetSecretPath()
-	if err != nil {
-		vc.errChan <- err
-		return
-	}
-	sfile, err := os.Open(spath)
-	if err != nil {
-		vc.errChan <- err
-		return
-	}
-	secret, err := ioutil.ReadAll(sfile)
-	if err != nil {
-		vc.errChan <- err
-		return
-	}
-	if vc.adm, err = admin.Dial(addr, secret, 10*time.Second); err != nil {
-		vc.errChan <- err
-		return
-	}
-	log.Print("Got varnish admin connection")
+	log.Print("Accepted varnish admin connection")
 }
 
 func (vc *VarnishController) Update(key string, spec vcl.Spec) error {
