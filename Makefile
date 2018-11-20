@@ -67,8 +67,9 @@ ifeq ($(MINKUBE),1)
 	eval $(minikube docker-env)
 endif
 
-container: check docker-minikube
-	docker build $(DOCKER_BUILD_OPTIONS) -t $(IMAGE) .
+container: docker-minikube
+	docker build --build-arg PACKAGES="$(PACKAGES)" \
+	$(DOCKER_BUILD_OPTIONS) -t $(IMAGE) .
 
 push: docker-minikube container
 	docker push $(IMAGE)
