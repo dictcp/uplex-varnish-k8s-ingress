@@ -53,7 +53,7 @@ k8s-ingress:
 	go get ${PACKAGES}
 	go generate
 	go fmt ./...
-	GOOS=linux go build -o k8s-ingress *.go
+	CGO_ENABLED=0 GOOS=linux go build -o k8s-ingress *.go
 
 check: k8s-ingress
 	go vet ./...

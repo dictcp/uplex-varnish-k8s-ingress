@@ -7,7 +7,7 @@ RUN go get -d -v github.com/slimhazard/gogitversion && \
     cd /go/src/code.uplex.de/uplex-varnish/k8s-ingress && \
     go get -v $PACKAGES && \
     go generate && \
-    go build -o k8-ingress *.go
+    CGO_ENABLED=0 GOOS=linux go build -o k8-ingress *.go
 
 FROM centos:centos7
 COPY varnishcache_varnish60.repo /etc/yum.repos.d/
