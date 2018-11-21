@@ -13,10 +13,10 @@ $ kubectl create -f cafe-ingress.yaml
 ```
 To note:
 
-* The Ingress has the annotation ``kubernetes.io/ingress.class:
-  "varnish"``, identifying it as an Ingress to be implemented by the
-  Varnish controller (the Varnish controller ignores any Ingress that
-  does not have this annotation).
+* The Ingress has the annotation
+  ``kubernetes.io/ingress.class: "varnish"``, identifying it as an
+  Ingress to be implemented by the Varnish controller (the Varnish
+  controller ignores any Ingress that does not have this annotation).
 * Both the Ingress and the Services are created in the
   ``varnish-ingress`` namespace, as are the resources defined by the
   configurations in the [``deploy/``](/deploy) folder. The controller
