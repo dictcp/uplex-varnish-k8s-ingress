@@ -22,8 +22,8 @@ time, including:
 * Only one Ingress definition is valid at a time. If more than one definition
   is added to the namespace, then the most recent definition becomes valid.
 * A variety of elements in the Varnish implementation of Ingress are
-  hard-wired, as detailed of the following, and are expected to become
-  configurable in further development.
+  hard-wired, as detailed in the following, These are expected to
+  become configurable in further development.
 
 # Installation
 
@@ -54,3 +54,39 @@ YAML configurations for one of the ways to deploy an Ingress.
 The [``examples/``](/examples) folder contains YAML configurations for
 sample Services and an Ingress to test and demonstrate the Ingress
 implementation (based on the "cafe" example from other projects).
+
+# Development
+
+The executable ``k8s-ingress``, which acts as the Ingress controller,
+is currently built with Go 1.10.
+
+Targets in the Makefile support development in your local environment, and
+facilitate testing with ``minikube``:
+
+* ``k8s-ingress``: build the controller executable. This target also
+  runs ``go get`` for package dependencies, ``go generate`` (see
+  below) and ``go fmt``.
+
+* ``check``, ``test``: build the ``k8s-ingress`` executable if
+  necessary, and run ``go vet``, ``golint`` and ``go test``.
+
+* ``clean``: run ``go clean``, and clean up other generated artifacts
+
+If you are testing with ``minikube``, set the environment variable
+``MINIKUBE=1`` before running ``make container``, so that the
+container will be available to the local k8s cluster:
+
+```
+$ MINIKUBE=1 make container
+```
+
+The build currently depends on the tool
+[``gogitversion``](https://github.com/slimhazard/gogitversion) for the
+generate step, to generate a version string using ``git describe``,
+which needs to be installed by hand. This sequence should suffice:
+
+```
+$ go get -d github.com/slimhazard/gogitversion
+$ cd $GOPATH/src/github.com/slimhazard/gogitversion
+$ make install
+```
