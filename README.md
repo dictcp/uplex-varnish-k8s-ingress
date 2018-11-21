@@ -55,6 +55,19 @@ The [``examples/``](/examples) folder contains YAML configurations for
 sample Services and an Ingress to test and demonstrate the Ingress
 implementation (based on the "cafe" example from other projects).
 
+This implementation requires that the Ingress definition includes an
+``ingress.class`` Annotation identifying ``varnish``:
+```
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: "varnish"
+[...]
+```
+The controller ignores all Ingress definitions that do not include the
+annotation. So you can work with other Ingress controllers that are
+based on other technologies in the same Kubernetes cluster.
+
 # Development
 
 The executable ``k8s-ingress``, which acts as the Ingress controller,
