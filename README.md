@@ -135,6 +135,8 @@ that:
     URL path is evaluated according to the IngressRules, and matching
     requests are assigned to the director corresponding to the matched
     Service.
+    * An IngressSpec is rejected if it does not specify any Host header.
+    * TLS configuration in the IngressSpec is currently ignored.
   * The director in turn chooses a backend corresponding to an Endpoint
     according to its load balancing algorithm (currently only round-robin).
   * If the request does not match any Service according to the
