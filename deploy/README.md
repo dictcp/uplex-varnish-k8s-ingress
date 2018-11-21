@@ -15,8 +15,7 @@ your needs.
    ServiceAccount defined in the first step (``rbac.yaml``).
 3. Define a Deployment named ``varnish-ingress`` in the namespace,
    associated with the ServiceAccount. Among other things, this
-   identifies the container deployed as the Ingress, and establishes
-   an
+   identifies the container deployed as the Ingress, establishes an
    [imagePullPolicy](https://kubernetes.io/docs/concepts/containers/images/),
    defines the port number at which Varnish accepts requests, and so forth
    (``varnish-ingress.yaml``).
