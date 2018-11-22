@@ -30,10 +30,3 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        # args:
-        #         # - -varnish-configmaps=$(POD_NAMESPACE)/varnish-config
-        #   - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
-        #   - -v=3 # Enables extensive logging. Useful for trooublshooting.
-        #   - -report-ingress-status
-        #   - -external-service=varnish-ingress
-        #  #- -enable-leader-election
