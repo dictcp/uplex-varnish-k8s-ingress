@@ -130,6 +130,8 @@ const (
 	Endpoints
 	// Service resource
 	Service
+	// Secret resource
+	Secret
 )
 
 // Task is an element of a taskQueue
@@ -149,6 +151,8 @@ func NewTask(key string, obj interface{}) (Task, error) {
 		k = Endpoints
 	case *api_v1.Service:
 		k = Service
+	case *api_v1.Secret:
+		k = Secret
 	default:
 		return Task{}, fmt.Errorf("Unknown type: %v", t)
 	}
@@ -156,20 +160,14 @@ func NewTask(key string, obj interface{}) (Task, error) {
 	return Task{k, key}, nil
 }
 
-// compareLinks returns true if the 2 self links are equal.
-// func compareLinks(l1, l2 string) bool {
-// 	// TODO: These can be partial links
-// 	return l1 == l2 && l1 != ""
-// }
-
 // StoreToIngressLister makes a Store that lists Ingress.
-// TODO: Move this to cache/listers post 1.1.
 type StoreToIngressLister struct {
 	cache.Store
 }
 
-// GetByKeySafe calls Store.GetByKeySafe and returns a copy of the ingress so it is
-// safe to modify.
+// GetByKeySafe calls Store.GetByKeySafe and returns a copy of the
+// ingress so it is safe to modify.
+
 func (s *StoreToIngressLister) GetByKeySafe(key string) (ing *extensions.Ingress, exists bool, err error) {
 	item, exists, err := s.Store.GetByKey(key)
 	if !exists || err != nil {
@@ -256,4 +254,9 @@ func FindPort(pod *api_v1.Pod, svcPort *api_v1.ServicePort) (int32, error) {
 	}
 
 	return 0, fmt.Errorf("no suitable port for manifest: %s", pod.UID)
+}
+
+// StoreToSecretLister makes a Store that lists Secrets
+type StoreToSecretLister struct {
+	cache.Store
 }

@@ -1,0 +1,7 @@
+vcl.load vk8s_ready /etc/varnish/ready.vcl
+vcl.load vk8s_notavailable /etc/varnish/notavailable.vcl
+vcl.label vk8s_readiness vk8s_notavailable
+vcl.label vk8s_regular vk8s_notavailable
+vcl.load boot /etc/varnish/boot.vcl
+vcl.use boot
+start

@@ -34,8 +34,8 @@ import (
 	"reflect"
 	"time"
 
-	"code.uplex.de/uplex-varnish/k8s-ingress/varnish"
-	"code.uplex.de/uplex-varnish/k8s-ingress/varnish/vcl"
+	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
+	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -56,6 +56,10 @@ const (
 	ingressClassKey = "kubernetes.io/ingress.class"
 	resyncPeriod    = 0
 	watchNamespace  = api_v1.NamespaceAll
+	admSecretName   = "adm-secret"
+	admSecretKey    = "admin"
+	admSvcName      = "varnish-ingress-admin"
+	admPortName     = "varnishadm"
 
 //	resyncPeriod    = 30 * time.Second
 )
@@ -68,9 +72,11 @@ type IngressController struct {
 	ingController  cache.Controller
 	svcController  cache.Controller
 	endpController cache.Controller
+	secrController cache.Controller
 	ingLister      StoreToIngressLister
 	svcLister      cache.Store
 	endpLister     StoreToEndpointLister
+	secrLister     StoreToSecretLister
 	syncQueue      *taskQueue
 	stopCh         chan struct{}
 	recorder       record.EventRecorder
@@ -166,7 +172,7 @@ func NewIngressController(kubeClient kubernetes.Interface,
 		AddFunc: func(obj interface{}) {
 			addSvc := obj.(*api_v1.Service)
 			log.Print("svcHandler.AddFunc:", addSvc)
-			if ingc.isExternalServiceForStatus(addSvc) {
+			if ingc.isVarnishAdmSvc(addSvc, namespace) {
 				ingc.syncQueue.enqueue(addSvc)
 				return
 			}
@@ -195,6 +201,10 @@ func NewIngressController(kubeClient kubernetes.Interface,
 			}
 
 			log.Print("Removing service:", remSvc.Name)
+			if ingc.isVarnishAdmSvc(remSvc, namespace) {
+				ingc.syncQueue.enqueue(remSvc)
+				return
+			}
 			ingc.enqueueIngressForService(remSvc)
 
 		},
@@ -202,12 +212,13 @@ func NewIngressController(kubeClient kubernetes.Interface,
 			if !reflect.DeepEqual(old, cur) {
 				curSvc := cur.(*api_v1.Service)
 				log.Print("svcHandler.UpdateFunc:", old, curSvc)
-				if ingc.isExternalServiceForStatus(curSvc) {
+
+				log.Printf("Service %v changed, syncing",
+					curSvc.Name)
+				if ingc.isVarnishAdmSvc(curSvc, namespace) {
 					ingc.syncQueue.enqueue(curSvc)
 					return
 				}
-				log.Printf("Service %v changed, syncing",
-					curSvc.Name)
 				ingc.enqueueIngressForService(curSvc)
 			}
 		},
@@ -222,7 +233,7 @@ func NewIngressController(kubeClient kubernetes.Interface,
 	endpHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addEndp := obj.(*api_v1.Endpoints)
-			log.Print("endpHandler.UpdateFunc:", addEndp)
+			log.Print("endpHandler.AddFunc:", addEndp)
 			log.Print("Adding endpoints:", addEndp.Name)
 			ingc.syncQueue.enqueue(obj)
 		},
@@ -252,7 +263,9 @@ func NewIngressController(kubeClient kubernetes.Interface,
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			log.Print("endpHandler.UpdateFunc:", old, cur)
-			if !reflect.DeepEqual(old, cur) {
+			oldEps := old.(*api_v1.Endpoints)
+			curEps := cur.(*api_v1.Endpoints)
+			if !reflect.DeepEqual(oldEps.Subsets, curEps.Subsets) {
 				log.Printf("Endpoints %v changed, syncing",
 					cur.(*api_v1.Endpoints).Name)
 				ingc.syncQueue.enqueue(cur)
@@ -265,6 +278,65 @@ func NewIngressController(kubeClient kubernetes.Interface,
 		cache.NewListWatchFromClient(ingc.client.Core().RESTClient(),
 			"endpoints", namespace, fields.Everything()),
 		&api_v1.Endpoints{}, resyncPeriod, endpHandlers)
+
+	secrHandlers := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			secr := obj.(*api_v1.Secret)
+			log.Print("secrHandler.AddFunc:", secr)
+			if !ingc.isAdminSecret(secr) {
+				log.Printf("Ignoring Secret %v", secr.Name)
+				return
+			}
+			log.Printf("Adding Secret: %v", secr.Name)
+			ingc.syncQueue.enqueue(obj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			remSecr, isSecr := obj.(*api_v1.Secret)
+			log.Print("secrHandler.DeleteFunc:", remSecr, isSecr)
+			if !isSecr {
+				deletedState, ok := obj.(cache.
+					DeletedFinalStateUnknown)
+				if !ok {
+					log.Printf("Error received unexpected "+
+						"object: %v", obj)
+					return
+				}
+				remSecr, ok = deletedState.Obj.(*api_v1.Secret)
+				if !ok {
+					log.Printf("Error "+
+						"DeletedFinalStateUnknown "+
+						"contained non-Secret object: "+
+						"%v", deletedState.Obj)
+					return
+				}
+			}
+
+			if !ingc.isAdminSecret(remSecr) {
+				log.Printf("Ignoring Secret %v", remSecr.Name)
+				return
+			}
+			log.Printf("Removing Secret: %v", remSecr.Name)
+			ingc.syncQueue.enqueue(obj)
+		},
+		UpdateFunc: func(old, cur interface{}) {
+			log.Print("endpHandler.UpdateFunc:", old, cur)
+			curSecr := cur.(*api_v1.Secret)
+			if !ingc.isAdminSecret(curSecr) {
+				log.Printf("Ignoring Secret %v", curSecr.Name)
+				return
+			}
+			if !reflect.DeepEqual(old, cur) {
+				log.Printf("Secret %v changed, syncing",
+					cur.(*api_v1.Secret).Name)
+				ingc.syncQueue.enqueue(cur)
+			}
+		},
+	}
+
+	ingc.secrLister.Store, ingc.secrController = cache.NewInformer(
+		cache.NewListWatchFromClient(ingc.client.Core().RESTClient(),
+			"secrets", namespace, fields.Everything()),
+		&api_v1.Secret{}, resyncPeriod, secrHandlers)
 
 	return &ingc
 }
@@ -281,6 +353,7 @@ func (ingc *IngressController) Run() {
 	go ingc.svcController.Run(ingc.stopCh)
 	go ingc.endpController.Run(ingc.stopCh)
 	go ingc.ingController.Run(ingc.stopCh)
+	go ingc.secrController.Run(ingc.stopCh)
 	go ingc.syncQueue.run(time.Second, ingc.stopCh)
 	<-ingc.stopCh
 }
@@ -307,7 +380,7 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 		return
 	}
 
-	err = ingc.vController.Update(key, vclSpec)
+	err = ingc.vController.Update(key, string(ing.ObjectMeta.UID), vclSpec)
 	if err != nil {
 		// XXX as above
 		ingc.syncQueue.requeueAfter(task, err, 5*time.Second)
@@ -351,6 +424,12 @@ func (ingc *IngressController) sync(task Task) {
 		ingc.syncIng(task)
 	case Endpoints:
 		ingc.syncEndp(task)
+		return
+	case Service:
+		ingc.syncSvc(task)
+		return
+	case Secret:
+		ingc.syncSecret(task)
 		return
 	}
 }
@@ -464,6 +543,28 @@ func (ingc *IngressController) ing2VCLSpec(ing *extensions.Ingress) (vcl.Spec, e
 	return vclSpec, nil
 }
 
+func (ingc *IngressController) endpsTargetPort2Addrs(svc *api_v1.Service,
+	endps api_v1.Endpoints, targetPort int32) ([]vcl.Address, error) {
+
+	var addrs []vcl.Address
+	for _, subset := range endps.Subsets {
+		for _, port := range subset.Ports {
+			if port.Port == targetPort {
+				for _, address := range subset.Addresses {
+					addr := vcl.Address{
+						IP:   address.IP,
+						Port: port.Port,
+					}
+					addrs = append(addrs, addr)
+				}
+				return addrs, nil
+			}
+		}
+	}
+	return addrs, fmt.Errorf("No endpoints for target port %v in service "+
+		"%s", targetPort, svc.Name)
+}
+
 func (ingc *IngressController) ingBackend2Addrs(backend extensions.IngressBackend,
 	namespace string) ([]vcl.Address, error) {
 
@@ -506,25 +607,12 @@ func (ingc *IngressController) ingBackend2Addrs(backend extensions.IngressBacken
 			svc.Name)
 	}
 
-	for _, subset := range endps.Subsets {
-		for _, port := range subset.Ports {
-			if port.Port == targetPort {
-				for _, address := range subset.Addresses {
-					addr := vcl.Address{
-						IP:   address.IP,
-						Port: port.Port,
-					}
-					addrs = append(addrs, addr)
-				}
-				return addrs, nil
-			}
-		}
-	}
-	return addrs, fmt.Errorf("No endpoints for target port %v in service "+
-		"%s", targetPort, svc.Name)
+	return ingc.endpsTargetPort2Addrs(svc, endps, targetPort)
 }
 
-func (ingc *IngressController) getTargetPort(svcPort *api_v1.ServicePort, svc *api_v1.Service) (int32, error) {
+func (ingc *IngressController) getTargetPort(svcPort *api_v1.ServicePort,
+	svc *api_v1.Service) (int32, error) {
+
 	if (svcPort.TargetPort == intstr.IntOrString{}) {
 		return svcPort.Port, nil
 	}
@@ -556,6 +644,97 @@ func (ingc *IngressController) getTargetPort(svcPort *api_v1.ServicePort, svc *a
 	return portNum, nil
 }
 
+func (ingc *IngressController) syncSvc(task Task) {
+	var addrs []vcl.Address
+	key := task.Key
+	svcObj, exists, err := ingc.svcLister.GetByKey(key)
+	if err != nil {
+		ingc.syncQueue.requeue(task, err)
+		return
+	}
+
+	if !exists {
+		log.Print("Deleting Service:", key)
+		err := ingc.vController.DeleteVarnishSvc(key)
+		if err != nil {
+			log.Printf("Error deleting configuration for %v: %v",
+				key, err)
+		}
+		return
+	}
+
+	svc := svcObj.(*api_v1.Service)
+	endps, err := ingc.endpLister.GetServiceEndpoints(svc)
+	if err != nil {
+		ingc.syncQueue.requeueAfter(task, err, 5*time.Second)
+		ingc.recorder.Eventf(svc, api_v1.EventTypeWarning, "Rejected",
+			"%v was rejected: %v", key, err)
+		return
+	}
+
+	// XXX hard-wired Port name
+	targetPort := int32(0)
+	for _, port := range svc.Spec.Ports {
+		if port.Name == admPortName {
+			targetPort, err = ingc.getTargetPort(&port, svc)
+			if err != nil {
+				ingc.syncQueue.requeueAfter(task, err,
+					5*time.Second)
+				ingc.recorder.Eventf(svc,
+					api_v1.EventTypeWarning, "Rejected",
+					"%v was rejected: %v", key, err)
+				return
+			}
+			break
+		}
+	}
+	if targetPort == 0 {
+		err = fmt.Errorf("No target port for port %s in service %s",
+			admPortName, svc.Name)
+		ingc.syncQueue.requeueAfter(task, err, 5*time.Second)
+		ingc.recorder.Eventf(svc, api_v1.EventTypeWarning, "Rejected",
+			"%v was rejected: %v", key, err)
+		return
+	}
+
+	addrs, err = ingc.endpsTargetPort2Addrs(svc, endps, targetPort)
+	if err != nil {
+		ingc.syncQueue.requeueAfter(task, err, 5*time.Second)
+		ingc.recorder.Eventf(svc, api_v1.EventTypeWarning, "Rejected",
+			"%v was rejected: %v", key, err)
+		return
+	}
+	ingc.vController.AddOrUpdateVarnishSvc(key, addrs)
+}
+
+func (ingc *IngressController) syncSecret(task Task) {
+	key := task.Key
+	obj, exists, err := ingc.secrLister.GetByKey(key)
+	if err != nil {
+		ingc.syncQueue.requeue(task, err)
+		return
+	}
+
+	if !exists {
+		log.Print("Deleting Secret:", key)
+		ingc.vController.DeleteAdmSecret()
+		return
+	}
+
+	secret, exists := obj.(*api_v1.Secret)
+	if !exists {
+		log.Printf("Error: Not a Secret: %v", obj)
+		return
+	}
+	secretData, exists := secret.Data[admSecretKey]
+	if !exists {
+		log.Printf("Error: Secret %v does not have key %s", secret.Name,
+			admSecretKey)
+		return
+	}
+	ingc.vController.SetAdmSecret(secretData)
+}
+
 // Check if resource ingress class annotation (if exists) matches
 // ingress controller class
 func (ingc *IngressController) isVarnishIngress(ing *extensions.Ingress) bool {
@@ -570,10 +749,17 @@ func (ingc *IngressController) hasIngress(ing *extensions.Ingress) bool {
 	return ingc.vController.HasIngress(name)
 }
 
-// isExternalServiceForStatus matches the service specified by the
-// external-service arg
-func (ingc *IngressController) isExternalServiceForStatus(svc *api_v1.Service) bool {
-	// return ingc.statusUpdater.namespace == svc.Namespace &&
-	// 	ingc.statusUpdater.externalServiceName == svc.Name
-	return false
+// isVarnishAdmSvc determines if a Service represents the admin
+// connection of a Varnish instance for which this controller is
+// responsible.
+// Currently we match the namespace and a hardwired Name.
+func (ingc *IngressController) isVarnishAdmSvc(svc *api_v1.Service,
+	namespace string) bool {
+
+	return svc.ObjectMeta.Namespace == namespace &&
+		svc.ObjectMeta.Name == admSvcName
+}
+
+func (ingc *IngressController) isAdminSecret(secr *api_v1.Secret) bool {
+	return secr.Name == admSecretName
 }

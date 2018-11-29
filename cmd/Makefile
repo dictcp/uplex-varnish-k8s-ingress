@@ -24,13 +24,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-all: push
-
-IMAGE = varnish-ingress
-
-DOCKER_BUILD_OPTIONS =
-
-MINIKUBE =
+all: k8s-ingress
 
 PACKAGES = \
 	k8s.io/client-go/kubernetes \
@@ -62,18 +56,7 @@ check: k8s-ingress
 
 test: check
 
-docker-minikube:
-ifeq ($(MINKUBE),1)
-	eval $(minikube docker-env)
-endif
-
-container: docker-minikube
-	docker build --build-arg PACKAGES="$(PACKAGES)" \
-	$(DOCKER_BUILD_OPTIONS) -t $(IMAGE) .
-
-push: docker-minikube container
-	docker push $(IMAGE)
-
 clean:
 	go clean ./...
 	rm -f main_version.go
+	rm -f k8s-ingress

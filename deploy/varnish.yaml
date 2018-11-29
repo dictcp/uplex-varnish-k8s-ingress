@@ -1,0 +1,49 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: varnish
+  namespace: varnish-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: varnish-ingress
+  template:
+    metadata:
+      labels:
+        app: varnish-ingress
+    spec:
+      serviceAccountName: varnish-ingress
+      containers:
+      - image: varnish-ingress/varnish
+        imagePullPolicy: IfNotPresent
+        name: varnish-ingress
+        ports:
+        - name: http
+          containerPort: 80
+        - name: k8sport
+          containerPort: 8080
+        - name: admport
+          containerPort: 6081
+        volumeMounts:
+        - name: adm-secret
+          mountPath: "/var/run/varnish"
+          readOnly: true
+        livenessProbe:
+          exec:
+            command:
+            - /usr/bin/pgrep
+            - -P
+            - "0"
+            - varnishd
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: k8sport
+      volumes:
+      - name: adm-secret
+        secret:
+          secretName: adm-secret
+          items:
+          - key: admin
+            path: _.secret

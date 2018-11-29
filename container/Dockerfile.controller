@@ -1,0 +1,15 @@
+FROM golang:1.10.3 as builder
+ARG PACKAGES
+RUN go get -d -v github.com/slimhazard/gogitversion && \
+    cd /go/src/github.com/slimhazard/gogitversion && \
+    make install
+RUN go get -u -v $PACKAGES
+COPY . /go/src/code.uplex.de/uplex-varnish/k8s-ingress
+WORKDIR /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd
+RUN go generate && \
+    CGO_ENABLED=0 GOOS=linux go build -o k8s-ingress *.go
+
+FROM alpine:3.8
+COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/k8s-ingress /k8s-ingress
+COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl/vcl.tmpl /vcl.tmpl
+ENTRYPOINT ["/k8s-ingress"]
