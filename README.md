@@ -21,31 +21,21 @@ time, including:
   Endpoints) in the namespace of the Pod in which it is deployed.
 * Only one Ingress definition is valid at a time. If more than one definition
   is added to the namespace, then the most recent definition becomes valid.
-* A variety of elements in the Varnish implementation of Ingress are
-  hard-wired, as detailed in the following, These are expected to
-  become configurable in further development.
+* A variety of elements in the implementation are hard-wired, as
+  detailed in the documentation, These are expected to become configurable
+  in further development.
 
 # Installation
 
-The container image implementing the Ingress, including the Ingress
-controller deployed in the same container, is created via a
-multi-stage Docker build using the Dockerfile in the root of the
-source repository. The build can be initiated with the ``container``
-target for ``make``:
+Varnish for the purposes of Ingress and the controller that manages it
+are implemented in separate containers -- one controller can be used
+to manage a group of Varnish instances. The Dockerfiles and other
+files needed to build the two images are in the
+[``container/``](/container) folder, together with a Makefile that
+encapsulates the commands for the build.
 
-```
-$ make container
-```
-
-If you wish to add custom options for the Docker build, assign these
-to the environment variable ``DOCKER_BUILD_OPTIONS``:
-
-```
-$ DOCKER_BUILD_OPTIONS='--no-cache --pull' make container
-```
-
-The resulting image must then be pushed to a registry available to the
-Kubernetes cluster.
+The resulting images must then be pushed to a registry available to
+the Kubernetes cluster.
 
 The Ingress can then be deployed by any of the means that are
 customary for Kubernetes. The [``deploy/``](/deploy) folder contains
@@ -70,39 +60,12 @@ based on other technologies in the same Kubernetes cluster.
 
 # Development
 
-The executable ``k8s-ingress``, which acts as the Ingress controller,
-is currently built with Go 1.10.
+The source code for the controller, which listens to the k8s cluster
+API and issues commands to Varnish instances to realize Ingress
+definitions, is in the [``cmd/``](/cmd) folder. The folder also
+containes a Makefile defining targets that encapsulate the build
+process for the controller executable.
 
-Targets in the Makefile support development in your local environment, and
-facilitate testing with ``minikube``:
-
-* ``k8s-ingress``: build the controller executable. This target also
-  runs ``go get`` for package dependencies, ``go generate`` (see
-  below) and ``go fmt``.
-
-* ``check``, ``test``: build the ``k8s-ingress`` executable if
-  necessary, and run ``go vet``, ``golint`` and ``go test``.
-
-* ``clean``: run ``go clean``, and clean up other generated artifacts
-
-If you are testing with ``minikube``, set the environment variable
-``MINIKUBE=1`` before running ``make container``, so that the
-container will be available to the local k8s cluster:
-
-```
-$ MINIKUBE=1 make container
-```
-
-The build currently depends on the tool
-[``gogitversion``](https://github.com/slimhazard/gogitversion) for the
-generate step, to generate a version string using ``git describe``,
-which needs to be installed by hand. This sequence should suffice:
-
-```
-$ go get -d github.com/slimhazard/gogitversion
-$ cd $GOPATH/src/github.com/slimhazard/gogitversion
-$ make install
-```
 # Varnish as a Kubernetes Ingress
 
 Since this project is currently in its early stages, the implementation of
@@ -147,5 +110,5 @@ that:
         Varnish.
   * If there is no valid Ingress definition (none has been defined
     since the Varnish instance started, or the only valid definition
-    was deleted), then Varnish generates a synthetic 404 Not Found
-    response for every request.
+    was deleted), then Varnish generates a synthetic 503 Service Not
+    Available response for every request.
