@@ -27,6 +27,9 @@ time, including:
 
 # Installation
 
+The Ingress controller currently supports Kubernetes version 1.9, and
+has also been tested succesfully with 1.10.
+
 Varnish for the purposes of Ingress and the controller that manages it
 are implemented in separate containers -- one controller can be used
 to manage a group of Varnish instances. The Dockerfiles and other

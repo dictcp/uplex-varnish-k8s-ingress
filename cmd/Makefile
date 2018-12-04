@@ -26,37 +26,21 @@
 
 all: k8s-ingress
 
-PACKAGES = \
-	k8s.io/client-go/kubernetes \
-	k8s.io/client-go/kubernetes/scheme \
-	k8s.io/client-go/kubernetes/typed/core/v1 \
-	k8s.io/client-go/rest \
-	k8s.io/client-go/tools/cache \
-	k8s.io/client-go/tools/record \
-	k8s.io/client-go/util/workqueue \
-	k8s.io/api/core/v1 \
-	k8s.io/api/extensions/v1beta1 \
-	k8s.io/apimachinery/pkg/apis/meta/v1 \
-	k8s.io/apimachinery/pkg/fields \
-	k8s.io/apimachinery/pkg/labels \
-	k8s.io/apimachinery/pkg/util/intstr \
-	k8s.io/apimachinery/pkg/util/wait \
-	code.uplex.de/uplex-varnish/varnishapi/pkg/admin
+vgo:
+	go get golang.org/x/vgo
 
-k8s-ingress:
-	go get ${PACKAGES}
-	go generate
-	go fmt ./...
-	CGO_ENABLED=0 GOOS=linux go build -o k8s-ingress *.go
+k8s-ingress: vgo
+	vgo generate
+	vgo fmt ./...
+	CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress *.go
 
 check: k8s-ingress
-	go vet ./...
 	golint ./...
-	go test -v ./...
+	vgo test -v ./...
 
 test: check
 
 clean:
-	go clean ./...
+	vgo clean ./...
 	rm -f main_version.go
 	rm -f k8s-ingress

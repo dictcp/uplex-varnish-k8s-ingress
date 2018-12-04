@@ -30,31 +30,13 @@ DOCKER_BUILD_OPTIONS =
 
 MINIKUBE =
 
-PACKAGES = \
-	k8s.io/client-go/kubernetes \
-	k8s.io/client-go/kubernetes/scheme \
-	k8s.io/client-go/kubernetes/typed/core/v1 \
-	k8s.io/client-go/rest \
-	k8s.io/client-go/tools/cache \
-	k8s.io/client-go/tools/record \
-	k8s.io/client-go/util/workqueue \
-	k8s.io/api/core/v1 \
-	k8s.io/api/extensions/v1beta1 \
-	k8s.io/apimachinery/pkg/apis/meta/v1 \
-	k8s.io/apimachinery/pkg/fields \
-	k8s.io/apimachinery/pkg/labels \
-	k8s.io/apimachinery/pkg/util/intstr \
-	k8s.io/apimachinery/pkg/util/wait \
-	code.uplex.de/uplex-varnish/varnishapi/pkg/admin
-
 docker-minikube:
 ifeq ($(MINKUBE),1)
 	eval $(minikube docker-env)
 endif
 
 controller: Dockerfile.controller docker-minikube
-	docker build --build-arg PACKAGES="$(PACKAGES)" \
-	$(DOCKER_BUILD_OPTIONS) -t varnish-ingress/controller \
+	docker build $(DOCKER_BUILD_OPTIONS) -t varnish-ingress/controller \
 	-f Dockerfile.controller ..
 
 varnish: Dockerfile.varnish docker-minikube
