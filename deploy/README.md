@@ -137,6 +137,61 @@ A port for TLS access is currently not supported.
 ```
   The port name must match the name given for port 8080 above.
 
+### varnishd options
+
+Varnish command-line options can be specified using the ``args`` section
+of the ``container`` specfication:
+
+```
+      containers:
+      - image: varnish-ingress/varnish
+        name: varnish-ingress
+        # [...]
+        args:
+        # Starts varnishd with: -l 80M -p default_grace=10
+        - -l
+        - 80M
+        - -p
+        - default_grace=10
+```
+
+See
+[``varnishd(1)``](https://varnish-cache.org/docs/6.1/reference/varnishd.html#options)
+for details about the available options.
+
+Because of the fact that the container starts with a number of options
+in order to implement the role of an Ingress, there are restrictions
+on the options that you can or should set. Some of them result in
+illegal combinations of options, which causes varnishd to terminate
+and the container to crash.  Others will be ignored, since the Varnish
+instance is managed by the controller.  Still others may interfere
+with the operation as an Ingress.
+
+Among these restrictions are:
+
+* You MAY NOT use any of the ``-C``, ``-d``, ``-I``, ``-S``, ``-T``,
+  ``-V``, ``-x`` or ``-?`` options.
+
+* The ``-p vcl_path`` parameter MAY NOT be changed.
+
+* ``-b`` or ``-f`` SHOULD NOT be set, since they will be ignored (but
+  their use does not cause an error).
+
+* ``-a`` CAN be set to define more listener ports for regular HTTP
+  client traffic; to be useful, these must be declared in the
+  ``ports`` specification (as with the port named ''http`` in the
+  example above). The listener name ``vk8s`` MAY NOT be used (it is
+  reserved for the listener used for readiness checks, declared as
+  ``k8sport`` above).
+
+* ``-M`` CAN be set, so that Varnish will connect to an address
+  listening for the administrative interface. The controller will not
+  use that address, but an admin client can use it to monitor the
+  Varnish instance separately. But an admin client MAY NOT call
+  ``vcl.use`` to activate any configuration, or ``vcl.discard`` to
+  unload one, otherwise it interferes with the implementation of
+  Ingress.
+
 ## Expose the Varnish HTTP port
 
 With a Deployment, you may choose a resource such as a LoadBalancer or

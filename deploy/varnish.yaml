@@ -40,6 +40,15 @@ spec:
           httpGet:
             path: /ready
             port: k8sport
+        args:
+        # varnishd command-line options
+        # In this example: varnishd -l 80M -p default_grace=10
+        # These are default values for the given options in Varnish 6.1.
+        # Shown here to demonstrate setting options for Varnish.
+        - -l
+        - 80M
+        - -p
+        - default_grace=10
       volumes:
       - name: adm-secret
         secret:
