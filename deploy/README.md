@@ -220,6 +220,26 @@ it does cause errors), but the extra work is superflous.
 Endpoint and Secret definitions in the same Namespace as the pod in
 which it is running.
 
+### Controller options
+
+Command-line options for the controller invocation can be set using the
+``args`` section of the ``container`` specification:
+
+```
+      containers:
+      - image: varnish-ingress/controller
+        name: varnish-ingress-controller
+        # [...]
+        args:
+        - -log-level=info
+```
+
+Currently supported options are:
+
+* ``log-level`` to set the verbosity of logging. Possible values are
+  ``panic``, ``fatal``, ``error``, ``warn``, ``info``, ``debug`` or
+  ``trace``; default ``info``.
+
 # Done
 
 When these commands succeed:

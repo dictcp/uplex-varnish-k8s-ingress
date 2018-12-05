@@ -33,19 +33,35 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/controller"
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
 
+	"github.com/sirupsen/logrus"
+
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
-var versionF = flag.Bool("version", false, "print version and exit")
+var (
+	versionF = flag.Bool("version", false, "print version and exit")
+	loglvlF  = flag.String("log-level", "INFO",
+		"log level: one of PANIC, FATAL, ERROR, WARN, INFO, DEBUG, \n"+
+			"or TRACE")
+	logFormat = logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	}
+	log = &logrus.Logger{
+		Out:       os.Stdout,
+		Formatter: &logFormat,
+		Level:     logrus.InfoLevel,
+	}
+)
 
 func main() {
 	flag.Parse()
@@ -55,7 +71,28 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Print("Starting Varnish Ingress controller version:", version)
+	lvl := strings.ToLower(*loglvlF)
+	switch lvl {
+	case "panic":
+		log.Level = logrus.PanicLevel
+	case "fatal":
+		log.Level = logrus.FatalLevel
+	case "error":
+		log.Level = logrus.ErrorLevel
+	case "warn":
+		log.Level = logrus.WarnLevel
+	case "debug":
+		log.Level = logrus.DebugLevel
+	case "trace":
+		log.Level = logrus.TraceLevel
+	case "info":
+		break
+	default:
+		fmt.Printf("Unknown log level %s, exiting", *loglvlF)
+		os.Exit(-1)
+	}
+
+	log.Info("Starting Varnish Ingress controller version:", version)
 
 	var err error
 	var config *rest.Config
@@ -69,19 +106,19 @@ func main() {
 		log.Fatal("Failed to create client:", err)
 	}
 
-	vController := varnish.NewVarnishController()
+	vController := varnish.NewVarnishController(log)
 
 	varnishDone := make(chan error, 1)
 	vController.Start(varnishDone)
 
 	namespace := os.Getenv("POD_NAMESPACE")
-	ingController := controller.NewIngressController(kubeClient,
+	ingController := controller.NewIngressController(log, kubeClient,
 		vController, namespace)
-	go handleTermination(ingController, vController, varnishDone)
+	go handleTermination(log, ingController, vController, varnishDone)
 	ingController.Run()
 }
 
-func handleTermination(ingc *controller.IngressController,
+func handleTermination(log *logrus.Logger, ingc *controller.IngressController,
 	vc *varnish.VarnishController, varnishDone chan error) {
 
 	signalChan := make(chan os.Signal, 1)
@@ -93,26 +130,26 @@ func handleTermination(ingc *controller.IngressController,
 	select {
 	case err := <-varnishDone:
 		if err != nil {
-			log.Print("varnish controller exited with an error:",
+			log.Error("varnish controller exited with an error:",
 				err)
 			exitStatus = 1
 		} else {
-			log.Print("varnish controller exited successfully")
+			log.Info("varnish controller exited successfully")
 		}
 		exited = true
 	case <-signalChan:
-		log.Print("Received SIGTERM, shutting down")
+		log.Info("Received SIGTERM, shutting down")
 	}
 
-	log.Print("Shutting down the ingress controller")
+	log.Info("Shutting down the ingress controller")
 	ingc.Stop()
 
 	if !exited {
-		log.Print("Shutting down Varnish")
+		log.Info("Shutting down Varnish")
 		vc.Quit()
 		<-varnishDone
 	}
 
-	log.Print("Exiting with a status:", exitStatus)
+	log.Info("Exiting with a status:", exitStatus)
 	os.Exit(exitStatus)
 }

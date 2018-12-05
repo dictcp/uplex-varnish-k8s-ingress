@@ -42,15 +42,15 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
-
 	"code.uplex.de/uplex-varnish/varnishapi/pkg/admin"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -106,22 +106,24 @@ type varnishSvc struct {
 }
 
 type VarnishController struct {
+	log         *logrus.Logger
 	errChan     chan error
 	admSecret   []byte
 	varnishSvcs map[string][]*varnishSvc
 	spec        *vclSpec
 }
 
-func NewVarnishController() *VarnishController {
+func NewVarnishController(log *logrus.Logger) *VarnishController {
 	vc := VarnishController{}
 	vc.varnishSvcs = make(map[string][]*varnishSvc)
+	vc.log = log
 	return &vc
 }
 
 func (vc *VarnishController) Start(errChan chan error) {
 	// XXX start a goroutine to ping etc and discard old VCL instances
 	vc.errChan = errChan
-	log.Print("Starting Varnish controller")
+	vc.log.Info("Starting Varnish controller")
 }
 
 func (vc *VarnishController) getSrc() (string, error) {
@@ -148,12 +150,12 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 			svc.adm = nil
 			continue
 		}
-		log.Printf("Connected to Varnish admin endpoint at %s",
+		vc.log.Infof("Connected to Varnish admin endpoint at %s",
 			svc.addr)
 	}
 
 	if vc.spec == nil {
-		log.Print("Update Varnish instances: Currently no Ingress " +
+		vc.log.Info("Update Varnish instances: Currently no Ingress " +
 			"defined")
 		if len(errs) == 0 {
 			return nil
@@ -167,7 +169,7 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 	}
 	cfgName := vclConfigName(vc.spec.key, vc.spec.uid)
 
-	log.Printf("Update Varnish instances: load config %s", cfgName)
+	vc.log.Infof("Update Varnish instances: load config %s", cfgName)
 	for _, svc := range svcs {
 		err = svc.adm.VCLInline(cfgName, vclSrc)
 		if err != nil {
@@ -175,7 +177,7 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 			errs = append(errs, admErr)
 			continue
 		}
-		log.Printf("Loaded config %s at Varnish endpoint %s", cfgName,
+		vc.log.Infof("Loaded config %s at Varnish endpoint %s", cfgName,
 			svc.addr)
 
 		err = svc.adm.VCLLabel(regularLabel, cfgName)
@@ -184,7 +186,7 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 			errs = append(errs, admErr)
 			continue
 		}
-		log.Printf("Labeled config %s as %s at Varnish endpoint %s",
+		vc.log.Infof("Labeled config %s as %s at Varnish endpoint %s",
 			cfgName, regularLabel, svc.addr)
 
 		err = svc.adm.VCLLabel(readinessLabel, readyCfg)
@@ -193,7 +195,7 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 			errs = append(errs, admErr)
 			continue
 		}
-		log.Printf("Labeled config %s as %s at Varnish endpoint %s",
+		vc.log.Infof("Labeled config %s as %s at Varnish endpoint %s",
 			readyCfg, readinessLabel, svc.addr)
 
 	}
@@ -377,7 +379,7 @@ func (vc *VarnishController) DeleteIngress(key string) error {
 				errs = append(errs, admErr)
 				continue
 			}
-			log.Printf("Labeled config %s as %s at Varinsh "+
+			vc.log.Infof("Labeled config %s as %s at Varinsh "+
 				"endpoint %s", notAvailCfg, regularLabel,
 				svc.addr)
 		}
@@ -413,12 +415,12 @@ func (vc *VarnishController) Quit() {
 				continue
 			}
 			if err := svc.adm.Close(); err != nil {
-				log.Printf("Failed to close admin connection "+
-					"at Varnish endpoint %s: %v", svc.addr,
-					err)
+				vc.log.Errorf("Failed to close admin "+
+					"connection at Varnish endpoint %s: %v",
+					svc.addr, err)
 				continue
 			}
-			log.Printf("Closed admin connection at Varinsh "+
+			vc.log.Infof("Closed admin connection at Varinsh "+
 				"endpoint %s", svc.addr)
 		}
 	}

@@ -30,8 +30,9 @@ package controller
 
 import (
 	"fmt"
-	"log"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -45,6 +46,7 @@ import (
 // taskQueue manages a work queue through an independent worker that
 // invokes the given sync function for every work item inserted.
 type taskQueue struct {
+	log *logrus.Logger
 	// queue is the work queue the worker polls
 	queue *workqueue.Type
 	// sync is called for each item in the queue
@@ -61,28 +63,29 @@ func (t *taskQueue) run(period time.Duration, stopCh <-chan struct{}) {
 func (t *taskQueue) enqueue(obj interface{}) {
 	key, err := keyFunc(obj)
 	if err != nil {
-		log.Printf("Couldn't get key for object %v: %v", obj, err)
+		t.log.Errorf("Couldn't get key for object %v: %v", obj, err)
 		return
 	}
 
 	task, err := NewTask(key, obj)
 	if err != nil {
-		log.Printf("Couldn't create a task for object %v: %v", obj, err)
+		t.log.Errorf("Couldn't create a task for object %v: %v", obj,
+			err)
 		return
 	}
 
-	log.Print("Adding an element with a key:", task.Key)
+	t.log.Info("Adding an element with a key:", task.Key)
 
 	t.queue.Add(task)
 }
 
 func (t *taskQueue) requeue(task Task, err error) {
-	log.Printf("Requeuing %v, err %v", task.Key, err)
+	t.log.Warnf("Requeuing %v, err %v", task.Key, err)
 	t.queue.Add(task)
 }
 
 func (t *taskQueue) requeueAfter(task Task, err error, after time.Duration) {
-	log.Printf("Requeuing %v after %s, err %v", task.Key, after.String(),
+	t.log.Warnf("Requeuing %v after %s, err %v", task.Key, after.String(),
 		err)
 	go func(task Task, after time.Duration) {
 		time.Sleep(after)
@@ -98,7 +101,7 @@ func (t *taskQueue) worker() {
 			close(t.workerDone)
 			return
 		}
-		log.Printf("Syncing %v", task.(Task).Key)
+		t.log.Infof("Syncing %v", task.(Task).Key)
 		t.sync(task.(Task))
 		t.queue.Done(task)
 	}
@@ -112,8 +115,9 @@ func (t *taskQueue) shutdown() {
 
 // NewTaskQueue creates a new task queue with the given sync function.
 // The sync function is called for every element inserted into the queue.
-func NewTaskQueue(syncFn func(Task)) *taskQueue {
+func NewTaskQueue(syncFn func(Task), log *logrus.Logger) *taskQueue {
 	return &taskQueue{
+		log:        log,
 		queue:      workqueue.New(),
 		sync:       syncFn,
 		workerDone: make(chan struct{}),

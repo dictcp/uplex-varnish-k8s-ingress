@@ -27,3 +27,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        args:
+        # log-level default is info, so this can be left out.
+        # Shown here to demonstrate setting options for the controller.
+        - -log-level=info

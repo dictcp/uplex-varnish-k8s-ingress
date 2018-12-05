@@ -30,12 +30,13 @@ package controller
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"time"
 
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
+
+	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -67,6 +68,7 @@ const (
 // IngressController watches Kubernetes API and reconfigures Varnish
 // via VarnishController when needed.
 type IngressController struct {
+	log            *logrus.Logger
 	client         kubernetes.Interface
 	vController    *varnish.VarnishController
 	ingController  cache.Controller
@@ -85,17 +87,18 @@ type IngressController struct {
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 // NewIngressController creates a controller
-func NewIngressController(kubeClient kubernetes.Interface,
+func NewIngressController(log *logrus.Logger, kubeClient kubernetes.Interface,
 	vc *varnish.VarnishController, namespace string) *IngressController {
 
 	ingc := IngressController{
+		log:         log,
 		client:      kubeClient,
 		stopCh:      make(chan struct{}),
 		vController: vc,
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(log.Printf)
+	eventBroadcaster.StartLogging(ingc.log.Printf)
 	eventBroadcaster.StartRecordingToSink(&core_v1.EventSinkImpl{
 		Interface: core_v1.New(ingc.client.Core().RESTClient()).
 			Events(""),
@@ -103,40 +106,41 @@ func NewIngressController(kubeClient kubernetes.Interface,
 	ingc.recorder = eventBroadcaster.NewRecorder(scheme.Scheme,
 		api_v1.EventSource{Component: "varnish-ingress-controller"})
 
-	ingc.syncQueue = NewTaskQueue(ingc.sync)
+	ingc.syncQueue = NewTaskQueue(ingc.sync, log)
 
-	log.Print("Varnish Ingress Controller has class: varnish")
+	ingc.log.Info("Varnish Ingress Controller has class: varnish")
 
 	ingHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*extensions.Ingress)
-			log.Print("ingHandler.AddFunc:", addIng)
+			ingc.log.Debug("ingHandler.AddFunc:", addIng)
 			if !ingc.isVarnishIngress(addIng) {
-				log.Printf("Ignoring Ingress %v based on "+
+				ingc.log.Infof("Ignoring Ingress %v based on "+
 					"Annotation %v", addIng.Name,
 					ingressClassKey)
 				return
 			}
-			log.Printf("Adding Ingress: %v", addIng.Name)
+			ingc.log.Infof("Adding Ingress: %v", addIng.Name)
 			ingc.syncQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remIng, isIng := obj.(*extensions.Ingress)
-			log.Print("ingHandler.DeleteFunc:", remIng, isIng)
+			ingc.log.Debug("ingHandler.DeleteFunc:", remIng, isIng)
 			if !isIng {
 				deletedState, ok :=
 					obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					log.Print("Error received unexpected "+
+					ingc.log.Error("Received unexpected "+
 						"object:", obj)
 					return
 				}
 				remIng, ok =
 					deletedState.Obj.(*extensions.Ingress)
 				if !ok {
-					log.Print("Error "+
+					ingc.log.Error(
 						"DeletedFinalStateUnknown "+
-						"contained non-Ingress object:",
+							"contained non-Ingress"+
+							" object:",
 						deletedState.Obj)
 					return
 				}
@@ -149,12 +153,12 @@ func NewIngressController(kubeClient kubernetes.Interface,
 		UpdateFunc: func(old, cur interface{}) {
 			curIng := cur.(*extensions.Ingress)
 			oldIng := old.(*extensions.Ingress)
-			log.Print("ingHandler.UpdateFunc:", curIng, oldIng)
+			ingc.log.Debug("ingHandler.UpdateFunc:", curIng, oldIng)
 			if !ingc.isVarnishIngress(curIng) {
 				return
 			}
 			if hasChanges(oldIng, curIng) {
-				log.Printf("Ingress %v changed, syncing",
+				ingc.log.Infof("Ingress %v changed, syncing",
 					curIng.Name)
 				ingc.syncQueue.enqueue(cur)
 			}
@@ -165,42 +169,43 @@ func NewIngressController(kubeClient kubernetes.Interface,
 			RESTClient(), "ingresses", namespace,
 			fields.Everything()),
 		&extensions.Ingress{}, resyncPeriod, ingHandlers)
-	log.Print("ingc.ingLister.Store:", ingc.ingLister.Store)
-	log.Print("ingc.ingController:", ingc.ingController)
+	ingc.log.Debug("ingc.ingLister.Store:", ingc.ingLister.Store)
+	ingc.log.Debug("ingc.ingController:", ingc.ingController)
 
 	svcHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addSvc := obj.(*api_v1.Service)
-			log.Print("svcHandler.AddFunc:", addSvc)
+			ingc.log.Debug("svcHandler.AddFunc:", addSvc)
 			if ingc.isVarnishAdmSvc(addSvc, namespace) {
 				ingc.syncQueue.enqueue(addSvc)
 				return
 			}
-			log.Print("Adding service:", addSvc.Name)
+			ingc.log.Info("Adding service:", addSvc.Name)
 			ingc.enqueueIngressForService(addSvc)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remSvc, isSvc := obj.(*api_v1.Service)
-			log.Print("svcHandler.DeleteFunc:", remSvc, isSvc)
+			ingc.log.Debug("svcHandler.DeleteFunc:", remSvc, isSvc)
 			if !isSvc {
 				deletedState, ok :=
 					obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					log.Print("Error received unexpected "+
+					ingc.log.Error("Received unexpected "+
 						"object:", obj)
 					return
 				}
 				remSvc, ok = deletedState.Obj.(*api_v1.Service)
 				if !ok {
-					log.Print("Error "+
+					ingc.log.Error(
 						"DeletedFinalStateUnknown "+
-						"contained non-Service object:",
+							"contained non-Service"+
+							" object:",
 						deletedState.Obj)
 					return
 				}
 			}
 
-			log.Print("Removing service:", remSvc.Name)
+			ingc.log.Info("Removing service:", remSvc.Name)
 			if ingc.isVarnishAdmSvc(remSvc, namespace) {
 				ingc.syncQueue.enqueue(remSvc)
 				return
@@ -211,9 +216,10 @@ func NewIngressController(kubeClient kubernetes.Interface,
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
 				curSvc := cur.(*api_v1.Service)
-				log.Print("svcHandler.UpdateFunc:", old, curSvc)
+				ingc.log.Debug("svcHandler.UpdateFunc:", old,
+					curSvc)
 
-				log.Printf("Service %v changed, syncing",
+				ingc.log.Infof("Service %v changed, syncing",
 					curSvc.Name)
 				if ingc.isVarnishAdmSvc(curSvc, namespace) {
 					ingc.syncQueue.enqueue(curSvc)
@@ -227,50 +233,52 @@ func NewIngressController(kubeClient kubernetes.Interface,
 		cache.NewListWatchFromClient(ingc.client.Core().RESTClient(),
 			"services", namespace, fields.Everything()),
 		&api_v1.Service{}, resyncPeriod, svcHandlers)
-	log.Print("ingc.svcLister.Store:", ingc.svcLister)
-	log.Print("ingc.svcController:", ingc.svcController)
+	ingc.log.Debug("ingc.svcLister.Store:", ingc.svcLister)
+	ingc.log.Debug("ingc.svcController:", ingc.svcController)
 
 	endpHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addEndp := obj.(*api_v1.Endpoints)
-			log.Print("endpHandler.AddFunc:", addEndp)
-			log.Print("Adding endpoints:", addEndp.Name)
+			ingc.log.Debug("endpHandler.AddFunc:", addEndp)
+			ingc.log.Info("Adding endpoints:", addEndp.Name)
 			ingc.syncQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remEndp, isEndp := obj.(*api_v1.Endpoints)
-			log.Print("endpHandler.DeleteFunc:", remEndp, isEndp)
+			ingc.log.Debug("endpHandler.DeleteFunc:", remEndp,
+				isEndp)
 			if !isEndp {
 				deletedState, ok :=
 					obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					log.Print("Error received unexpected "+
+					ingc.log.Error("Received unexpected "+
 						"object:", obj)
 					return
 				}
 				remEndp, ok =
 					deletedState.Obj.(*api_v1.Endpoints)
 				if !ok {
-					log.Print("Error "+
+					ingc.log.Error(
 						"DeletedFinalStateUnknown "+
-						"contained non-Endpoints "+
-						"object:", deletedState.Obj)
+							"contained "+
+							"non-Endpoints object:",
+						deletedState.Obj)
 					return
 				}
 			}
-			log.Print("Removing endpoints:", remEndp.Name)
+			ingc.log.Info("Removing endpoints:", remEndp.Name)
 			ingc.syncQueue.enqueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
-			log.Print("endpHandler.UpdateFunc:", old, cur)
+			ingc.log.Debug("endpHandler.UpdateFunc:", old, cur)
 			oldEps := old.(*api_v1.Endpoints)
 			curEps := cur.(*api_v1.Endpoints)
 			if !reflect.DeepEqual(oldEps.Subsets, curEps.Subsets) {
-				log.Printf("Endpoints %v changed, syncing",
+				ingc.log.Infof("Endpoints %v changed, syncing",
 					cur.(*api_v1.Endpoints).Name)
 				ingc.syncQueue.enqueue(cur)
 			} else {
-				log.Print("Update Endpoints: No change")
+				ingc.log.Info("Update Endpoints: No change")
 			}
 		},
 	}
@@ -282,51 +290,55 @@ func NewIngressController(kubeClient kubernetes.Interface,
 	secrHandlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			secr := obj.(*api_v1.Secret)
-			log.Print("secrHandler.AddFunc:", secr)
+			ingc.log.Debug("secrHandler.AddFunc:", secr)
 			if !ingc.isAdminSecret(secr) {
-				log.Printf("Ignoring Secret %v", secr.Name)
+				ingc.log.Infof("Ignoring Secret %v", secr.Name)
 				return
 			}
-			log.Printf("Adding Secret: %v", secr.Name)
+			ingc.log.Infof("Adding Secret: %v", secr.Name)
 			ingc.syncQueue.enqueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			remSecr, isSecr := obj.(*api_v1.Secret)
-			log.Print("secrHandler.DeleteFunc:", remSecr, isSecr)
+			ingc.log.Debug("secrHandler.DeleteFunc:", remSecr,
+				isSecr)
 			if !isSecr {
 				deletedState, ok := obj.(cache.
 					DeletedFinalStateUnknown)
 				if !ok {
-					log.Printf("Error received unexpected "+
+					ingc.log.Errorf("Received unexpected "+
 						"object: %v", obj)
 					return
 				}
 				remSecr, ok = deletedState.Obj.(*api_v1.Secret)
 				if !ok {
-					log.Printf("Error "+
+					ingc.log.Errorf(
 						"DeletedFinalStateUnknown "+
-						"contained non-Secret object: "+
-						"%v", deletedState.Obj)
+							"contained non-Secret"+
+							" object: "+
+							"%v", deletedState.Obj)
 					return
 				}
 			}
 
 			if !ingc.isAdminSecret(remSecr) {
-				log.Printf("Ignoring Secret %v", remSecr.Name)
+				ingc.log.Infof("Ignoring Secret %v",
+					remSecr.Name)
 				return
 			}
-			log.Printf("Removing Secret: %v", remSecr.Name)
+			ingc.log.Infof("Removing Secret: %v", remSecr.Name)
 			ingc.syncQueue.enqueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
-			log.Print("endpHandler.UpdateFunc:", old, cur)
+			ingc.log.Debug("endpHandler.UpdateFunc:", old, cur)
 			curSecr := cur.(*api_v1.Secret)
 			if !ingc.isAdminSecret(curSecr) {
-				log.Printf("Ignoring Secret %v", curSecr.Name)
+				ingc.log.Infof("Ignoring Secret %v",
+					curSecr.Name)
 				return
 			}
 			if !reflect.DeepEqual(old, cur) {
-				log.Printf("Secret %v changed, syncing",
+				ingc.log.Infof("Secret %v changed, syncing",
 					cur.(*api_v1.Secret).Name)
 				ingc.syncQueue.enqueue(cur)
 			}
@@ -369,7 +381,7 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 	ing extensions.Ingress) {
 
 	key := ing.ObjectMeta.Namespace + "/" + ing.ObjectMeta.Name
-	log.Printf("Adding or Updating Ingress: %v\n", key)
+	ingc.log.Infof("Adding or Updating Ingress: %v\n", key)
 
 	vclSpec, err := ingc.ing2VCLSpec(&ing)
 	if err != nil {
@@ -393,7 +405,7 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 
 func (ingc *IngressController) syncEndp(task Task) {
 	key := task.Key
-	log.Print("Syncing endpoints:", key)
+	ingc.log.Info("Syncing endpoints:", key)
 
 	obj, endpExists, err := ingc.endpLister.GetByKey(key)
 	if err != nil {
@@ -417,7 +429,7 @@ func (ingc *IngressController) syncEndp(task Task) {
 }
 
 func (ingc *IngressController) sync(task Task) {
-	log.Printf("Syncing %v", task.Key)
+	ingc.log.Infof("Syncing %v", task.Key)
 
 	switch task.Kind {
 	case Ingress:
@@ -443,11 +455,11 @@ func (ingc *IngressController) syncIng(task Task) {
 	}
 
 	if !ingExists {
-		log.Print("Deleting Ingress:", key)
+		ingc.log.Info("Deleting Ingress:", key)
 
 		err := ingc.vController.DeleteIngress(key)
 		if err != nil {
-			log.Printf("Error deleting configuration for %v: %v",
+			ingc.log.Errorf("Deleting configuration for %v: %v",
 				key, err)
 		}
 		return
@@ -471,7 +483,7 @@ func (ingc *IngressController) enqueueIngressForService(svc *api_v1.Service) {
 func (ingc *IngressController) getIngForSvc(svc *api_v1.Service) []extensions.Ingress {
 	ings, err := ingc.ingLister.GetServiceIngress(svc)
 	if err != nil {
-		log.Printf("ignoring service %v: %v", svc.Name, err)
+		ingc.log.Infof("ignoring service %v: %v", svc.Name, err)
 		return nil
 	}
 	return ings
@@ -483,8 +495,8 @@ func (ingc *IngressController) getIngForEndp(obj interface{}) []extensions.Ingre
 	svcKey := endp.GetNamespace() + "/" + endp.GetName()
 	svcObj, svcExists, err := ingc.svcLister.GetByKey(svcKey)
 	if err != nil {
-		log.Printf("error getting service %v from the cache: %v",
-			svcKey, err)
+		ingc.log.Errorf("Getting service %v from the cache: %v", svcKey,
+			err)
 	} else {
 		if svcExists {
 			ings = append(ings,
@@ -498,7 +510,7 @@ func (ingc *IngressController) ing2VCLSpec(ing *extensions.Ingress) (vcl.Spec, e
 	vclSpec := vcl.Spec{}
 	vclSpec.AllServices = make(map[string]vcl.Service)
 	if ing.Spec.TLS != nil && len(ing.Spec.TLS) > 0 {
-		log.Printf("TLS config currently ignored in Ingress %s",
+		ingc.log.Warnf("TLS config currently ignored in Ingress %s",
 			ing.ObjectMeta.Name)
 	}
 	if ing.Spec.Backend != nil {
@@ -654,10 +666,10 @@ func (ingc *IngressController) syncSvc(task Task) {
 	}
 
 	if !exists {
-		log.Print("Deleting Service:", key)
+		ingc.log.Info("Deleting Service:", key)
 		err := ingc.vController.DeleteVarnishSvc(key)
 		if err != nil {
-			log.Printf("Error deleting configuration for %v: %v",
+			ingc.log.Errorf("Deleting configuration for %v: %v",
 				key, err)
 		}
 		return
@@ -716,19 +728,19 @@ func (ingc *IngressController) syncSecret(task Task) {
 	}
 
 	if !exists {
-		log.Print("Deleting Secret:", key)
+		ingc.log.Info("Deleting Secret:", key)
 		ingc.vController.DeleteAdmSecret()
 		return
 	}
 
 	secret, exists := obj.(*api_v1.Secret)
 	if !exists {
-		log.Printf("Error: Not a Secret: %v", obj)
+		ingc.log.Errorf("Not a Secret: %v", obj)
 		return
 	}
 	secretData, exists := secret.Data[admSecretKey]
 	if !exists {
-		log.Printf("Error: Secret %v does not have key %s", secret.Name,
+		ingc.log.Errorf("Secret %v does not have key %s", secret.Name,
 			admSecretKey)
 		return
 	}
