@@ -179,7 +179,7 @@ Among these restrictions are:
 
 * ``-a`` CAN be set to define more listener ports for regular HTTP
   client traffic; to be useful, these must be declared in the
-  ``ports`` specification (as with the port named ''http`` in the
+  ``ports`` specification (as with the port named ``http`` in the
   example above). The listener name ``vk8s`` MAY NOT be used (it is
   reserved for the listener used for readiness checks, declared as
   ``k8sport`` above).
