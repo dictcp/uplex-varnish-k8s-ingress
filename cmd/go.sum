@@ -1,5 +1,11 @@
 code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181129154850-be0a7893ac92 h1:KBZnpstNIE+yoIx/qZy0Udl0Qwg9Qlj1eY70sIvhjLM=
 code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181129154850-be0a7893ac92/go.mod h1:J0znUDkk1j5lNWKZZ6zfISZWbA2fXvsxCM+FpDUxG9g=
+code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181205203203-20054d30408c h1:dDnkldbKT9fxuJrfEbG40ydbS/Q30oH7cvDpzwJkXoQ=
+code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181205203203-20054d30408c/go.mod h1:J0znUDkk1j5lNWKZZ6zfISZWbA2fXvsxCM+FpDUxG9g=
+code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181205221923-190a386386bc h1:fv3y7B7zaVH561OpjJgqDFAy1rINt7Xa8WhIlN8ZOU4=
+code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181205221923-190a386386bc/go.mod h1:J0znUDkk1j5lNWKZZ6zfISZWbA2fXvsxCM+FpDUxG9g=
+code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181205222454-e67a0f88a279 h1:8REUMrx0zvzsAZ/zKSsRrhYbftLSNQ0v2AYZljJqvcY=
+code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181205222454-e67a0f88a279/go.mod h1:J0znUDkk1j5lNWKZZ6zfISZWbA2fXvsxCM+FpDUxG9g=
 github.com/PuerkitoBio/purell v1.1.0 h1:rmGxhojJlM0tuKtfdvliR84CFHljx9ag64t2xmVkjK4=
 github.com/PuerkitoBio/purell v1.1.0/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 h1:d+Bc7a5rLufV/sSk/8dngufqelfh6jnri85riMAaF/M=

@@ -1,7 +1,7 @@
 module code.uplex.de/uplex-varnish/k8s-ingress/cmd
 
 require (
-	code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181129154850-be0a7893ac92
+	code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181205222454-e67a0f88a279
 	github.com/emicklei/go-restful v2.8.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-openapi/spec v0.17.2 // indirect

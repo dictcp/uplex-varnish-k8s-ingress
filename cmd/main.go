@@ -147,7 +147,6 @@ func handleTermination(log *logrus.Logger, ingc *controller.IngressController,
 	if !exited {
 		log.Info("Shutting down Varnish")
 		vc.Quit()
-		<-varnishDone
 	}
 
 	log.Info("Exiting with a status:", exitStatus)

@@ -381,7 +381,7 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 	ing extensions.Ingress) {
 
 	key := ing.ObjectMeta.Namespace + "/" + ing.ObjectMeta.Name
-	ingc.log.Infof("Adding or Updating Ingress: %v\n", key)
+	ingc.log.Infof("Adding or Updating Ingress: %v", key)
 
 	vclSpec, err := ingc.ing2VCLSpec(&ing)
 	if err != nil {
@@ -392,6 +392,8 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 		return
 	}
 
+	ingc.log.Debugf("Update Ingress key=%s uuid=%s: %+v", key,
+		string(ing.ObjectMeta.UID), vclSpec)
 	err = ingc.vController.Update(key, string(ing.ObjectMeta.UID), vclSpec)
 	if err != nil {
 		// XXX as above
@@ -400,6 +402,9 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 			"AddedOrUpdatedWithError",
 			"Configuration for %v was added or updated, but not "+
 				"applied: %v", key, err)
+	} else {
+		ingc.log.Debugf("Updated Ingress key=%s uuid=%s: %+v", key,
+			string(ing.ObjectMeta.UID), vclSpec)
 	}
 }
 

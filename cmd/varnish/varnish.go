@@ -101,8 +101,8 @@ type vclSpec struct {
 }
 
 type varnishSvc struct {
-	addr string
-	adm  *admin.Admin
+	addr   string
+	Banner string
 }
 
 type VarnishController struct {
@@ -124,6 +124,7 @@ func (vc *VarnishController) Start(errChan chan error) {
 	// XXX start a goroutine to ping etc and discard old VCL instances
 	vc.errChan = errChan
 	vc.log.Info("Starting Varnish controller")
+	fmt.Printf("Varnish controller logging at level: %s\n", vc.log.Level)
 }
 
 func (vc *VarnishController) getSrc() (string, error) {
@@ -136,23 +137,6 @@ func (vc *VarnishController) getSrc() (string, error) {
 
 func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 	var errs VarnishAdmErrors
-
-	for _, svc := range svcs {
-		var err error
-
-		if svc.adm != nil {
-			continue
-		}
-		svc.adm, err = admin.Dial(svc.addr, vc.admSecret, admTimeout)
-		if err != nil {
-			admErr := VarnishAdmError{addr: svc.addr, err: err}
-			errs = append(errs, admErr)
-			svc.adm = nil
-			continue
-		}
-		vc.log.Infof("Connected to Varnish admin endpoint at %s",
-			svc.addr)
-	}
 
 	if vc.spec == nil {
 		vc.log.Info("Update Varnish instances: Currently no Ingress " +
@@ -171,33 +155,97 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 
 	vc.log.Infof("Update Varnish instances: load config %s", cfgName)
 	for _, svc := range svcs {
-		err = svc.adm.VCLInline(cfgName, vclSrc)
+		vc.log.Debugf("Connect to %s, timeout=%v", svc.addr, admTimeout)
+		adm, err := admin.Dial(svc.addr, vc.admSecret, admTimeout)
 		if err != nil {
 			admErr := VarnishAdmError{addr: svc.addr, err: err}
 			errs = append(errs, admErr)
 			continue
 		}
-		vc.log.Infof("Loaded config %s at Varnish endpoint %s", cfgName,
+		defer adm.Close()
+		svc.Banner = adm.Banner
+		vc.log.Infof("Connected to Varnish admin endpoint at %s",
 			svc.addr)
 
-		err = svc.adm.VCLLabel(regularLabel, cfgName)
+		loaded, labelled, ready := false, false, false
+		vc.log.Debugf("List VCLs at %s", svc.addr)
+		vcls, err := adm.VCLList()
 		if err != nil {
 			admErr := VarnishAdmError{addr: svc.addr, err: err}
 			errs = append(errs, admErr)
 			continue
 		}
-		vc.log.Infof("Labeled config %s as %s at Varnish endpoint %s",
-			cfgName, regularLabel, svc.addr)
-
-		err = svc.adm.VCLLabel(readinessLabel, readyCfg)
-		if err != nil {
-			admErr := VarnishAdmError{addr: svc.addr, err: err}
-			errs = append(errs, admErr)
-			continue
+		vc.log.Debugf("VCL List at %s: %+v", svc.addr, vcls)
+		for _, vcl := range vcls {
+			if vcl.Name == cfgName {
+				loaded = true
+			}
+			if vcl.LabelVCL == cfgName &&
+				vcl.Name == regularLabel {
+				labelled = true
+			}
+			if vcl.LabelVCL == readyCfg &&
+				vcl.Name == readinessLabel {
+				ready = true
+			}
 		}
-		vc.log.Infof("Labeled config %s as %s at Varnish endpoint %s",
-			readyCfg, readinessLabel, svc.addr)
 
+		if loaded {
+			vc.log.Infof("Config %s already loaded at instance %s",
+				cfgName, svc.addr)
+		} else {
+			vc.log.Debugf("Load config %s at %s", cfgName, svc.addr)
+			err = adm.VCLInline(cfgName, vclSrc)
+			if err != nil {
+				admErr := VarnishAdmError{
+					addr: svc.addr,
+					err:  err,
+				}
+				errs = append(errs, admErr)
+				continue
+			}
+			vc.log.Infof("Loaded config %s at Varnish endpoint %s",
+				cfgName, svc.addr)
+		}
+
+		if labelled {
+			vc.log.Infof("Config %s already labelled as regular "+
+				"at %s", cfgName, svc.addr)
+		} else {
+			vc.log.Debugf("Label config %s as %s at %s", cfgName,
+				regularLabel, svc.addr)
+			err = adm.VCLLabel(regularLabel, cfgName)
+			if err != nil {
+				admErr := VarnishAdmError{
+					addr: svc.addr,
+					err:  err,
+				}
+				errs = append(errs, admErr)
+				continue
+			}
+			vc.log.Infof("Labeled config %s as %s at Varnish "+
+				"endpoint %s", cfgName, regularLabel, svc.addr)
+		}
+
+		if ready {
+			vc.log.Infof("Config %s already labelled as ready "+
+				"at %s", readyCfg, svc.addr)
+		} else {
+			vc.log.Debugf("Label config %s as %s at %s", readyCfg,
+				readinessLabel, svc.addr)
+			err = adm.VCLLabel(readinessLabel, readyCfg)
+			if err != nil {
+				admErr := VarnishAdmError{
+					addr: svc.addr,
+					err:  err,
+				}
+				errs = append(errs, admErr)
+				continue
+			}
+			vc.log.Infof("Labeled config %s as %s at Varnish "+
+				"endpoint %s", readyCfg, readinessLabel,
+				svc.addr)
+		}
 	}
 	if len(errs) == 0 {
 		return nil
@@ -221,20 +269,27 @@ func (vc *VarnishController) removeVarnishInstances(svcs []*varnishSvc) error {
 	var errs VarnishAdmErrors
 
 	for _, svc := range svcs {
-		if svc.adm == nil {
+		vc.log.Debugf("Connect to %s, timeout=%v", svc.addr, admTimeout)
+		adm, err := admin.Dial(svc.addr, vc.admSecret, admTimeout)
+		if err != nil {
+			// This is not considered an error -- the Varnish
+			// instance may have already shut down.
+			vc.log.Warnf("Could not connect to %s: %v", svc.addr,
+				err)
 			continue
 		}
-		if err := svc.adm.VCLLabel(readinessLabel, notAvailCfg); err != nil {
+		defer adm.Close()
+		svc.Banner = adm.Banner
+		vc.log.Infof("Connected to Varnish admin endpoint at %s",
+			svc.addr)
+
+		if err := adm.VCLLabel(readinessLabel, notAvailCfg); err != nil {
 			if err == io.EOF {
 				continue
 			}
 			admErr := VarnishAdmError{addr: svc.addr, err: err}
 			errs = append(errs, admErr)
 			continue
-		}
-		if err := svc.adm.Close(); err != nil {
-			admErr := VarnishAdmError{addr: svc.addr, err: err}
-			errs = append(errs, admErr)
 		}
 	}
 	if len(errs) == 0 {
@@ -276,10 +331,21 @@ func (vc *VarnishController) updateVarnishSvc(key string,
 	vc.varnishSvcs[key] = append(keepSvcs, newSvcs...)
 
 	for _, svc := range remSvcs {
-		if svc.adm == nil {
+		vc.log.Debugf("Connect to %s, timeout=%v", svc.addr, admTimeout)
+		adm, err := admin.Dial(svc.addr, vc.admSecret, admTimeout)
+		if err != nil {
+			// This is not considered an error -- the Varnish
+			// instance may have already shut down.
+			vc.log.Warnf("Could not connect to %s: %v", svc.addr,
+				err)
 			continue
 		}
-		if err := svc.adm.VCLLabel(readinessLabel, notAvailCfg); err != nil {
+		defer adm.Close()
+		svc.Banner = adm.Banner
+		vc.log.Infof("Connected to Varnish admin endpoint at %s",
+			svc.addr)
+
+		if err := adm.VCLLabel(readinessLabel, notAvailCfg); err != nil {
 			if err == io.EOF {
 				continue
 			}
@@ -368,10 +434,24 @@ func (vc *VarnishController) DeleteIngress(key string) error {
 	var errs VarnishAdmErrors
 	for _, svcs := range vc.varnishSvcs {
 		for _, svc := range svcs {
-			if svc.adm == nil {
+			vc.log.Debugf("Connect to %s, timeout=%v", svc.addr,
+				admTimeout)
+			adm, err := admin.Dial(svc.addr, vc.admSecret,
+				admTimeout)
+			if err != nil {
+				admErr := VarnishAdmError{
+					addr: svc.addr,
+					err:  err,
+				}
+				errs = append(errs, admErr)
 				continue
 			}
-			if err := svc.adm.VCLLabel(regularLabel, notAvailCfg); err != nil {
+			defer adm.Close()
+			svc.Banner = adm.Banner
+			vc.log.Infof("Connected to Varnish admin endpoint at "+
+				"%s", svc.addr)
+
+			if err := adm.VCLLabel(regularLabel, notAvailCfg); err != nil {
 				admErr := VarnishAdmError{
 					addr: svc.addr,
 					err:  err,
@@ -409,19 +489,5 @@ func (vc *VarnishController) DeleteAdmSecret() {
 }
 
 func (vc *VarnishController) Quit() {
-	for _, svcs := range vc.varnishSvcs {
-		for _, svc := range svcs {
-			if svc.adm == nil {
-				continue
-			}
-			if err := svc.adm.Close(); err != nil {
-				vc.log.Errorf("Failed to close admin "+
-					"connection at Varnish endpoint %s: %v",
-					svc.addr, err)
-				continue
-			}
-			vc.log.Infof("Closed admin connection at Varinsh "+
-				"endpoint %s", svc.addr)
-		}
-	}
+	vc.errChan <- nil
 }
