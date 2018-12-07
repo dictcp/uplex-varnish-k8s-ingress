@@ -37,7 +37,7 @@ deployment.
 
 ## Varnish image
 
-The Varnish image currently runs Varnish version 6.0.1. The image runs
+The Varnish image currently runs Varnish version 6.1.1. The image runs
 Varnish in the foreground as its entry point (``varnishd -F``, see
 [``varnishd(1)``](https://varnish-cache.org/docs/6.0/reference/varnishd.html));
 so the image runs the Varnish master process as PID 1, which in turn
