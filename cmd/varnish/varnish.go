@@ -303,8 +303,8 @@ func (vc *VarnishController) updateVarnishSvc(key string,
 
 	var errs VarnishAdmErrors
 	var newSvcs, remSvcs, keepSvcs []*varnishSvc
-	var updateAddrs map[string]struct{}
-	var prevAddrs map[string]*varnishSvc
+	updateAddrs := make(map[string]struct{})
+	prevAddrs := make(map[string]*varnishSvc)
 
 	for _, addr := range addrs {
 		key := addr.IP + ":" + strconv.Itoa(int(addr.Port))
