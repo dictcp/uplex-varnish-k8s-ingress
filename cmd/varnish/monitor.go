@@ -30,9 +30,6 @@
 * VCL housekeeping
   * either discard the previously active VCL immediately on new vcl.use
   * or periodically clean up
-
-* monitoring
-  * periodically call ping, status, panic.show when otherwise idle
 */
 
 package varnish
@@ -72,7 +69,18 @@ func (vc *VarnishController) checkInst(inst *varnishSvc) {
 	}
 	vc.log.Infof("Status at %s: %s", inst.addr, state)
 
-	// XXX panic.show
+	panic, err := adm.GetPanic()
+	if err != nil {
+		vc.log.Error("Error getting panic at %s: %v", inst.addr, err)
+		return
+	}
+	if panic == "" {
+		vc.log.Infof("No panic at %s", inst.addr)
+	} else {
+		vc.log.Warnf("Panic at %s: %s", inst.addr, panic)
+		// XXX clear the panic? Should be configurable
+	}
+
 	// XXX discard cold & unlabelled ingress configs
 }
 
