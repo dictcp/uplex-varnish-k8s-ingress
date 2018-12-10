@@ -431,10 +431,10 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 	}
 
 	ingc.log.Debugf("Check if Ingress is loaded: key=%s uuid=%s hash=%0x",
-		key, string(ing.UID), vclSpec.Canonical.DeepHash())
+		key, string(ing.UID), vclSpec.Canonical().DeepHash())
 	if ingc.hasIngress(&ing, vclSpec) {
 		ingc.log.Infof("Ingress %s uid=%s hash=%0x already loaded", key,
-			ing.UID, vclSpec.Canonical.DeepHash())
+			ing.UID, vclSpec.Canonical().DeepHash())
 		return
 	}
 	ingc.log.Debugf("Update Ingress key=%s uuid=%s: %+v", key,
