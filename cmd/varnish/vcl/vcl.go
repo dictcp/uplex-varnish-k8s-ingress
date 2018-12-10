@@ -120,9 +120,16 @@ func (spec Spec) DeepHash() uint64 {
 	for _, rule := range spec.Rules {
 		rule.hash(hash)
 	}
-	for k, v := range spec.AllServices {
-		hash.Write([]byte(k))
-		v.hash(hash)
+	svcs := make([]string, len(spec.AllServices))
+	i := 0
+	for k := range spec.AllServices {
+		svcs[i] = k
+		i++
+	}
+	sort.Strings(svcs)
+	for _, svc := range svcs {
+		hash.Write([]byte(svc))
+		spec.AllServices[svc].hash(hash)
 	}
 	return hash.Sum64()
 }
