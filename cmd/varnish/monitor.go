@@ -26,15 +26,10 @@
  * SUCH DAMAGE.
  */
 
-/*
-* VCL housekeeping
-  * either discard the previously active VCL immediately on new vcl.use
-  * or periodically clean up
-*/
-
 package varnish
 
 import (
+	"strings"
 	"time"
 
 	"code.uplex.de/uplex-varnish/varnishapi/pkg/admin"
@@ -81,7 +76,23 @@ func (vc *VarnishController) checkInst(inst *varnishSvc) {
 		// XXX clear the panic? Should be configurable
 	}
 
-	// XXX discard cold & unlabelled ingress configs
+	vcls, err := adm.VCLList()
+	if err != nil {
+		vc.log.Error("Error getting VCL list at %s: %v", inst.addr, err)
+		return
+	}
+	for _, vcl := range vcls {
+		if strings.HasPrefix(vcl.Name, ingressPrefix) &&
+			vcl.State == admin.ColdState {
+			if err = adm.VCLDiscard(vcl.Name); err != nil {
+				vc.log.Errorf("Error discarding VCL %s at %s: "+
+					"%v", vcl.Name, inst.addr, err)
+				return
+			}
+			vc.log.Infof("Discarded VCL %s at %s", vcl.Name,
+				inst.addr)
+		}
+	}
 }
 
 func (vc *VarnishController) monitor() {

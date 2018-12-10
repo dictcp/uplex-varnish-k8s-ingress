@@ -26,16 +26,6 @@
  * SUCH DAMAGE.
  */
 
-/*
-// TODO
-* VCL housekeeping
-  * either discard the previously active VCL immediately on new vcl.use
-  * or periodically clean up
-
-* monitoring
-  * periodically call ping, status, panic.show when otherwise idle
-*/
-
 package varnish
 
 import (
