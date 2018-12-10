@@ -29,8 +29,12 @@
 package vcl
 
 import (
+	"encoding/binary"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"regexp"
+	"sort"
 	"text/template"
 )
 
@@ -39,20 +43,110 @@ type Address struct {
 	Port int32
 }
 
+func (addr Address) hash(hash hash.Hash) {
+	portBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(portBytes, uint32(addr.Port))
+	hash.Write([]byte(addr.IP))
+	hash.Write(portBytes)
+}
+
+// interface for sorting []Address
+type ByIPPort []Address
+
+func (a ByIPPort) Len() int      { return len(a) }
+func (a ByIPPort) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByIPPort) Less(i, j int) bool {
+	if a[i].IP < a[j].IP {
+		return true
+	}
+	return a[i].Port < a[j].Port
+}
+
 type Service struct {
 	Name      string
 	Addresses []Address
 }
+
+func (svc Service) hash(hash hash.Hash) {
+	hash.Write([]byte(svc.Name))
+	for _, addr := range svc.Addresses {
+		addr.hash(hash)
+	}
+}
+
+// interface for sorting []Service
+type ByName []Service
+
+func (a ByName) Len() int           { return len(a) }
+func (a ByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
 type Rule struct {
 	Host    string
 	PathMap map[string]Service
 }
 
+func (rule Rule) hash(hash hash.Hash) {
+	hash.Write([]byte(rule.Host))
+	paths := make([]string, len(rule.PathMap))
+	i := 0
+	for k := range rule.PathMap {
+		paths[i] = k
+		i++
+	}
+	sort.Strings(paths)
+	for _, p := range paths {
+		hash.Write([]byte(p))
+		rule.PathMap[p].hash(hash)
+	}
+}
+
+// interface for sorting []Rule
+type ByHost []Rule
+
+func (a ByHost) Len() int           { return len(a) }
+func (a ByHost) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByHost) Less(i, j int) bool { return a[i].Host < a[j].Host }
+
 type Spec struct {
 	DefaultService Service
 	Rules          []Rule
 	AllServices    map[string]Service
+}
+
+func (spec Spec) DeepHash() uint64 {
+	hash := fnv.New64a()
+	spec.DefaultService.hash(hash)
+	for _, rule := range spec.Rules {
+		rule.hash(hash)
+	}
+	for k, v := range spec.AllServices {
+		hash.Write([]byte(k))
+		v.hash(hash)
+	}
+	return hash.Sum64()
+}
+
+func (spec Spec) Canonical() Spec {
+	canon := Spec{
+		DefaultService: Service{Name: spec.DefaultService.Name},
+		Rules:          make([]Rule, len(spec.Rules)),
+		AllServices:    make(map[string]Service, len(spec.AllServices)),
+	}
+	copy(canon.DefaultService.Addresses, spec.DefaultService.Addresses)
+	sort.Stable(ByIPPort(canon.DefaultService.Addresses))
+	copy(canon.Rules, spec.Rules)
+	sort.Stable(ByHost(canon.Rules))
+	for _, rule := range canon.Rules {
+		for _, svc := range rule.PathMap {
+			sort.Stable(ByIPPort(svc.Addresses))
+		}
+	}
+	for name, svcs := range spec.AllServices {
+		canon.AllServices[name] = svcs
+		sort.Stable(ByIPPort(canon.AllServices[name].Addresses))
+	}
+	return canon
 }
 
 var fMap = template.FuncMap{

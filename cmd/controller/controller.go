@@ -430,6 +430,13 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 		return
 	}
 
+	ingc.log.Debugf("Check if Ingress is loaded: key=%s uuid=%s hash=%0x",
+		key, string(ing.UID), vclSpec.Canonical.DeepHash())
+	if ingc.hasIngress(&ing, vclSpec) {
+		ingc.log.Infof("Ingress %s uid=%s hash=%0x already loaded", key,
+			ing.UID, vclSpec.Canonical.DeepHash())
+		return
+	}
 	ingc.log.Debugf("Update Ingress key=%s uuid=%s: %+v", key,
 		string(ing.ObjectMeta.UID), vclSpec)
 	err = ingc.vController.Update(key, string(ing.ObjectMeta.UID), vclSpec)
@@ -457,13 +464,19 @@ func (ingc *IngressController) syncEndp(task Task) {
 	}
 
 	if endpExists {
+		ingc.log.Debug("Checking ingresses for endpoints:", key)
 		ings := ingc.getIngForEndp(obj)
 
+		if len(ings) == 0 {
+			ingc.log.Debug("No ingresses for endpoints:", key)
+			return
+		}
+
+		ingc.log.Debugf("Update ingresses for endpoints %s", key)
 		for _, ing := range ings {
 			if !ingc.isVarnishIngress(&ing) {
-				continue
-			}
-			if !ingc.hasIngress(&ing) {
+				ingc.log.Debugf("Ingress %s/%s: not Varnish",
+					ing.Namespace, ing.Name)
 				continue
 			}
 			ingc.addOrUpdateIng(task, ing)
@@ -515,9 +528,6 @@ func (ingc *IngressController) enqueueIngressForService(svc *api_v1.Service) {
 	ings := ingc.getIngForSvc(svc)
 	for _, ing := range ings {
 		if !ingc.isVarnishIngress(&ing) {
-			continue
-		}
-		if !ingc.hasIngress(&ing) {
 			continue
 		}
 		ingc.syncQueue.enqueue(&ing)
@@ -811,9 +821,11 @@ func (ingc *IngressController) isVarnishIngress(ing *extensions.Ingress) bool {
 	return true
 }
 
-func (ingc *IngressController) hasIngress(ing *extensions.Ingress) bool {
+func (ingc *IngressController) hasIngress(ing *extensions.Ingress,
+	spec vcl.Spec) bool {
+
 	name := ing.ObjectMeta.Namespace + "/" + ing.ObjectMeta.Name
-	return ingc.vController.HasIngress(name)
+	return ingc.vController.HasIngress(name, string(ing.UID), spec)
 }
 
 // isVarnishAdmSvc determines if a Service represents the admin

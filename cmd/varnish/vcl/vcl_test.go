@@ -65,6 +65,24 @@ var coffeeSvc = Service{
 	},
 }
 
+var coffeeSvc3 = Service{
+	Name: "coffee-svc",
+	Addresses: []Address{
+		{
+			IP:   "192.0.2.4",
+			Port: 80,
+		},
+		{
+			IP:   "192.0.2.5",
+			Port: 80,
+		},
+		{
+			IP:   "192.0.2.6",
+			Port: 80,
+		},
+	},
+}
+
 var cafeSpec = Spec{
 	DefaultService: Service{},
 	Rules: []Rule{{
@@ -80,10 +98,35 @@ var cafeSpec = Spec{
 	},
 }
 
+var cafeSpec2 = Spec{
+	DefaultService: Service{},
+	Rules: []Rule{{
+		Host: "cafe.example.com",
+		PathMap: map[string]Service{
+			"/tea":    teaSvc,
+			"/coffee": coffeeSvc3,
+		},
+	}},
+	AllServices: map[string]Service{
+		"tea-svc":    teaSvc,
+		"coffee-svc": coffeeSvc3,
+	},
+}
+
 func TestTemplate(t *testing.T) {
 	var buf bytes.Buffer
 	if err := Tmpl.Execute(&buf, cafeSpec); err != nil {
 		t.Error("Execute():", err)
 	}
 	t.Log(string(buf.Bytes()))
+}
+
+func TestDeepHash(t *testing.T) {
+	t.Log("cafeSpec.DeepHash():", cafeSpec.DeepHash())
+	t.Log("cafeSpec2.DeepHash():", cafeSpec2.DeepHash())
+	if cafeSpec.DeepHash() == cafeSpec2.DeepHash() {
+		t.Errorf("Distinct specs with different hashes: spec1=%+v "+
+			"spec2=%+v hash=%0x", cafeSpec, cafeSpec2,
+			cafeSpec.DeepHash())
+	}
 }

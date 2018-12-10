@@ -42,6 +42,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -59,6 +60,7 @@ const (
 	readinessLabel = "vk8s_readiness"
 	readyCfg       = "vk8s_ready"
 	notAvailCfg    = "vk8s_notavailable"
+	ingressPrefix  = "vk8s_ing_"
 )
 
 // XXX make admTimeout configurable
@@ -66,11 +68,6 @@ var (
 	nonAlNum   = regexp.MustCompile("[^[:alnum:]]+")
 	admTimeout = time.Second * 10
 )
-
-func vclConfigName(key string, uid string) string {
-	name := "vk8sing_" + key + "_" + uid
-	return nonAlNum.ReplaceAllLiteralString(name, "_")
-}
 
 type VarnishAdmError struct {
 	addr string
@@ -99,6 +96,12 @@ type vclSpec struct {
 	spec vcl.Spec
 	key  string
 	uid  string
+}
+
+func (spec vclSpec) configName() string {
+	name := fmt.Sprintf("%s%s_%s_%0x", ingressPrefix, spec.key, spec.uid,
+		spec.spec.Canonical().DeepHash())
+	return nonAlNum.ReplaceAllLiteralString(name, "_")
 }
 
 type varnishSvc struct {
@@ -228,7 +231,7 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 	if err != nil {
 		return err
 	}
-	cfgName := vclConfigName(vc.spec.key, vc.spec.uid)
+	cfgName := vc.spec.configName()
 
 	vc.log.Infof("Update Varnish instances: load config %s", cfgName)
 	var errs VarnishAdmErrors
@@ -398,6 +401,7 @@ func (vc *VarnishController) DeleteVarnishSvc(key string) error {
 }
 
 func (vc *VarnishController) Update(key, uid string, spec vcl.Spec) error {
+
 	if vc.spec != nil && vc.spec.key != "" && vc.spec.key != key {
 		return fmt.Errorf("Multiple Ingress definitions currently not "+
 			"supported: current=%s new=%s", vc.spec.key, key)
@@ -456,11 +460,13 @@ func (vc *VarnishController) DeleteIngress(key string) error {
 }
 
 // Currently only one Ingress at a time
-func (vc *VarnishController) HasIngress(key string) bool {
+func (vc *VarnishController) HasIngress(key, uid string, spec vcl.Spec) bool {
 	if vc.spec == nil {
 		return false
 	}
-	return vc.spec.key == key
+	return vc.spec.key == key &&
+		vc.spec.uid == uid &&
+		reflect.DeepEqual(vc.spec.spec.Canonical(), spec.Canonical())
 }
 
 func (vc *VarnishController) SetAdmSecret(secret []byte) {
