@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"text/template"
 )
 
 var teaSvc = Service{
@@ -214,4 +215,59 @@ func TestCanoncial(t *testing.T) {
 			t.Logf("spec2 hash: %0x", canonShuf.DeepHash())
 		}
 	}
+}
+
+var varnishCluster = struct{
+	ClusterNodes []Service
+}{
+	ClusterNodes: []Service{
+		Service{
+			Name: "varnish-8445d4f7f-z2b9p",
+			Addresses: []Address{
+				{"172.17.0.12", 80},
+			},
+		},
+		Service{
+			Name: "varnish-8445d4f7f-k22dn",
+			Addresses: []Address{
+				{"172.17.0.13", 80},
+			},
+		},
+		Service{
+			Name: "varnish-8445d4f7f-ldljf",
+			Addresses: []Address{
+				{"172.17.0.14", 80},
+			},
+		},
+	},
+}
+
+func TestShardTemplate(t *testing.T) {
+	var buf bytes.Buffer
+
+	tmpl, err := template.New("self-shard.tmpl").Funcs(fMap).
+		ParseFiles("self-shard.tmpl")
+	if err != nil {
+		t.Error("Cannot parse shard template:", err)
+		return
+	}
+	if err := tmpl.Execute(&buf, varnishCluster); err != nil {
+		t.Error("Execute():", err)
+		return
+	}
+	t.Log(buf.String())
+
+	// goldpath := filepath.Join("testdata", "ingressrule.golden")
+	// gold, err := ioutil.ReadFile(goldpath)
+	// if err != nil {
+	// 	t.Fatalf("Error reading %s: %v", goldpath, err)
+	// }
+	// if !bytes.Equal(buf.Bytes(), gold) {
+	// 	t.Errorf("Generated VCL for IngressSpec does not match gold "+
+	// 		"file: %s", goldpath)
+	// 	if testing.Verbose() {
+	// 		t.Log("Generated VCL:", string(buf.Bytes()))
+	// 		t.Log(goldpath, ":", string(gold))
+	// 	}
+	// }
 }
