@@ -1,0 +1,85 @@
+vcl 4.0;
+
+import std;
+import directors;
+import re2;
+
+backend notfound {
+	# 192.0.2.0/24 reserved for docs & examples (RFC5737).
+	.host = "192.0.2.255";
+	.port = "80";
+}
+
+backend coffee-svc_192_2e_0_2e_2_2e_4 {
+	.host = "192.0.2.4";
+	.port = "80";
+}
+backend coffee-svc_192_2e_0_2e_2_2e_5 {
+	.host = "192.0.2.5";
+	.port = "80";
+}
+backend tea-svc_192_2e_0_2e_2_2e_1 {
+	.host = "192.0.2.1";
+	.port = "80";
+}
+backend tea-svc_192_2e_0_2e_2_2e_2 {
+	.host = "192.0.2.2";
+	.port = "80";
+}
+backend tea-svc_192_2e_0_2e_2_2e_3 {
+	.host = "192.0.2.3";
+	.port = "80";
+}
+
+
+sub vcl_init {
+	new hosts = re2.set(posix_syntax=true, literal=true, anchor=both);
+	hosts.add("cafe.example.com");
+	hosts.compile();
+
+	new coffee-svc_director = directors.round_robin();
+	coffee-svc_director.add_backend(coffee-svc_192_2e_0_2e_2_2e_4);
+	coffee-svc_director.add_backend(coffee-svc_192_2e_0_2e_2_2e_5);
+
+	new tea-svc_director = directors.round_robin();
+	tea-svc_director.add_backend(tea-svc_192_2e_0_2e_2_2e_1);
+	tea-svc_director.add_backend(tea-svc_192_2e_0_2e_2_2e_2);
+	tea-svc_director.add_backend(tea-svc_192_2e_0_2e_2_2e_3);
+
+	new cafe_2e_example_2e_com_url = re2.set(posix_syntax=true, anchor=start);
+	cafe_2e_example_2e_com_url.add("/coffee",
+				backend=coffee-svc_director.backend());
+	cafe_2e_example_2e_com_url.add("/tea",
+				backend=tea-svc_director.backend());
+	cafe_2e_example_2e_com_url.compile();
+}
+
+sub set_backend {
+	set req.backend_hint = notfound;
+	if (hosts.match(req.http.Host)) {
+		if (hosts.nmatches() != 1) {
+			# Fail fast when the match was not unique.
+			return (fail);
+		}
+		if (0 != 0) {
+			#
+		}
+		elsif (hosts.which() == 1) {
+			if (cafe_2e_example_2e_com_url.match(req.url)) {
+				set req.backend_hint = cafe_2e_example_2e_com_url.backend(select=FIRST);
+			}
+		}
+	}
+
+	if (req.backend_hint == notfound) {
+		return (synth(404));
+	}
+}
+
+sub vcl_miss {
+	call set_backend;
+}
+
+sub vcl_pass {
+	call set_backend;
+}

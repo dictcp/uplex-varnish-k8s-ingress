@@ -30,6 +30,8 @@ package vcl
 
 import (
 	"bytes"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 )
 
@@ -118,12 +120,25 @@ func TestTemplate(t *testing.T) {
 	if err := Tmpl.Execute(&buf, cafeSpec); err != nil {
 		t.Error("Execute():", err)
 	}
-	t.Log(string(buf.Bytes()))
+
+	goldpath := filepath.Join("testdata","ingressrule.golden")
+	gold, err := ioutil.ReadFile(goldpath)
+	if err != nil {
+		t.Fatalf("Error reading %s: %v", goldpath, err)
+	}
+	if !bytes.Equal(buf.Bytes(), gold) {
+		t.Errorf("Generated VCL for IngressSpec does not match gold "+
+			"file: %s", goldpath)
+		if testing.Verbose() {
+			t.Log("Generated VCL:", string(buf.Bytes()))
+			t.Log(goldpath, ":", string(gold))
+		}
+	}
 }
 
 func TestDeepHash(t *testing.T) {
-	t.Log("cafeSpec.DeepHash():", cafeSpec.DeepHash())
-	t.Log("cafeSpec2.DeepHash():", cafeSpec2.DeepHash())
+	t.Logf("cafeSpec.DeepHash(): %0x", cafeSpec.DeepHash())
+	t.Logf("cafeSpec2.DeepHash() %0x", cafeSpec2.DeepHash())
 	if cafeSpec.DeepHash() == cafeSpec2.DeepHash() {
 		t.Errorf("Distinct specs with different hashes: spec1=%+v "+
 			"spec2=%+v hash=%0x", cafeSpec, cafeSpec2,
