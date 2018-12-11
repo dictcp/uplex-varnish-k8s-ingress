@@ -29,7 +29,6 @@
 package varnish
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"reflect"
@@ -122,14 +121,6 @@ func (vc *VarnishController) Start(errChan chan error) {
 	go vc.monitor()
 }
 
-func (vc *VarnishController) getSrc() (string, error) {
-	var buf bytes.Buffer
-	if err := vcl.Tmpl.Execute(&buf, vc.spec.spec); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
 func (vc *VarnishController) updateVarnishInstance(svc *varnishSvc,
 	cfgName string, vclSrc string) error {
 
@@ -173,6 +164,8 @@ func (vc *VarnishController) updateVarnishInstance(svc *varnishSvc,
 		vc.log.Debugf("Load config %s at %s", cfgName, svc.addr)
 		err = adm.VCLInline(cfgName, vclSrc)
 		if err != nil {
+			vc.log.Debugf("Error loading config %s at %s: %v",
+				cfgName, svc.addr, err)
 			return VarnishAdmError{addr: svc.addr, err: err}
 		}
 		vc.log.Infof("Loaded config %s at Varnish endpoint %s", cfgName,
@@ -217,7 +210,7 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 		return nil
 	}
 
-	vclSrc, err := vc.getSrc()
+	vclSrc, err := vc.spec.spec.GetSrc()
 	if err != nil {
 		return err
 	}

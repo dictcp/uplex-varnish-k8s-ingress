@@ -37,6 +37,15 @@ import (
 	"text/template"
 )
 
+func cmpGold(got []byte, goldfile string) (bool, error) {
+	goldpath := filepath.Join("testdata", goldfile)
+	gold, err := ioutil.ReadFile(goldpath)
+	if err != nil {
+		return false, err
+	}
+	return bytes.Equal(got, gold), nil
+}
+
 var teaSvc = Service{
 	Name: "tea-svc",
 	Addresses: []Address{
@@ -84,24 +93,19 @@ var cafeSpec = Spec{
 	},
 }
 
-func TestTemplate(t *testing.T) {
+func TestIngressTemplate(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Tmpl.Execute(&buf, cafeSpec); err != nil {
-		t.Error("Execute():", err)
+	gold := "ingressrule.golden"
+	if err := IngressTmpl.Execute(&buf, cafeSpec); err != nil {
+		t.Fatal("Execute():", err)
 	}
-
-	goldpath := filepath.Join("testdata", "ingressrule.golden")
-	gold, err := ioutil.ReadFile(goldpath)
+	ok, err := cmpGold(buf.Bytes(), gold)
 	if err != nil {
-		t.Fatalf("Error reading %s: %v", goldpath, err)
+		t.Fatalf("Reading %s: %v", gold, err)
 	}
-	if !bytes.Equal(buf.Bytes(), gold) {
+	if !ok {
 		t.Errorf("Generated VCL for IngressSpec does not match gold "+
-			"file: %s", goldpath)
-		if testing.Verbose() {
-			t.Log("Generated VCL:", string(buf.Bytes()))
-			t.Log(goldpath, ":", string(gold))
-		}
+			"file: %s", gold)
 	}
 }
 
@@ -217,57 +221,66 @@ func TestCanoncial(t *testing.T) {
 	}
 }
 
-var varnishCluster = struct{
-	ClusterNodes []Service
-}{
-	ClusterNodes: []Service{
-		Service{
-			Name: "varnish-8445d4f7f-z2b9p",
-			Addresses: []Address{
-				{"172.17.0.12", 80},
-			},
+var varnishCluster = []Service{
+	Service{
+		Name: "varnish-8445d4f7f-z2b9p",
+		Addresses: []Address{
+			{"172.17.0.12", 80},
 		},
-		Service{
-			Name: "varnish-8445d4f7f-k22dn",
-			Addresses: []Address{
-				{"172.17.0.13", 80},
-			},
+	},
+	Service{
+		Name: "varnish-8445d4f7f-k22dn",
+		Addresses: []Address{
+			{"172.17.0.13", 80},
 		},
-		Service{
-			Name: "varnish-8445d4f7f-ldljf",
-			Addresses: []Address{
-				{"172.17.0.14", 80},
-			},
+	},
+	Service{
+		Name: "varnish-8445d4f7f-ldljf",
+		Addresses: []Address{
+			{"172.17.0.14", 80},
 		},
 	},
 }
 
 func TestShardTemplate(t *testing.T) {
 	var buf bytes.Buffer
+	gold := "shard.golden"
+	tmplName := "self-shard.tmpl"
 
-	tmpl, err := template.New("self-shard.tmpl").Funcs(fMap).
-		ParseFiles("self-shard.tmpl")
+	tmpl, err := template.New(tmplName).Funcs(fMap).ParseFiles(tmplName)
 	if err != nil {
 		t.Error("Cannot parse shard template:", err)
 		return
 	}
-	if err := tmpl.Execute(&buf, varnishCluster); err != nil {
-		t.Error("Execute():", err)
+	cafeSpec.ClusterNodes = varnishCluster
+	if err := tmpl.Execute(&buf, cafeSpec); err != nil {
+		t.Error("cluster template Execute():", err)
 		return
 	}
-	t.Log(buf.String())
+	ok, err := cmpGold(buf.Bytes(), gold)
+	if err != nil {
+		t.Fatalf("Reading %s: %v", gold, err)
+	}
+	if !ok {
+		t.Errorf("Generated VCL for self-sharding does not match gold "+
+			"file: %s", gold)
+	}
+}
 
-	// goldpath := filepath.Join("testdata", "ingressrule.golden")
-	// gold, err := ioutil.ReadFile(goldpath)
-	// if err != nil {
-	// 	t.Fatalf("Error reading %s: %v", goldpath, err)
-	// }
-	// if !bytes.Equal(buf.Bytes(), gold) {
-	// 	t.Errorf("Generated VCL for IngressSpec does not match gold "+
-	// 		"file: %s", goldpath)
-	// 	if testing.Verbose() {
-	// 		t.Log("Generated VCL:", string(buf.Bytes()))
-	// 		t.Log(goldpath, ":", string(gold))
-	// 	}
-	// }
+func TestGetSrc(t *testing.T) {
+	gold := "ingress_shard.golden"
+	cafeSpec.ClusterNodes = varnishCluster
+	src, err := cafeSpec.GetSrc()
+	if err != nil {
+		t.Error("Spec.GetSrc():", err)
+		return
+	}
+	ok, err := cmpGold([]byte(src), gold)
+	if err != nil {
+		t.Fatalf("Reading %s: %v", gold, err)
+	}
+	if !ok {
+		t.Errorf("Generated VCL from GetSrc() does not match gold "+
+			"file: %s", gold)
+	}
 }

@@ -1,0 +1,192 @@
+vcl 4.0;
+
+import std;
+import directors;
+import re2;
+
+backend notfound {
+	# 192.0.2.0/24 reserved for docs & examples (RFC5737).
+	.host = "192.0.2.255";
+	.port = "80";
+}
+
+backend coffee-svc_192_2e_0_2e_2_2e_4 {
+	.host = "192.0.2.4";
+	.port = "80";
+}
+backend coffee-svc_192_2e_0_2e_2_2e_5 {
+	.host = "192.0.2.5";
+	.port = "80";
+}
+backend tea-svc_192_2e_0_2e_2_2e_1 {
+	.host = "192.0.2.1";
+	.port = "80";
+}
+backend tea-svc_192_2e_0_2e_2_2e_2 {
+	.host = "192.0.2.2";
+	.port = "80";
+}
+backend tea-svc_192_2e_0_2e_2_2e_3 {
+	.host = "192.0.2.3";
+	.port = "80";
+}
+
+
+sub vcl_init {
+	new hosts = re2.set(posix_syntax=true, literal=true, anchor=both);
+	hosts.add("cafe.example.com");
+	hosts.compile();
+
+	new coffee-svc_director = directors.round_robin();
+	coffee-svc_director.add_backend(coffee-svc_192_2e_0_2e_2_2e_4);
+	coffee-svc_director.add_backend(coffee-svc_192_2e_0_2e_2_2e_5);
+
+	new tea-svc_director = directors.round_robin();
+	tea-svc_director.add_backend(tea-svc_192_2e_0_2e_2_2e_1);
+	tea-svc_director.add_backend(tea-svc_192_2e_0_2e_2_2e_2);
+	tea-svc_director.add_backend(tea-svc_192_2e_0_2e_2_2e_3);
+
+	new cafe_2e_example_2e_com_url = re2.set(posix_syntax=true, anchor=start);
+	cafe_2e_example_2e_com_url.add("/coffee",
+				backend=coffee-svc_director.backend());
+	cafe_2e_example_2e_com_url.add("/tea",
+				backend=tea-svc_director.backend());
+	cafe_2e_example_2e_com_url.compile();
+}
+
+sub set_backend {
+	set req.backend_hint = notfound;
+	if (hosts.match(req.http.Host)) {
+		if (hosts.nmatches() != 1) {
+			# Fail fast when the match was not unique.
+			return (fail);
+		}
+		if (0 != 0) {
+			#
+		}
+		elsif (hosts.which() == 1) {
+			if (cafe_2e_example_2e_com_url.match(req.url)) {
+				set req.backend_hint = cafe_2e_example_2e_com_url.backend(select=FIRST);
+			}
+		}
+	}
+
+	if (req.backend_hint == notfound) {
+		return (synth(404));
+	}
+}
+
+sub vcl_miss {
+	call set_backend;
+}
+
+sub vcl_pass {
+	call set_backend;
+}
+
+import std;
+import directors;
+
+probe vk8s_probe_varnish {
+	.request = "HEAD /vk8s_cluster_health HTTP/1.1"
+	           "Host: vk8s_cluster";
+	.timeout = 5s;
+	.interval = 5s;
+}
+
+backend varnish-8445d4f7f-z2b9p {
+	.host = "172.17.0.12";
+	.port = "80";
+	.probe = vk8s_probe_varnish;
+}
+
+backend varnish-8445d4f7f-k22dn {
+	.host = "172.17.0.13";
+	.port = "80";
+	.probe = vk8s_probe_varnish;
+}
+
+backend varnish-8445d4f7f-ldljf {
+	.host = "172.17.0.14";
+	.port = "80";
+	.probe = vk8s_probe_varnish;
+}
+
+acl vk8s_cluster_acl {
+	"172.17.0.12";
+	"172.17.0.13";
+	"172.17.0.14";
+}
+
+sub vcl_init {
+	new vk8s_cluster = directors.shard();
+	vk8s_cluster.add_backend(varnish-8445d4f7f-z2b9p);
+	vk8s_cluster.add_backend(varnish-8445d4f7f-k22dn);
+	vk8s_cluster.add_backend(varnish-8445d4f7f-ldljf);
+	vk8s_cluster.reconfigure();
+}
+
+sub vcl_recv {
+	if (remote.ip ~ vk8s_cluster_acl) {
+		if (req.http.Host == "vk8s_cluster") {
+			if (req.url == "/vk8s_cluster_health") {
+				return (synth(200));
+			}
+			return (synth(404));
+		}
+
+		# prevent deadlock for accidental cyclic requests
+		set req.hash_ignore_busy = true;
+
+		# if we're async, don't deliver stale
+		if (req.http.VK8S-Is-Bgfetch == "true") {
+			set req.grace = 0s;
+		}
+
+		return (hash);
+	}
+}
+
+sub vcl_backend_fetch {
+	if (bereq.retries == 0 
+	    && !bereq.uncacheable
+	    && remote.ip !~ vk8s_cluster_acl
+	    && "" + vk8s_cluster.backend(resolve=NOW) != server.identity) {
+		set bereq.backend = vk8s_cluster.backend(resolve=NOW);
+		set bereq.http.VK8S-Is-Bgfetch = bereq.is_bgfetch;
+		return (fetch);
+	}
+}
+
+sub vcl_backend_response {
+	if (bereq.backend == vk8s_cluster.backend(resolve=LAZY)) {
+	        if (beresp.http.VK8S-Cluster-TTL) {
+		        set beresp.ttl = std.duration(
+                	    beresp.http.VK8S-Cluster-TTL + "s", 1s);
+		        if (beresp.ttl > 5m) {
+			        set beresp.ttl = 5m;
+		        }
+		        unset beresp.http.VK8S-Cluster-TTL;
+	        }
+                else {
+			set beresp.uncacheable = true;
+		}
+		return (deliver);
+	}
+}
+
+sub vcl_backend_error {
+	if (bereq.backend == vk8s_cluster.backend(resolve=LAZY)) {
+		return (deliver);
+	}
+}
+
+sub vcl_deliver {
+	unset resp.http.VK8S-Cluster-TTL;
+	if (remote.ip ~ vk8s_cluster_acl) {
+		if (! obj.uncacheable) {
+			set resp.http.VK8S-Cluster-TTL = obj.ttl;
+		}
+		return (deliver);
+	}
+}

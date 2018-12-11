@@ -9,26 +9,35 @@ probe vk8s_probe_varnish {
 	.interval = 5s;
 }
 
-{{range $node := .ClusterNodes -}}
-backend {{$node.Name}} {
-	.host = "{{(index $node.Addresses 0).IP}}";
-	.port = "{{(index $node.Addresses 0).Port}}";
+backend varnish-8445d4f7f-z2b9p {
+	.host = "172.17.0.12";
+	.port = "80";
 	.probe = vk8s_probe_varnish;
 }
 
-{{end -}}
+backend varnish-8445d4f7f-k22dn {
+	.host = "172.17.0.13";
+	.port = "80";
+	.probe = vk8s_probe_varnish;
+}
+
+backend varnish-8445d4f7f-ldljf {
+	.host = "172.17.0.14";
+	.port = "80";
+	.probe = vk8s_probe_varnish;
+}
 
 acl vk8s_cluster_acl {
-{{- range $node := .ClusterNodes}}
-	"{{(index $node.Addresses 0).IP}}";
-{{- end}}
+	"172.17.0.12";
+	"172.17.0.13";
+	"172.17.0.14";
 }
 
 sub vcl_init {
 	new vk8s_cluster = directors.shard();
-	{{range $node := .ClusterNodes -}}
-	vk8s_cluster.add_backend({{$node.Name}});
-	{{end -}}
+	vk8s_cluster.add_backend(varnish-8445d4f7f-z2b9p);
+	vk8s_cluster.add_backend(varnish-8445d4f7f-k22dn);
+	vk8s_cluster.add_backend(varnish-8445d4f7f-ldljf);
 	vk8s_cluster.reconfigure();
 }
 
@@ -69,8 +78,6 @@ sub vcl_backend_response {
 	        if (beresp.http.VK8S-Cluster-TTL) {
 		        set beresp.ttl = std.duration(
                 	    beresp.http.VK8S-Cluster-TTL + "s", 1s);
-
-		        {{- /* XXX make this TTL configurable */}}
 		        if (beresp.ttl > 5m) {
 			        set beresp.ttl = 5m;
 		        }

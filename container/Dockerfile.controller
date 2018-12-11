@@ -10,5 +10,5 @@ RUN vgo generate && \
 
 FROM alpine:3.8
 COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/k8s-ingress /k8s-ingress
-COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl/vcl.tmpl /vcl.tmpl
+COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl/*.tmpl /
 ENTRYPOINT ["/k8s-ingress"]

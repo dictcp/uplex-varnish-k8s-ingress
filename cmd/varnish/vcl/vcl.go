@@ -29,6 +29,7 @@
 package vcl
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"hash"
@@ -112,6 +113,7 @@ type Spec struct {
 	DefaultService Service
 	Rules          []Rule
 	AllServices    map[string]Service
+	ClusterNodes   []Service
 }
 
 func (spec Spec) DeepHash() uint64 {
@@ -131,6 +133,9 @@ func (spec Spec) DeepHash() uint64 {
 		hash.Write([]byte(svc))
 		spec.AllServices[svc].hash(hash)
 	}
+	for _, node := range spec.ClusterNodes {
+		node.hash(hash)
+	}
 	return hash.Sum64()
 }
 
@@ -139,6 +144,7 @@ func (spec Spec) Canonical() Spec {
 		DefaultService: Service{Name: spec.DefaultService.Name},
 		Rules:          make([]Rule, len(spec.Rules)),
 		AllServices:    make(map[string]Service, len(spec.AllServices)),
+		ClusterNodes:   make([]Service, len(spec.ClusterNodes)),
 	}
 	copy(canon.DefaultService.Addresses, spec.DefaultService.Addresses)
 	sort.Stable(ByIPPort(canon.DefaultService.Addresses))
@@ -152,6 +158,11 @@ func (spec Spec) Canonical() Spec {
 	for name, svcs := range spec.AllServices {
 		canon.AllServices[name] = svcs
 		sort.Stable(ByIPPort(canon.AllServices[name].Addresses))
+	}
+	copy(canon.ClusterNodes, spec.ClusterNodes)
+	sort.Stable(ByName(canon.ClusterNodes))
+	for _, node := range canon.ClusterNodes {
+		sort.Stable(ByIPPort(node.Addresses))
 	}
 	return canon
 }
@@ -170,10 +181,14 @@ var fMap = template.FuncMap{
 	},
 }
 
-const tmplSrc = "vcl.tmpl"
+const (
+	ingTmplSrc   = "vcl.tmpl"
+	shardTmplSrc = "self-shard.tmpl"
+)
 
 var (
-	Tmpl        = template.Must(template.New(tmplSrc).Funcs(fMap).ParseFiles(tmplSrc))
+	IngressTmpl = template.Must(template.New(ingTmplSrc).Funcs(fMap).ParseFiles(ingTmplSrc))
+	ShardTmpl   = template.Must(template.New(shardTmplSrc).Funcs(fMap).ParseFiles(shardTmplSrc))
 	symPattern  = regexp.MustCompile("^[[:alpha:]][[:word:]-]*$")
 	first       = regexp.MustCompile("[[:alpha:]]")
 	restIllegal = regexp.MustCompile("[^[:word:]-]+")
@@ -186,6 +201,19 @@ func replIllegal(ill []byte) []byte {
 	}
 	repl = append(repl, []byte("_")...)
 	return repl
+}
+
+func (spec Spec) GetSrc() (string, error) {
+	var buf bytes.Buffer
+	if err := IngressTmpl.Execute(&buf, spec); err != nil {
+		return "", err
+	}
+	if len(spec.ClusterNodes) > 0 {
+		if err := ShardTmpl.Execute(&buf, spec); err != nil {
+			return "", err
+		}
+	}
+	return buf.String(), nil
 }
 
 func Mangle(s string) string {

@@ -108,7 +108,10 @@ func (vc *VarnishController) monitor() {
 				vc.checkInst(inst)
 			}
 
-			vc.updateVarnishInstances(insts)
+			if err := vc.updateVarnishInstances(insts); err != nil {
+				vc.log.Errorf("Errors updating Varnish "+
+					"instances: %+v", err)
+			}
 		}
 	}
 }

@@ -31,6 +31,7 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
@@ -61,6 +62,7 @@ const (
 	admSecretKey    = "admin"
 	admSvcName      = "varnish-ingress-admin"
 	admPortName     = "varnishadm"
+	selfShardKey    = "custom.varnish-cache.org/self-sharding"
 
 //	resyncPeriod    = 30 * time.Second
 )
@@ -415,6 +417,91 @@ func (ingc *IngressController) Stop() {
 	ingc.syncQueue.shutdown()
 }
 
+func (ingc *IngressController) configSharding(spec *vcl.Spec,
+	ing *extensions.Ingress) error {
+
+	ann, exists := ing.Annotations[selfShardKey]
+	if !exists {
+		return nil
+	}
+	if !strings.EqualFold(ann, "on") && !strings.EqualFold(ann, "true") {
+		return nil
+	}
+
+	ingc.log.Debugf("Set cluster shard configuration for Ingress %s/%s",
+		ing.Namespace, ing.Name)
+
+	// Get the Pods for the Varnish admin service
+	svcKey := ing.Namespace + "/" + admSvcName
+	svcObj, svcExists, err := ingc.svcLister.GetByKey(svcKey)
+	if err != nil {
+		return err
+	}
+	if !svcExists {
+		return fmt.Errorf("Service not found: %s", svcKey)
+	}
+	svc, ok := svcObj.(*api_v1.Service)
+	if !ok {
+		return fmt.Errorf("Unexpected obj found for service %s: %v",
+			svcKey, svcObj)
+	}
+
+	ingc.log.Debug("Admin service for shard configuration:", svc)
+
+	pods, err := ingc.client.Core().Pods(svc.Namespace).
+		List(meta_v1.ListOptions{
+			LabelSelector: labels.Set(svc.Spec.Selector).String(),
+		})
+	if err != nil {
+		return fmt.Errorf("Error getting pod information for service "+
+			"%s: %v", svcKey, err)
+	}
+	if len(pods.Items) <= 1 {
+		return fmt.Errorf("Sharding requested, but only %d pods found "+
+			"for service %s", len(pods.Items), svcKey)
+	}
+
+	ingc.log.Debug("Pods for shard configuration:", pods.Items)
+
+	// Populate spec.ClusterNodes with Pod names and the http endpoint
+	for _, pod := range pods.Items {
+		var varnishCntnr api_v1.Container
+		var httpPort int32
+		for _, c := range pod.Spec.Containers {
+			if c.Image == "varnish-ingress/varnish" {
+				varnishCntnr = c
+				break
+			}
+		}
+		if varnishCntnr.Image != "varnish-ingress/varnish" {
+			return fmt.Errorf("No Varnish container found in Pod "+
+				"%s for service %s", pod.Name, svcKey)
+		}
+		for _, p := range varnishCntnr.Ports {
+			if p.Name == "http" {
+				httpPort = p.ContainerPort
+				break
+			}
+		}
+		if httpPort == 0 {
+			return fmt.Errorf("No http port found in Pod %s for "+
+				"service %s", pod.Name, svcKey)
+		}
+		node := vcl.Service{Addresses: make([]vcl.Address, 1)}
+		if pod.Spec.Hostname != "" {
+			node.Name = pod.Spec.Hostname
+		} else {
+			node.Name = pod.Name
+		}
+		node.Addresses[0].IP = pod.Status.PodIP
+		node.Addresses[0].Port = httpPort
+		spec.ClusterNodes = append(spec.ClusterNodes, node)
+	}
+	ingc.log.Debugf("Spec configuration for self-sharding in Ingress "+
+		"%s/%s: %+v", ing.Namespace, ing.Name, spec.ClusterNodes)
+	return nil
+}
+
 func (ingc *IngressController) addOrUpdateIng(task Task,
 	ing extensions.Ingress) {
 
@@ -424,6 +511,14 @@ func (ingc *IngressController) addOrUpdateIng(task Task,
 	vclSpec, err := ingc.ing2VCLSpec(&ing)
 	if err != nil {
 		// XXX make the requeue interval configurable
+		ingc.syncQueue.requeueAfter(task, err, 5*time.Second)
+		ingc.recorder.Eventf(&ing, api_v1.EventTypeWarning, "Rejected",
+			"%v was rejected: %v", key, err)
+		return
+	}
+
+	if err = ingc.configSharding(&vclSpec, &ing); err != nil {
+		// XXX as above
 		ingc.syncQueue.requeueAfter(task, err, 5*time.Second)
 		ingc.recorder.Eventf(&ing, api_v1.EventTypeWarning, "Rejected",
 			"%v was rejected: %v", key, err)
