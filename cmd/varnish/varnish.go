@@ -124,6 +124,14 @@ func (vc *VarnishController) Start(errChan chan error) {
 func (vc *VarnishController) updateVarnishInstance(svc *varnishSvc,
 	cfgName string, vclSrc string) error {
 
+	if svc == nil {
+		return VarnishAdmError{
+			addr: "",
+			err:  fmt.Errorf("Service object is nil"),
+		}
+	}
+
+	vc.log.Infof("Update Varnish instance at %s", svc.addr)
 	svc.admMtx.Lock()
 	defer svc.admMtx.Unlock()
 
@@ -232,7 +240,7 @@ func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
 }
 
 func (vc *VarnishController) addVarnishSvc(key string,
-	addrs []vcl.Address) error {
+	addrs []vcl.Address, loadVCL bool) error {
 
 	vc.varnishSvcs[key] = make([]*varnishSvc, len(addrs))
 	for i, addr := range addrs {
@@ -242,6 +250,9 @@ func (vc *VarnishController) addVarnishSvc(key string,
 			admMtx: &sync.Mutex{},
 		}
 		vc.varnishSvcs[key][i] = &svc
+	}
+	if !loadVCL {
+		return nil
 	}
 	return vc.updateVarnishInstances(vc.varnishSvcs[key])
 }
@@ -288,6 +299,7 @@ func (vc *VarnishController) removeVarnishInstances(svcs []*varnishSvc) error {
 	var errs VarnishAdmErrors
 
 	for _, svc := range svcs {
+		// XXX health check for sharding config should fail
 		if err := vc.setCfgLabel(svc, notAvailCfg, readinessLabel,
 			true); err != nil {
 
@@ -303,7 +315,7 @@ func (vc *VarnishController) removeVarnishInstances(svcs []*varnishSvc) error {
 }
 
 func (vc *VarnishController) updateVarnishSvc(key string,
-	addrs []vcl.Address) error {
+	addrs []vcl.Address, loadVCL bool) error {
 
 	var errs VarnishAdmErrors
 	var newSvcs, remSvcs, keepSvcs []*varnishSvc
@@ -323,7 +335,7 @@ func (vc *VarnishController) updateVarnishSvc(key string,
 			keepSvcs = append(keepSvcs, svc)
 			continue
 		}
-		newSvc := &varnishSvc{addr: addr}
+		newSvc := &varnishSvc{addr: addr, admMtx: &sync.Mutex{}}
 		newSvcs = append(newSvcs, newSvc)
 	}
 	for addr, svc := range prevAddrs {
@@ -344,13 +356,15 @@ func (vc *VarnishController) updateVarnishSvc(key string,
 		}
 	}
 
-	updateErrs := vc.updateVarnishInstances(vc.varnishSvcs[key])
-	if updateErrs != nil {
-		vadmErrs, ok := updateErrs.(VarnishAdmErrors)
-		if ok {
-			errs = append(errs, vadmErrs...)
-		} else {
-			return updateErrs
+	if loadVCL {
+		updateErrs := vc.updateVarnishInstances(vc.varnishSvcs[key])
+		if updateErrs != nil {
+			vadmErrs, ok := updateErrs.(VarnishAdmErrors)
+			if ok {
+				errs = append(errs, vadmErrs...)
+			} else {
+				return updateErrs
+			}
 		}
 	}
 	if len(errs) == 0 {
@@ -360,7 +374,7 @@ func (vc *VarnishController) updateVarnishSvc(key string,
 }
 
 func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
-	addrs []vcl.Address) error {
+	addrs []vcl.Address, loadVCL bool) error {
 
 	if vc.admSecret == nil {
 		return fmt.Errorf("Cannot add or update Varnish service %s: "+
@@ -369,9 +383,9 @@ func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
 
 	_, ok := vc.varnishSvcs[key]
 	if !ok {
-		return vc.addVarnishSvc(key, addrs)
+		return vc.addVarnishSvc(key, addrs, loadVCL)
 	}
-	return vc.updateVarnishSvc(key, addrs)
+	return vc.updateVarnishSvc(key, addrs, loadVCL)
 }
 
 func (vc *VarnishController) DeleteVarnishSvc(key string) error {
@@ -379,8 +393,11 @@ func (vc *VarnishController) DeleteVarnishSvc(key string) error {
 	if !ok {
 		return nil
 	}
-	delete(vc.varnishSvcs, key)
-	return vc.removeVarnishInstances(svcs)
+	err := vc.removeVarnishInstances(svcs)
+	if err != nil {
+		delete(vc.varnishSvcs, key)
+	}
+	return err
 }
 
 func (vc *VarnishController) Update(key, uid string, spec vcl.Spec) error {

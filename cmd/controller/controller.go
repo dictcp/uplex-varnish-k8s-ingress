@@ -253,6 +253,10 @@ func NewIngressController(log *logrus.Logger, kubeClient kubernetes.Interface,
 				return
 			}
 			if ok && ingc.isVarnishAdmSvc(svc, namespace) {
+				ingc.log.Infof("Endpoints added for "+
+					"Varnish admin service %s/%s, "+
+					"enqueuing service sync", namespace,
+					svc.Name)
 				ingc.syncQueue.enqueue(svc)
 				return
 			}
@@ -290,6 +294,10 @@ func NewIngressController(log *logrus.Logger, kubeClient kubernetes.Interface,
 				return
 			}
 			if ok && ingc.isVarnishAdmSvc(svc, namespace) {
+				ingc.log.Infof("Endpoints deleted for "+
+					"Varnish admin service %s/%s, "+
+					"enqueuing service sync", namespace,
+					svc.Name)
 				ingc.syncQueue.enqueue(svc)
 				return
 			}
@@ -312,6 +320,10 @@ func NewIngressController(log *logrus.Logger, kubeClient kubernetes.Interface,
 					return
 				}
 				if ok && ingc.isVarnishAdmSvc(svc, namespace) {
+					ingc.log.Infof("Endpoints changed for "+
+						"Varnish admin service %s/%s, "+
+						"enqueuing service sync",
+						namespace, svc.Name)
 					ingc.syncQueue.enqueue(svc)
 					return
 				}
@@ -835,7 +847,31 @@ func (ingc *IngressController) syncSvc(task Task) {
 		return
 	}
 
+	ingc.log.Info("Updating Service:", key)
 	svc := svcObj.(*api_v1.Service)
+
+	// Check if there are Ingresses for which the VCL spec may
+	// change due to changes in Varnish services.
+	updateVCL := false
+	ings, _ := ingc.ingLister.List()
+	for _, ing := range ings.Items {
+		if ing.Namespace != svc.Namespace {
+			continue
+		}
+		if !ingc.isVarnishInVCLSpec(ing) {
+			continue
+		}
+		updateVCL = true
+		ingc.log.Debugf("Requeueing Ingress %s/%s after changed "+
+			"Varnish service %s/%s: %+v", ing.Namespace,
+			ing.Name, svc.Namespace, svc.Name, ing)
+		ingc.syncQueue.enqueue(&ing)
+	}
+	if !updateVCL {
+		ingc.log.Debugf("No change in VCL due to changed Varnish "+
+			"service %s/%s", svc.Namespace, svc.Name)
+	}
+
 	endps, err := ingc.endpLister.GetServiceEndpoints(svc)
 	if err != nil {
 		ingc.syncQueue.requeueAfter(task, err, 5*time.Second)
@@ -876,7 +912,7 @@ func (ingc *IngressController) syncSvc(task Task) {
 			"%v was rejected: %v", key, err)
 		return
 	}
-	ingc.vController.AddOrUpdateVarnishSvc(key, addrs)
+	ingc.vController.AddOrUpdateVarnishSvc(key, addrs, !updateVCL)
 }
 
 func (ingc *IngressController) syncSecret(task Task) {
@@ -936,4 +972,11 @@ func (ingc *IngressController) isVarnishAdmSvc(svc *api_v1.Service,
 
 func (ingc *IngressController) isAdminSecret(secr *api_v1.Secret) bool {
 	return secr.Name == admSecretName
+}
+
+// Return true if changes in Varnish services may lead to changes in
+// the VCL config generated for the Ingress.
+func (ingc *IngressController) isVarnishInVCLSpec(ing extensions.Ingress) bool {
+	_, selfShard := ing.Annotations[selfShardKey]
+	return selfShard
 }
