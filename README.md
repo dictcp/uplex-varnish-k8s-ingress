@@ -42,11 +42,13 @@ the Kubernetes cluster.
 
 The Ingress can then be deployed by any of the means that are
 customary for Kubernetes. The [``deploy/``](/deploy) folder contains
-YAML configurations for one of the ways to deploy an Ingress.
+manifests (YAMLs) for some of the ways to deploy an Ingress.
 
-The [``examples/``](/examples) folder contains YAML configurations for
-sample Services and an Ingress to test and demonstrate the Ingress
-implementation (based on the "cafe" example from other projects).
+The [``examples/``](/examples) folder contains YAMLs for Services and
+Ingresses to test and demonstrate the Varnish implementation and its
+features. You might want to begin with the
+["cafe" example](/examples/hello) inspired by other projects (a kind
+of "hello world" for Ingress).
 
 This implementation requires that the Ingress definition includes an
 ``ingress.class`` Annotation identifying ``varnish``:

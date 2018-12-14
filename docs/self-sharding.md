@@ -10,6 +10,9 @@ forwards requests to the cluster (such as a load balancer) is required
 to shard the requests.  Requests may be distributed to the cluster in
 any way, and the Varnish instances take care of the sharding.
 
+A sample manifest for an Ingress with annotations for self-sharding is
+in the [``examples/``](/examples/self-sharding) folder.
+
 The technical details for
 [configuring self-sharding](#annotation-syntax-for-self-sharding) are given
 further below. The next two sections describe in more detail how the

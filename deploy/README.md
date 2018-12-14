@@ -312,6 +312,9 @@ You can now define Services that will serve as backends for the
 Varnish instances, and Ingress rules that define how they route
 requests to those Services.
 
-The [``examples/``](/examples) folder of the repository contains YAML
-configurations for sample Services and an Ingress to test and
-demonstrate the Ingress implementation.
+The [``examples/``](/examples) folder of the repository contains
+sample configurations for Services and Ingresses to test and
+demonstrate the Varnish implementation. The
+["cafe" example](/examples/hello), a kind of "hello world" for
+Ingress, is a simple configuration that can be used to test
+your deployment.
