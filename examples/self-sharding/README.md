@@ -2,7 +2,7 @@
 
 The manifest in this folder is an example configuration for an Ingress
 with annotations for sharding the cache in a Varnish cluster. See
-[the documentation](/docs/self-sharding) for details.
+[the documentation](/docs/self-sharding.md) for details.
 
 The Ingress may be deployed with the Services from
 [the "cafe" example](/examples/hello).

@@ -8,4 +8,4 @@ requirements.
 * [The "cafe" example](/examples/hello), a "hello world" for Ingress.
 
 * [Self-sharding Varnish cluser](/examples/self-sharding)
-  ([documentation](/docs/self-sharding))
+  ([docs](/docs/self-sharding.md))
