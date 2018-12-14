@@ -62,7 +62,15 @@ const (
 	admSecretKey    = "admin"
 	admSvcName      = "varnish-ingress-admin"
 	admPortName     = "varnishadm"
-	selfShardKey    = "custom.varnish-cache.org/self-sharding"
+
+	annotationPrefix       = "ingress.varnish-cache.org/"
+	selfShardKey           = "self-sharding"
+	shardProbeTimeoutKey   = "self-sharding-probe-timeout"
+	shardProbeIntervalKey  = "self-sharding-probe-interval"
+	shardProbeInitialKey   = "self-sharding-probe-initial"
+	shardProbeWindowKey    = "self-sharding-probe-window"
+	shardProbeThresholdKey = "self-sharding-probe-threshold"
+	shardMax2ndTTL         = "self-sharding-max-secondary-ttl"
 
 //	resyncPeriod    = 30 * time.Second
 )
@@ -432,11 +440,12 @@ func (ingc *IngressController) Stop() {
 func (ingc *IngressController) configSharding(spec *vcl.Spec,
 	ing *extensions.Ingress) error {
 
-	ann, exists := ing.Annotations[selfShardKey]
-	if !exists {
-		return nil
-	}
-	if !strings.EqualFold(ann, "on") && !strings.EqualFold(ann, "true") {
+	ann, exists := ing.Annotations[annotationPrefix+selfShardKey]
+	if !exists ||
+		(!strings.EqualFold(ann, "on") &&
+			!strings.EqualFold(ann, "true")) {
+		ingc.log.Debugf("No cluster shard configuration for Ingress "+
+			"%s/%s", ing.Namespace, ing.Name)
 		return nil
 	}
 
@@ -475,7 +484,7 @@ func (ingc *IngressController) configSharding(spec *vcl.Spec,
 
 	ingc.log.Debug("Pods for shard configuration:", pods.Items)
 
-	// Populate spec.ClusterNodes with Pod names and the http endpoint
+	// Populate spec.ShardCluster.Nodes with Pod names and the http endpoint
 	for _, pod := range pods.Items {
 		var varnishCntnr api_v1.Container
 		var httpPort int32
@@ -507,10 +516,38 @@ func (ingc *IngressController) configSharding(spec *vcl.Spec,
 		}
 		node.Addresses[0].IP = pod.Status.PodIP
 		node.Addresses[0].Port = httpPort
-		spec.ClusterNodes = append(spec.ClusterNodes, node)
+		spec.ShardCluster.Nodes = append(spec.ShardCluster.Nodes, node)
+	}
+	ingc.log.Debugf("Node configuration for self-sharding in Ingress "+
+		"%s/%s: %+v", ing.Namespace, ing.Name, spec.ShardCluster.Nodes)
+
+	anns := ing.Annotations
+	ann, exists = anns[annotationPrefix+shardProbeTimeoutKey]
+	if exists {
+		spec.ShardCluster.Probe.Timeout = ann
+	}
+	ann, exists = anns[annotationPrefix+shardProbeIntervalKey]
+	if exists {
+		spec.ShardCluster.Probe.Interval = ann
+	}
+	ann, exists = anns[annotationPrefix+shardProbeInitialKey]
+	if exists {
+		spec.ShardCluster.Probe.Initial = ann
+	}
+	ann, exists = anns[annotationPrefix+shardProbeWindowKey]
+	if exists {
+		spec.ShardCluster.Probe.Window = ann
+	}
+	ann, exists = anns[annotationPrefix+shardProbeThresholdKey]
+	if exists {
+		spec.ShardCluster.Probe.Threshold = ann
+	}
+	ann, exists = anns[annotationPrefix+shardMax2ndTTL]
+	if exists {
+		spec.ShardCluster.MaxSecondaryTTL = ann
 	}
 	ingc.log.Debugf("Spec configuration for self-sharding in Ingress "+
-		"%s/%s: %+v", ing.Namespace, ing.Name, spec.ClusterNodes)
+		"%s/%s: %+v", ing.Namespace, ing.Name, spec.ShardCluster)
 	return nil
 }
 

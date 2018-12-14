@@ -109,11 +109,41 @@ func (a ByHost) Len() int           { return len(a) }
 func (a ByHost) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByHost) Less(i, j int) bool { return a[i].Host < a[j].Host }
 
+type Probe struct {
+	Timeout   string
+	Interval  string
+	Initial   string
+	Window    string
+	Threshold string
+}
+
+func (probe Probe) hash(hash hash.Hash) {
+	hash.Write([]byte(probe.Timeout))
+	hash.Write([]byte(probe.Interval))
+	hash.Write([]byte(probe.Initial))
+	hash.Write([]byte(probe.Window))
+	hash.Write([]byte(probe.Threshold))
+}
+
+type ShardCluster struct {
+	Nodes           []Service
+	Probe           Probe
+	MaxSecondaryTTL string
+}
+
+func (shard ShardCluster) hash(hash hash.Hash) {
+	for _, node := range shard.Nodes {
+		node.hash(hash)
+	}
+	shard.Probe.hash(hash)
+	hash.Write([]byte(shard.MaxSecondaryTTL))
+}
+
 type Spec struct {
 	DefaultService Service
 	Rules          []Rule
 	AllServices    map[string]Service
-	ClusterNodes   []Service
+	ShardCluster   ShardCluster
 }
 
 func (spec Spec) DeepHash() uint64 {
@@ -133,9 +163,7 @@ func (spec Spec) DeepHash() uint64 {
 		hash.Write([]byte(svc))
 		spec.AllServices[svc].hash(hash)
 	}
-	for _, node := range spec.ClusterNodes {
-		node.hash(hash)
-	}
+	spec.ShardCluster.hash(hash)
 	return hash.Sum64()
 }
 
@@ -144,7 +172,7 @@ func (spec Spec) Canonical() Spec {
 		DefaultService: Service{Name: spec.DefaultService.Name},
 		Rules:          make([]Rule, len(spec.Rules)),
 		AllServices:    make(map[string]Service, len(spec.AllServices)),
-		ClusterNodes:   make([]Service, len(spec.ClusterNodes)),
+		ShardCluster:   spec.ShardCluster,
 	}
 	copy(canon.DefaultService.Addresses, spec.DefaultService.Addresses)
 	sort.Stable(ByIPPort(canon.DefaultService.Addresses))
@@ -159,9 +187,8 @@ func (spec Spec) Canonical() Spec {
 		canon.AllServices[name] = svcs
 		sort.Stable(ByIPPort(canon.AllServices[name].Addresses))
 	}
-	copy(canon.ClusterNodes, spec.ClusterNodes)
-	sort.Stable(ByName(canon.ClusterNodes))
-	for _, node := range canon.ClusterNodes {
+	sort.Stable(ByName(canon.ShardCluster.Nodes))
+	for _, node := range canon.ShardCluster.Nodes {
 		sort.Stable(ByIPPort(node.Addresses))
 	}
 	return canon
@@ -208,8 +235,8 @@ func (spec Spec) GetSrc() (string, error) {
 	if err := IngressTmpl.Execute(&buf, spec); err != nil {
 		return "", err
 	}
-	if len(spec.ClusterNodes) > 0 {
-		if err := ShardTmpl.Execute(&buf, spec); err != nil {
+	if len(spec.ShardCluster.Nodes) > 0 {
+		if err := ShardTmpl.Execute(&buf, spec.ShardCluster); err != nil {
 			return "", err
 		}
 	}

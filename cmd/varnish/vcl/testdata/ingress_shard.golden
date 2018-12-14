@@ -90,8 +90,11 @@ import directors;
 probe vk8s_probe_varnish {
 	.request = "HEAD /vk8s_cluster_health HTTP/1.1"
 	           "Host: vk8s_cluster";
-	.timeout = 5s;
+	.timeout = 2s;
 	.interval = 5s;
+	.initial = 2;
+	.window = 8;
+	.threshold = 3;
 }
 
 backend varnish-8445d4f7f-z2b9p {

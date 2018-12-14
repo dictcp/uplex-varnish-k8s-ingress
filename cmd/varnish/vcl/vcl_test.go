@@ -106,6 +106,9 @@ func TestIngressTemplate(t *testing.T) {
 	if !ok {
 		t.Errorf("Generated VCL for IngressSpec does not match gold "+
 			"file: %s", gold)
+		if testing.Verbose() {
+			t.Logf("Generated: %s", buf.String())
+		}
 	}
 }
 
@@ -221,25 +224,29 @@ func TestCanoncial(t *testing.T) {
 	}
 }
 
-var varnishCluster = []Service{
-	Service{
-		Name: "varnish-8445d4f7f-z2b9p",
-		Addresses: []Address{
-			{"172.17.0.12", 80},
+var varnishCluster = ShardCluster{
+	Nodes: []Service{
+		Service{
+			Name:      "varnish-8445d4f7f-z2b9p",
+			Addresses: []Address{{"172.17.0.12", 80}},
+		},
+		Service{
+			Name:      "varnish-8445d4f7f-k22dn",
+			Addresses: []Address{{"172.17.0.13", 80}},
+		},
+		Service{
+			Name:      "varnish-8445d4f7f-ldljf",
+			Addresses: []Address{{"172.17.0.14", 80}},
 		},
 	},
-	Service{
-		Name: "varnish-8445d4f7f-k22dn",
-		Addresses: []Address{
-			{"172.17.0.13", 80},
-		},
+	Probe: Probe{
+		Timeout:   "2s",
+		Interval:  "5s",
+		Initial:   "2",
+		Window:    "8",
+		Threshold: "3",
 	},
-	Service{
-		Name: "varnish-8445d4f7f-ldljf",
-		Addresses: []Address{
-			{"172.17.0.14", 80},
-		},
-	},
+	MaxSecondaryTTL: "5m",
 }
 
 func TestShardTemplate(t *testing.T) {
@@ -252,8 +259,7 @@ func TestShardTemplate(t *testing.T) {
 		t.Error("Cannot parse shard template:", err)
 		return
 	}
-	cafeSpec.ClusterNodes = varnishCluster
-	if err := tmpl.Execute(&buf, cafeSpec); err != nil {
+	if err := tmpl.Execute(&buf, varnishCluster); err != nil {
 		t.Error("cluster template Execute():", err)
 		return
 	}
@@ -264,12 +270,15 @@ func TestShardTemplate(t *testing.T) {
 	if !ok {
 		t.Errorf("Generated VCL for self-sharding does not match gold "+
 			"file: %s", gold)
+		if testing.Verbose() {
+			t.Logf("Generated: %s", buf.String())
+		}
 	}
 }
 
 func TestGetSrc(t *testing.T) {
 	gold := "ingress_shard.golden"
-	cafeSpec.ClusterNodes = varnishCluster
+	cafeSpec.ShardCluster = varnishCluster
 	src, err := cafeSpec.GetSrc()
 	if err != nil {
 		t.Error("Spec.GetSrc():", err)
@@ -282,5 +291,8 @@ func TestGetSrc(t *testing.T) {
 	if !ok {
 		t.Errorf("Generated VCL from GetSrc() does not match gold "+
 			"file: %s", gold)
+		if testing.Verbose() {
+			t.Logf("Generated: %s", src)
+		}
 	}
 }

@@ -5,11 +5,24 @@ import directors;
 probe vk8s_probe_varnish {
 	.request = "HEAD /vk8s_cluster_health HTTP/1.1"
 	           "Host: vk8s_cluster";
-	.timeout = 5s;
-	.interval = 5s;
+{{- if .Probe.Timeout}}
+	.timeout = {{.Probe.Timeout}};
+{{- end}}
+{{- if .Probe.Interval}}
+	.interval = {{.Probe.Interval}};
+{{- end}}
+{{- if .Probe.Initial}}
+	.initial = {{.Probe.Initial}};
+{{- end}}
+{{- if .Probe.Window}}
+	.window = {{.Probe.Window}};
+{{- end}}
+{{- if .Probe.Threshold}}
+	.threshold = {{.Probe.Threshold}};
+{{- end}}
 }
 
-{{range $node := .ClusterNodes -}}
+{{range $node := .Nodes -}}
 backend {{$node.Name}} {
 	.host = "{{(index $node.Addresses 0).IP}}";
 	.port = "{{(index $node.Addresses 0).Port}}";
@@ -19,14 +32,14 @@ backend {{$node.Name}} {
 {{end -}}
 
 acl vk8s_cluster_acl {
-{{- range $node := .ClusterNodes}}
+{{- range $node := .Nodes}}
 	"{{(index $node.Addresses 0).IP}}";
 {{- end}}
 }
 
 sub vcl_init {
 	new vk8s_cluster = directors.shard();
-	{{range $node := .ClusterNodes -}}
+	{{range $node := .Nodes -}}
 	vk8s_cluster.add_backend({{$node.Name}});
 	{{end -}}
 	vk8s_cluster.reconfigure();
@@ -69,10 +82,8 @@ sub vcl_backend_response {
 	        if (beresp.http.VK8S-Cluster-TTL) {
 		        set beresp.ttl = std.duration(
                 	    beresp.http.VK8S-Cluster-TTL + "s", 1s);
-
-		        {{- /* XXX make this TTL configurable */}}
-		        if (beresp.ttl > 5m) {
-			        set beresp.ttl = 5m;
+		        if (beresp.ttl > {{.MaxSecondaryTTL}}) {
+			        set beresp.ttl = {{.MaxSecondaryTTL}};
 		        }
 		        unset beresp.http.VK8S-Cluster-TTL;
 	        }
