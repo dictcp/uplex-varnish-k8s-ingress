@@ -24,7 +24,7 @@ used in the following.
 
 ![unsharded clustering](cluster-no-shard.png?raw=true "Unsharded Clustering")
 
-A load balancer distributes requests uniformaly to Varnish instances
+A load balancer distributes requests uniformly to Varnish instances
 in the cluster, for example in round-robin order. Each Varnish
 instance in turn distributes requests to backend Services, and
 maintains its own cache for all cacheable responses from the Services.
@@ -121,7 +121,7 @@ Some features that result from self-sharding are:
 ## Annotation syntax for self-sharding
 
 Self-sharding is configured by using the annotations
-``ingress.varnish-cache.org/self-sharding`` in an Ingress, for
+``ingress.varnish-cache.org/self-sharding*`` in an Ingress, for
 example:
 
 ```
