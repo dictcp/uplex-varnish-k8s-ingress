@@ -1,9 +1,10 @@
 # Deploying an Ingress
 
-There is a variety of ways to deploy an Ingress in a Kubernetes
-cluster. The YAML configurations in this folder prepare a simple
-method of deployment, suitable for testing and editing according to
-your needs.
+Deployment of the Varnish Ingress in a Kubernetes cluster must fulfill
+some requirements, while in some respects you can make choices
+suitable to your requirements. The YAML configurations in this folder
+prepare a method of deployment, suitable for testing and editing as
+needed.
 
 ## Namespace and ServiceAccount
 
@@ -47,6 +48,11 @@ $ kubectl apply -f adm-secret.yaml
 # the Secret:
 $ head -c32 /dev/urandom | base64
 ```
+**IMPORTANT**: Please do *not* copy the secret data from the sample
+manifest in your deployment; create a new secret, for example using
+the command shown above. The purpose of authorization is defeated if
+everyone uses the same secret from an example.
+
 **TO DO**: The ``metadata.name`` field of the Secret is currently
 hard-wired to the value ``adm-secret``, and the key for the Secret (in
 the ``data`` field) is hard-wired to ``admin``. The Secret must be
@@ -74,13 +80,16 @@ properly:
 * ``spec.template`` must specify a ``label`` with a value that is
   matched by the Varnish admin Service described below. In this
   example:
+
 ```
   template:
     metadata:
       labels:
         app: varnish-ingress
 ```
+
 * The HTTP, readiness and admin ports must be specified:
+
 ```
         ports:
         - name: http
@@ -90,16 +99,19 @@ properly:
         - name: admport
           containerPort: 6081
 ```
-**TO DO**: The ports are currently hard-wired to these port numbers.
-A port for TLS access is currently not supported.
+
+  **TO DO**: The ports are currently hard-wired to these port numbers.
+  A port for TLS access is currently not supported.
 * ``volumeMounts`` and ``volumes`` must be specified so that the
   Secret defined above is available to Varnish:
+
 ```
         volumeMounts:
         - name: adm-secret
           mountPath: "/var/run/varnish"
           readOnly: true
 ```
+
 ```
       volumes:
       - name: adm-secret
@@ -109,15 +121,17 @@ A port for TLS access is currently not supported.
           - key: admin
             path: _.secret
 ```
-**TO DO**: The ``mountPath`` is currently hard-wired to
-``/var/run/varnish``.  The ``secretName`` is hard-wired to
-``adm-secret``, the ``key`` to ``admin``, and ``path`` to
-``_.secret``.
+  **TO DO**: The ``mountPath`` is currently hard-wired to
+  ``/var/run/varnish``.  The ``secretName`` is hard-wired to
+  ``adm-secret``, the ``key`` to ``admin``, and ``path`` to
+  ``_.secret``.
+
 * The liveness check should determine if the Varnish master process is
   running. Since Varnish is started in the foreground as the entry
   point of the container, the container is live if it is running at
   all. This check verifies that a ``varnishd`` process with parent PID
   0 is found in the process table:
+
 ```
         livenessProbe:
           exec:
@@ -127,14 +141,17 @@ A port for TLS access is currently not supported.
             - "0"
             - varnishd
 ```
+
 * The readiness check is an HTTP probe at the reserved listener (named
   ``k8sport`` above) for the URL path ``/ready``:
+
 ```
         readinessProbe:
           httpGet:
             path: /ready
             port: k8sport
 ```
+
   The port name must match the name given for port 8080 above.
 
 ### varnishd options
@@ -197,7 +214,7 @@ Among these restrictions are:
 With a Deployment, you may choose a resource such as a LoadBalancer or
 Nodeport to create external access to Varnish's HTTP port. The present
 example creates a Nodeport, which is simple for development and
-testing (a LoadBalancer is more likely in production deployments):
+testing:
 ```
 $ kubectl apply -f nodeport.yaml
 ```
@@ -220,22 +237,27 @@ The Service definition must fulfill some requirements:
   Endpoints to be listed when the container is not ready (since
   the Varnish instances are initialized in the not ready state).
   The means for doing so has changed in different versions of
-  Kubernetes. In versions up 1.9, this annotation must be used:
+  Kubernetes. In versions up to 1.9, this annotation must be used:
+
 ```
   annotations:
     service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
 ```
+
   Since 1.9, the annotation is deprecated, and this field in ``spec``
   should be specified instead:
+
 ```
 spec:
   publishNotReadyAddresses: true
 ```
+
   In recent versions, both specifications are permitted in the YAML,
   as in example YAML (the annotation is deprecated, but is not yet an
   error).
 * The ``selector`` must match the ``label`` given for the Varnish
   deployment, as discussed above. In the present example:
+
 ```
   selector:
     app: varnish-ingress
@@ -257,6 +279,7 @@ The requirements are:
 * The ``image`` must be ``varnish-ingress/controller``.
 * ``spec.template.spec`` must specify the ``POD_NAMESPACE``
   environment variable:
+
 ```
         env:
         - name: POD_NAMESPACE

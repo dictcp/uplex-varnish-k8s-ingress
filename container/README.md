@@ -22,8 +22,14 @@ If you are testing with ``minikube``, set the environment variable
 ``MINIKUBE=1`` before running ``make container``, so that the
 container will be available to the local k8s cluster:
 ```
-$ MINIKUBE=1 make container
+$ make MINIKUBE=1 container
 ```
+Use ``DOCKER_BUILD_OPTIONS`` to alter the ``docker build`` command:
+```
+# Re-build the controller image without using the cache
+$ make DOCKER_BUILD_OPTIONS=--no-cache controller
+```
+
 Both images must be pushed to a repository available to the k8s
 cluster.
 

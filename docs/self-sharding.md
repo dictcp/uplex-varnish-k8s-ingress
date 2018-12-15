@@ -155,6 +155,9 @@ defined for an Ingress, or if it has any other value, then sharding is
 not configured, and all other ``self-sharding-*`` annotations are
 ignored.
 
+The ``self-sharding-*`` parameters are all optional; default values
+hold if they are left out of the configuration.
+
 These parameters configure the corresponding values for the
 [health probes](https://varnish-cache.org/docs/6.1/reference/vcl.html#probes)
 that instances in the cluster use to check one another's health:
