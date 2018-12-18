@@ -3,10 +3,16 @@ RUN go get -u golang.org/x/vgo
 RUN go get -d -v github.com/slimhazard/gogitversion && \
     cd /go/src/github.com/slimhazard/gogitversion && \
     make install
-COPY . /go/src/code.uplex.de/uplex-varnish/k8s-ingress
+
+RUN mkdir -p /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd
 WORKDIR /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd
-RUN vgo generate && \
-    CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress *.go
+COPY ./cmd/go.mod .
+COPY ./cmd/go.sum .
+
+RUN vgo mod download
+
+COPY . /go/src/code.uplex.de/uplex-varnish/k8s-ingress
+RUN vgo generate && CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress *.go
 
 FROM alpine:3.8
 COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/k8s-ingress /k8s-ingress
