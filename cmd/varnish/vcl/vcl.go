@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"path"
 	"regexp"
 	"sort"
 	"text/template"
@@ -214,12 +215,29 @@ const (
 )
 
 var (
-	IngressTmpl = template.Must(template.New(ingTmplSrc).Funcs(fMap).ParseFiles(ingTmplSrc))
-	ShardTmpl   = template.Must(template.New(shardTmplSrc).Funcs(fMap).ParseFiles(shardTmplSrc))
+	IngressTmpl *template.Template
+	ShardTmpl   *template.Template
 	symPattern  = regexp.MustCompile("^[[:alpha:]][[:word:]-]*$")
 	first       = regexp.MustCompile("[[:alpha:]]")
 	restIllegal = regexp.MustCompile("[^[:word:]-]+")
 )
+
+func InitTemplates(tmplDir string) error {
+	var err error
+	ingTmplPath := path.Join(tmplDir, ingTmplSrc)
+	shardTmplPath := path.Join(tmplDir, shardTmplSrc)
+	IngressTmpl, err = template.New(ingTmplSrc).
+		Funcs(fMap).ParseFiles(ingTmplPath)
+	if err != nil {
+		return err
+	}
+	ShardTmpl, err = template.New(shardTmplSrc).
+		Funcs(fMap).ParseFiles(shardTmplPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func replIllegal(ill []byte) []byte {
 	repl := []byte("_")

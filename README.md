@@ -20,10 +20,9 @@ is undergoing initial testing. It is currently subject to a number of
 limitations, expected to be removed over time, including:
 
 * No support for TLS connections
-* The controller only attends to definitions (Ingresses, Services and
-  Endpoints) in the namespace of the Pod in which it is deployed.
-* Only one Ingress definition is valid at a time. If more than one definition
-  is added to the namespace, then the most recent definition becomes valid.
+* Only one Ingress definition in a namespace is valid at a time. If
+  more than one definition is added to the namespace, then the most
+  recent definition becomes valid.
 * A variety of elements in the implementation are hard-wired, as
   detailed in the documentation. These are expected to become configurable
   in further development.
@@ -47,6 +46,13 @@ the Kubernetes cluster.
 The Ingress can then be deployed by any of the means that are
 customary for Kubernetes. The [``deploy/``](/deploy) folder contains
 manifests (YAMLs) for some of the ways to deploy an Ingress.
+
+The deployment described in [``deploy/``](/deploy) targets a default
+setup in which the controller runs in the ``kube-system`` namespace
+and watches in all namespaces of the cluster for Ingresses, Services
+and so on that are intended for the Varnish implementation. See the
+[instructions for single-namespace deployments](/examples/namespace)
+if you need to limit the deployment to one namespace.
 
 The [``examples/``](/examples) folder contains YAMLs for Services and
 Ingresses to test and demonstrate the Varnish implementation and its

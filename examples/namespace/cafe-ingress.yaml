@@ -2,6 +2,7 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: cafe-ingress-varnish
+  namespace: varnish-ingress
   annotations:
     kubernetes.io/ingress.class: "varnish"
 spec:

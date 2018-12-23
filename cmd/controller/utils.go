@@ -30,219 +30,83 @@ package controller
 
 import (
 	"fmt"
-	"time"
-
-	"github.com/sirupsen/logrus"
-
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 
 	api_v1 "k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
 )
-
-// taskQueue manages a work queue through an independent worker that
-// invokes the given sync function for every work item inserted.
-type taskQueue struct {
-	log *logrus.Logger
-	// queue is the work queue the worker polls
-	queue *workqueue.Type
-	// sync is called for each item in the queue
-	sync func(Task)
-	// workerDone is closed when the worker exits
-	workerDone chan struct{}
-}
-
-func (t *taskQueue) run(period time.Duration, stopCh <-chan struct{}) {
-	wait.Until(t.worker, period, stopCh)
-}
-
-// enqueue enqueues ns/name of the given api object in the task queue.
-func (t *taskQueue) enqueue(obj interface{}) {
-	key, err := keyFunc(obj)
-	if err != nil {
-		t.log.Errorf("Couldn't get key for object %v: %v", obj, err)
-		return
-	}
-
-	task, err := NewTask(key, obj)
-	if err != nil {
-		t.log.Errorf("Couldn't create a task for object %v: %v", obj,
-			err)
-		return
-	}
-
-	t.log.Info("Adding an element with a key:", task.Key)
-
-	t.queue.Add(task)
-}
-
-func (t *taskQueue) requeue(task Task, err error) {
-	t.log.Warnf("Requeuing %v, err %v", task.Key, err)
-	t.queue.Add(task)
-}
-
-func (t *taskQueue) requeueAfter(task Task, err error, after time.Duration) {
-	t.log.Warnf("Requeuing %v after %s, err %v", task.Key, after.String(),
-		err)
-	go func(task Task, after time.Duration) {
-		time.Sleep(after)
-		t.queue.Add(task)
-	}(task, after)
-}
-
-// worker processes work in the queue through sync.
-func (t *taskQueue) worker() {
-	for {
-		task, quit := t.queue.Get()
-		if quit {
-			close(t.workerDone)
-			return
-		}
-		t.log.Infof("Syncing %v", task.(Task).Key)
-		t.sync(task.(Task))
-		t.queue.Done(task)
-	}
-}
-
-// shutdown shuts down the work queue and waits for the worker to ACK
-func (t *taskQueue) shutdown() {
-	t.queue.ShutDown()
-	<-t.workerDone
-}
-
-// NewTaskQueue creates a new task queue with the given sync function.
-// The sync function is called for every element inserted into the queue.
-func NewTaskQueue(syncFn func(Task), log *logrus.Logger) *taskQueue {
-	return &taskQueue{
-		log:        log,
-		queue:      workqueue.New(),
-		sync:       syncFn,
-		workerDone: make(chan struct{}),
-	}
-}
-
-// Kind represents the kind of the Kubernetes resources of a task
-type Kind int
 
 const (
-	// Ingress resource
-	Ingress = iota
-	// Endpoints resource
-	Endpoints
-	// Service resource
-	Service
-	// Secret resource
-	Secret
+	labelKey = "app"
+	labelVal = "varnish-ingress"
 )
 
-// Task is an element of a taskQueue
-type Task struct {
-	Kind Kind
-	Key  string
-}
+var (
+	varnishIngressSet = labels.Set(map[string]string{
+		labelKey: labelVal,
+	})
+	// Selector for use in List() operations to find resources
+	// with the app:varnish-ingress label.
+	varnishIngressSelector = labels.SelectorFromSet(varnishIngressSet)
+)
 
-// NewTask creates a new task
-func NewTask(key string, obj interface{}) (Task, error) {
-	var k Kind
-	switch t := obj.(type) {
-	case *extensions.Ingress:
-		//		ing := obj.(*extensions.Ingress)
-		k = Ingress
-	case *api_v1.Endpoints:
-		k = Endpoints
-	case *api_v1.Service:
-		k = Service
-	case *api_v1.Secret:
-		k = Secret
-	default:
-		return Task{}, fmt.Errorf("Unknown type: %v", t)
+// getServiceEndpoints returns the endpoints of a service, matched on
+// service name.
+func (worker *NamespaceWorker) getServiceEndpoints(
+	svc *api_v1.Service) (ep *api_v1.Endpoints, err error) {
+
+	eps, err := worker.endp.List(labels.Everything())
+	if err != nil {
+		return
 	}
-
-	return Task{k, key}, nil
-}
-
-// StoreToIngressLister makes a Store that lists Ingress.
-type StoreToIngressLister struct {
-	cache.Store
-}
-
-// GetByKeySafe calls Store.GetByKeySafe and returns a copy of the
-// ingress so it is safe to modify.
-
-func (s *StoreToIngressLister) GetByKeySafe(key string) (ing *extensions.Ingress, exists bool, err error) {
-	item, exists, err := s.Store.GetByKey(key)
-	if !exists || err != nil {
-		return nil, exists, err
-	}
-	ing = item.(*extensions.Ingress).DeepCopy()
-	return
-}
-
-// List lists all Ingress' in the store.
-func (s *StoreToIngressLister) List() (ing extensions.IngressList, err error) {
-	for _, m := range s.Store.List() {
-		ing.Items = append(ing.Items, *(m.(*extensions.Ingress)).DeepCopy())
-	}
-	return ing, nil
-}
-
-// GetServiceIngress gets all the Ingress' that have rules pointing to a service.
-// Note that this ignores services without the right nodePorts.
-func (s *StoreToIngressLister) GetServiceIngress(svc *api_v1.Service) (ings []extensions.Ingress, err error) {
-	for _, m := range s.Store.List() {
-		ing := *m.(*extensions.Ingress).DeepCopy()
-		if ing.Namespace != svc.Namespace {
-			continue
-		}
-		if ing.Spec.Backend != nil {
-			if ing.Spec.Backend.ServiceName == svc.Name {
-				ings = append(ings, ing)
-			}
-		}
-		for _, rules := range ing.Spec.Rules {
-			if rules.IngressRuleValue.HTTP == nil {
-				continue
-			}
-			for _, p := range rules.IngressRuleValue.HTTP.Paths {
-				if p.Backend.ServiceName == svc.Name {
-					ings = append(ings, ing)
-				}
-			}
-		}
-	}
-	if len(ings) == 0 {
-		err = fmt.Errorf("No ingress for service %v", svc.Name)
-	}
-	return
-}
-
-// StoreToEndpointLister makes a Store that lists Endpoints
-type StoreToEndpointLister struct {
-	cache.Store
-}
-
-// GetServiceEndpoints returns the endpoints of a service, matched on service name.
-func (s *StoreToEndpointLister) GetServiceEndpoints(svc *api_v1.Service) (ep api_v1.Endpoints, err error) {
-	for _, m := range s.Store.List() {
-		ep = *m.(*api_v1.Endpoints)
+	for _, ep := range eps {
 		if svc.Name == ep.Name && svc.Namespace == ep.Namespace {
 			return ep, nil
 		}
 	}
-	err = fmt.Errorf("could not find endpoints for service: %v", svc.Name)
+	err = fmt.Errorf("could not find endpoints for service: %s/%s",
+		svc.Namespace, svc.Name)
 	return
 }
 
-// FindPort locates the container port for the given pod and portName.  If the
-// targetPort is a number, use that.  If the targetPort is a string, look that
-// string up in all named ports in all containers in the target pod.  If no
-// match is found, fail.
-func FindPort(pod *api_v1.Pod, svcPort *api_v1.ServicePort) (int32, error) {
+// endpsTargetPort2Addrs returns a list of addresses for VCL backend
+// config, given the Endpoints of a Service and a target port number
+// for their Pods.
+func endpsTargetPort2Addrs(
+	svc *api_v1.Service,
+	endps *api_v1.Endpoints,
+	targetPort int32) ([]vcl.Address, error) {
+
+	var addrs []vcl.Address
+	for _, subset := range endps.Subsets {
+		for _, port := range subset.Ports {
+			if port.Port == targetPort {
+				for _, address := range subset.Addresses {
+					addr := vcl.Address{
+						IP:   address.IP,
+						Port: port.Port,
+					}
+					addrs = append(addrs, addr)
+				}
+				return addrs, nil
+			}
+		}
+	}
+	return addrs, fmt.Errorf("No endpoints for service port %d in service "+
+		"%s/%s", targetPort, svc.Namespace, svc.Name)
+}
+
+// findPort returns the container port number for a Pod and
+// ServicePort. If the targetPort is a string, search for a matching
+// named ports in the specs for all containers in the Pod.
+func findPort(pod *api_v1.Pod, svcPort *api_v1.ServicePort) (int32, error) {
 	portName := svcPort.TargetPort
 	switch portName.Type {
+	case intstr.Int:
+		return int32(portName.IntValue()), nil
 	case intstr.String:
 		name := portName.StrVal
 		for _, container := range pod.Spec.Containers {
@@ -253,14 +117,49 @@ func FindPort(pod *api_v1.Pod, svcPort *api_v1.ServicePort) (int32, error) {
 				}
 			}
 		}
-	case intstr.Int:
-		return int32(portName.IntValue()), nil
 	}
 
-	return 0, fmt.Errorf("no suitable port for manifest: %s", pod.UID)
+	return 0, fmt.Errorf("No port number found for ServicePort %s and Pod "+
+		"%s/%s", svcPort.Name, pod.Namespace, pod.Name)
 }
 
-// StoreToSecretLister makes a Store that lists Secrets
-type StoreToSecretLister struct {
-	cache.Store
+// getPodsForSvc queries the API for the Pods in a Service.
+func (worker *NamespaceWorker) getPods(
+	svc *api_v1.Service) (*api_v1.PodList, error) {
+
+	return worker.client.CoreV1().Pods(svc.Namespace).
+		List(meta_v1.ListOptions{
+			LabelSelector: labels.Set(svc.Spec.Selector).String(),
+		})
+}
+
+// getTargetPort returns a target port number for the Pods of a Service,
+// given a ServicePort.
+func (worker *NamespaceWorker) getTargetPort(svcPort *api_v1.ServicePort,
+	svc *api_v1.Service) (int32, error) {
+
+	if (svcPort.TargetPort == intstr.IntOrString{}) {
+		return svcPort.Port, nil
+	}
+
+	if svcPort.TargetPort.Type == intstr.Int {
+		return int32(svcPort.TargetPort.IntValue()), nil
+	}
+
+	pods, err := worker.getPods(svc)
+	if err != nil {
+		return 0, fmt.Errorf("Error getting pod information: %v", err)
+	}
+	if len(pods.Items) == 0 {
+		return 0, fmt.Errorf("No pods of service: %v", svc.Name)
+	}
+
+	pod := &pods.Items[0]
+	portNum, err := findPort(pod, svcPort)
+	if err != nil {
+		return 0, fmt.Errorf("Error finding named port %s in pod %s/%s"+
+			": %v", svcPort.Name, pod.Namespace, pod.Name, err)
+	}
+
+	return portNum, nil
 }

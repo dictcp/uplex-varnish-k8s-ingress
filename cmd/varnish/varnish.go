@@ -31,6 +31,7 @@ package varnish
 import (
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -93,25 +94,44 @@ func (spec vclSpec) configName() string {
 	return nonAlNum.ReplaceAllLiteralString(name, "_")
 }
 
+type varnishInst struct {
+	addr      string
+	admSecret *[]byte
+	Banner    string
+	admMtx    *sync.Mutex
+}
+
 type varnishSvc struct {
-	addr   string
-	Banner string
-	admMtx *sync.Mutex
+	instances []*varnishInst
+	spec      *vclSpec
+	secrName  string
+	cfgLoaded bool
 }
 
 type VarnishController struct {
-	log         *logrus.Logger
-	errChan     chan error
-	admSecret   []byte
-	varnishSvcs map[string][]*varnishSvc
-	spec        *vclSpec
+	log     *logrus.Logger
+	svcs    map[string]*varnishSvc
+	secrets map[string]*[]byte
+	errChan chan error
 }
 
-func NewVarnishController(log *logrus.Logger) *VarnishController {
-	vc := VarnishController{}
-	vc.varnishSvcs = make(map[string][]*varnishSvc)
-	vc.log = log
-	return &vc
+func NewVarnishController(
+	log *logrus.Logger, tmplDir string) (*VarnishController, error) {
+
+	if tmplDir == "" {
+		tmplEnv, exists := os.LookupEnv("TEMPLATE_DIR")
+		if exists {
+			tmplDir = tmplEnv
+		}
+	}
+	if err := vcl.InitTemplates(tmplDir); err != nil {
+		return nil, err
+	}
+	return &VarnishController{
+		svcs:    make(map[string]*varnishSvc),
+		secrets: make(map[string]*[]byte),
+		log:     log,
+	}, nil
 }
 
 func (vc *VarnishController) Start(errChan chan error) {
@@ -121,36 +141,43 @@ func (vc *VarnishController) Start(errChan chan error) {
 	go vc.monitor()
 }
 
-func (vc *VarnishController) updateVarnishInstance(svc *varnishSvc,
+func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	cfgName string, vclSrc string) error {
 
-	if svc == nil {
+	if inst == nil {
 		return VarnishAdmError{
 			addr: "",
-			err:  fmt.Errorf("Service object is nil"),
+			err:  fmt.Errorf("Instance object is nil"),
 		}
 	}
 
-	vc.log.Infof("Update Varnish instance at %s", svc.addr)
-	svc.admMtx.Lock()
-	defer svc.admMtx.Unlock()
+	vc.log.Infof("Update Varnish instance at %s", inst.addr)
+	vc.log.Debugf("Varnish instance %s: %+v", inst.addr, *inst)
+	if inst.admSecret == nil {
+		return VarnishAdmError{
+			addr: inst.addr,
+			err:  fmt.Errorf("No known admin secret"),
+		}
+	}
+	inst.admMtx.Lock()
+	defer inst.admMtx.Unlock()
 
-	vc.log.Debugf("Connect to %s, timeout=%v", svc.addr, admTimeout)
-	adm, err := admin.Dial(svc.addr, vc.admSecret, admTimeout)
+	vc.log.Debugf("Connect to %s, timeout=%v", inst.addr, admTimeout)
+	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
 	if err != nil {
-		return VarnishAdmError{addr: svc.addr, err: err}
+		return VarnishAdmError{addr: inst.addr, err: err}
 	}
 	defer adm.Close()
-	svc.Banner = adm.Banner
-	vc.log.Infof("Connected to Varnish admin endpoint at %s", svc.addr)
+	inst.Banner = adm.Banner
+	vc.log.Infof("Connected to Varnish admin endpoint at %s", inst.addr)
 
 	loaded, labelled, ready := false, false, false
-	vc.log.Debugf("List VCLs at %s", svc.addr)
+	vc.log.Debugf("List VCLs at %s", inst.addr)
 	vcls, err := adm.VCLList()
 	if err != nil {
-		return VarnishAdmError{addr: svc.addr, err: err}
+		return VarnishAdmError{addr: inst.addr, err: err}
 	}
-	vc.log.Debugf("VCL List at %s: %+v", svc.addr, vcls)
+	vc.log.Debugf("VCL List at %s: %+v", inst.addr, vcls)
 	for _, vcl := range vcls {
 		if vcl.Name == cfgName {
 			loaded = true
@@ -167,143 +194,141 @@ func (vc *VarnishController) updateVarnishInstance(svc *varnishSvc,
 
 	if loaded {
 		vc.log.Infof("Config %s already loaded at instance %s", cfgName,
-			svc.addr)
+			inst.addr)
 	} else {
-		vc.log.Debugf("Load config %s at %s", cfgName, svc.addr)
+		vc.log.Debugf("Load config %s at %s", cfgName, inst.addr)
 		err = adm.VCLInline(cfgName, vclSrc)
 		if err != nil {
 			vc.log.Debugf("Error loading config %s at %s: %v",
-				cfgName, svc.addr, err)
-			return VarnishAdmError{addr: svc.addr, err: err}
+				cfgName, inst.addr, err)
+			return VarnishAdmError{addr: inst.addr, err: err}
 		}
 		vc.log.Infof("Loaded config %s at Varnish endpoint %s", cfgName,
-			svc.addr)
+			inst.addr)
 	}
 
 	if labelled {
 		vc.log.Infof("Config %s already labelled as regular at %s",
-			cfgName, svc.addr)
+			cfgName, inst.addr)
 	} else {
 		vc.log.Debugf("Label config %s as %s at %s", cfgName,
-			regularLabel, svc.addr)
+			regularLabel, inst.addr)
 		err = adm.VCLLabel(regularLabel, cfgName)
 		if err != nil {
-			return VarnishAdmError{addr: svc.addr, err: err}
+			return VarnishAdmError{addr: inst.addr, err: err}
 		}
 		vc.log.Infof("Labeled config %s as %s at Varnish endpoint %s",
-			cfgName, regularLabel, svc.addr)
+			cfgName, regularLabel, inst.addr)
 	}
 
 	if ready {
 		vc.log.Infof("Config %s already labelled as ready at %s",
-			readyCfg, svc.addr)
+			readyCfg, inst.addr)
 	} else {
 		vc.log.Debugf("Label config %s as %s at %s", readyCfg,
-			readinessLabel, svc.addr)
+			readinessLabel, inst.addr)
 		err = adm.VCLLabel(readinessLabel, readyCfg)
 		if err != nil {
-			return VarnishAdmError{addr: svc.addr, err: err}
+			return VarnishAdmError{addr: inst.addr, err: err}
 		}
 		vc.log.Infof("Labeled config %s as %s at Varnish endpoint %s",
-			readyCfg, readinessLabel, svc.addr)
+			readyCfg, readinessLabel, inst.addr)
 	}
 	return nil
 }
 
-func (vc *VarnishController) updateVarnishInstances(svcs []*varnishSvc) error {
-
-	if vc.spec == nil {
-		vc.log.Info("Update Varnish instances: Currently no Ingress " +
-			"defined")
+func (vc *VarnishController) updateVarnishSvc(name string) error {
+	svc, exists := vc.svcs[name]
+	if !exists || svc == nil {
+		return fmt.Errorf("No known Varnish Service %s", name)
+	}
+	vc.log.Debugf("Update Varnish svc %s: config=%+v", name, *svc)
+	svc.cfgLoaded = false
+	if svc.secrName == "" {
+		return fmt.Errorf("No known admin secret for Varnish Service "+
+			"%s", name)
+	}
+	if svc.spec == nil {
+		vc.log.Infof("Update Varnish Service %s: Currently no Ingress"+
+			" defined", name)
 		return nil
 	}
 
-	vclSrc, err := vc.spec.spec.GetSrc()
+	vclSrc, err := svc.spec.spec.GetSrc()
 	if err != nil {
 		return err
 	}
-	cfgName := vc.spec.configName()
+	cfgName := svc.spec.configName()
 
 	vc.log.Infof("Update Varnish instances: load config %s", cfgName)
 	var errs VarnishAdmErrors
-	for _, svc := range svcs {
-		if e := vc.updateVarnishInstance(svc, cfgName, vclSrc); e != nil {
-			admErr := VarnishAdmError{addr: svc.addr, err: err}
+	for _, inst := range svc.instances {
+		if e := vc.updateVarnishInstance(inst, cfgName, vclSrc); e != nil {
+			admErr := VarnishAdmError{addr: inst.addr, err: err}
 			errs = append(errs, admErr)
 			continue
 		}
 	}
 	if len(errs) == 0 {
+		svc.cfgLoaded = true
 		return nil
 	}
 	return errs
 }
 
-func (vc *VarnishController) addVarnishSvc(key string,
-	addrs []vcl.Address, loadVCL bool) error {
-
-	vc.varnishSvcs[key] = make([]*varnishSvc, len(addrs))
-	for i, addr := range addrs {
-		admAddr := addr.IP + ":" + strconv.Itoa(int(addr.Port))
-		svc := varnishSvc{
-			addr:   admAddr,
-			admMtx: &sync.Mutex{},
-		}
-		vc.varnishSvcs[key][i] = &svc
-	}
-	if !loadVCL {
-		return nil
-	}
-	return vc.updateVarnishInstances(vc.varnishSvcs[key])
-}
-
-// Label cfg as lbl at Varnish instance svc. If mayClose is true, then
+// Label cfg as lbl at Varnish instance inst. If mayClose is true, then
 // losing the admin connection is not an error (Varnish may be
 // shutting down).
-func (vc *VarnishController) setCfgLabel(svc *varnishSvc,
+func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 	cfg, lbl string, mayClose bool) error {
 
-	svc.admMtx.Lock()
-	defer svc.admMtx.Unlock()
+	if inst.admSecret == nil {
+		return VarnishAdmError{
+			addr: inst.addr,
+			err:  fmt.Errorf("No known admin secret"),
+		}
+	}
+	inst.admMtx.Lock()
+	defer inst.admMtx.Unlock()
 
-	vc.log.Debugf("Connect to %s, timeout=%v", svc.addr, admTimeout)
-	adm, err := admin.Dial(svc.addr, vc.admSecret, admTimeout)
+	vc.log.Debugf("Connect to %s, timeout=%v", inst.addr, admTimeout)
+	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
 	if err != nil {
 		if mayClose {
-			vc.log.Warnf("Could not connect to %s: %v", svc.addr,
+			vc.log.Warnf("Could not connect to %s: %v", inst.addr,
 				err)
 			return nil
 		}
-		return VarnishAdmError{addr: svc.addr, err: err}
+		return VarnishAdmError{addr: inst.addr, err: err}
 	}
 	defer adm.Close()
-	svc.Banner = adm.Banner
-	vc.log.Infof("Connected to Varnish admin endpoint at %s", svc.addr)
+	inst.Banner = adm.Banner
+	vc.log.Infof("Connected to Varnish admin endpoint at %s", inst.addr)
 
-	vc.log.Debugf("Set config %s to label %s at %s", svc.addr, cfg, lbl)
+	vc.log.Debugf("Set config %s to label %s at %s", inst.addr, cfg, lbl)
 	if err := adm.VCLLabel(lbl, cfg); err != nil {
 		if err == io.EOF {
 			if mayClose {
 				vc.log.Warnf("Connection at EOF at %s",
-					svc.addr)
+					inst.addr)
 				return nil
 			}
-			return VarnishAdmError{addr: svc.addr, err: err}
+			return VarnishAdmError{addr: inst.addr, err: err}
 		}
 	}
 	return nil
 }
 
 // On Delete for a Varnish instance, we set it to the unready state.
-func (vc *VarnishController) removeVarnishInstances(svcs []*varnishSvc) error {
+func (vc *VarnishController) removeVarnishInstances(insts []*varnishInst) error {
 	var errs VarnishAdmErrors
 
-	for _, svc := range svcs {
+	for _, inst := range insts {
 		// XXX health check for sharding config should fail
-		if err := vc.setCfgLabel(svc, notAvailCfg, readinessLabel,
+		if err := vc.setCfgLabel(inst, notAvailCfg, readinessLabel,
 			true); err != nil {
 
-			admErr := VarnishAdmError{addr: svc.addr, err: err}
+			admErr := VarnishAdmError{addr: inst.addr, err: err}
 			errs = append(errs, admErr)
 			continue
 		}
@@ -314,50 +339,67 @@ func (vc *VarnishController) removeVarnishInstances(svcs []*varnishSvc) error {
 	return errs
 }
 
-func (vc *VarnishController) updateVarnishSvc(key string,
-	addrs []vcl.Address, loadVCL bool) error {
+func (vc *VarnishController) updateVarnishSvcAddrs(key string,
+	addrs []vcl.Address, secrPtr *[]byte, loadVCL bool) error {
 
 	var errs VarnishAdmErrors
-	var newSvcs, remSvcs, keepSvcs []*varnishSvc
-	updateAddrs := make(map[string]struct{})
-	prevAddrs := make(map[string]*varnishSvc)
+	var newInsts, remInsts, keepInsts []*varnishInst
 
+	svc, exists := vc.svcs[key]
+	if !exists {
+		// Shouldn't be possible
+		return fmt.Errorf("No known Varnish Service %s", key)
+	}
+
+	updateAddrs := make(map[string]struct{})
+	prevAddrs := make(map[string]*varnishInst)
 	for _, addr := range addrs {
 		key := addr.IP + ":" + strconv.Itoa(int(addr.Port))
 		updateAddrs[key] = struct{}{}
 	}
-	for _, svc := range vc.varnishSvcs[key] {
-		prevAddrs[svc.addr] = svc
+	for _, inst := range svc.instances {
+		prevAddrs[inst.addr] = inst
 	}
 	for addr := range updateAddrs {
-		svc, exists := prevAddrs[addr]
+		inst, exists := prevAddrs[addr]
 		if exists {
-			keepSvcs = append(keepSvcs, svc)
+			keepInsts = append(keepInsts, inst)
 			continue
 		}
-		newSvc := &varnishSvc{addr: addr, admMtx: &sync.Mutex{}}
-		newSvcs = append(newSvcs, newSvc)
+		newInst := &varnishInst{
+			addr:      addr,
+			admSecret: secrPtr,
+			admMtx:    &sync.Mutex{},
+		}
+		newInsts = append(newInsts, newInst)
 	}
-	for addr, svc := range prevAddrs {
+	for addr, inst := range prevAddrs {
 		_, exists := updateAddrs[addr]
 		if !exists {
-			remSvcs = append(remSvcs, svc)
+			remInsts = append(remInsts, inst)
 		}
 	}
-	vc.varnishSvcs[key] = append(keepSvcs, newSvcs...)
+	vc.log.Debugf("Varnish svc %s: keeping instances=%+v, "+
+		"new instances=%+v, removing instances=%+v", key, keepInsts,
+		newInsts, remInsts)
+	svc.instances = append(keepInsts, newInsts...)
 
-	for _, svc := range remSvcs {
-		if err := vc.setCfgLabel(svc, notAvailCfg, readinessLabel,
+	for _, inst := range remInsts {
+		vc.log.Debugf("Varnish svc %s setting to not ready: %+v", key,
+			inst)
+		if err := vc.setCfgLabel(inst, notAvailCfg, readinessLabel,
 			true); err != nil {
 
-			admErr := VarnishAdmError{addr: svc.addr, err: err}
+			admErr := VarnishAdmError{addr: inst.addr, err: err}
 			errs = append(errs, admErr)
 			continue
 		}
 	}
+	vc.log.Debugf("Varnish svc %s config: %+v", key, *svc)
 
 	if loadVCL {
-		updateErrs := vc.updateVarnishInstances(vc.varnishSvcs[key])
+		vc.log.Debugf("Varnish svc %s: load VCL", key)
+		updateErrs := vc.updateVarnishSvc(key)
 		if updateErrs != nil {
 			vadmErrs, ok := updateErrs.(VarnishAdmErrors)
 			if ok {
@@ -374,54 +416,110 @@ func (vc *VarnishController) updateVarnishSvc(key string,
 }
 
 func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
-	addrs []vcl.Address, loadVCL bool) error {
+	addrs []vcl.Address, secrName string, loadVCL bool) error {
 
-	if vc.admSecret == nil {
-		return fmt.Errorf("Cannot add or update Varnish service %s: "+
-			"no admin secret has been set", key)
+	var secrPtr *[]byte
+	svc, svcExists := vc.svcs[key]
+	if !svcExists {
+		var instances []*varnishInst
+		svc = &varnishSvc{}
+		for _, addr := range addrs {
+			admAddr := addr.IP + ":" + strconv.Itoa(int(addr.Port))
+			instance := &varnishInst{
+				addr:   admAddr,
+				admMtx: &sync.Mutex{},
+			}
+			vc.log.Debugf("Varnish svc %s: creating instance %+v",
+				key, *instance)
+			instances = append(instances, instance)
+		}
+		svc.instances = instances
+		vc.svcs[key] = svc
+		vc.log.Debugf("Varnish svc %s: created config", key)
 	}
+	vc.log.Debugf("Varnish svc %s config: %+v", key, svc)
 
-	_, ok := vc.varnishSvcs[key]
-	if !ok {
-		return vc.addVarnishSvc(key, addrs, loadVCL)
+	svc.secrName = secrName
+	if _, exists := vc.secrets[secrName]; exists {
+		secrPtr = vc.secrets[secrName]
+	} else {
+		secrPtr = nil
 	}
-	return vc.updateVarnishSvc(key, addrs, loadVCL)
+	for _, inst := range svc.instances {
+		inst.admSecret = secrPtr
+	}
+	vc.log.Debugf("Varnish svc %s: updated instance with secret %s", key,
+		secrName)
+
+	vc.log.Debugf("Update Varnish svc %s: addrs=%+v secret=%s reloadVCL=%v",
+		key, addrs, secrName, loadVCL)
+	return vc.updateVarnishSvcAddrs(key, addrs, secrPtr, loadVCL)
 }
 
 func (vc *VarnishController) DeleteVarnishSvc(key string) error {
-	svcs, ok := vc.varnishSvcs[key]
+	svc, ok := vc.svcs[key]
 	if !ok {
 		return nil
 	}
-	err := vc.removeVarnishInstances(svcs)
+	err := vc.removeVarnishInstances(svc.instances)
 	if err != nil {
-		delete(vc.varnishSvcs, key)
+		delete(vc.svcs, key)
 	}
 	return err
 }
 
-func (vc *VarnishController) Update(key, uid string, spec vcl.Spec) error {
+func (vc *VarnishController) Update(
+	svcKey, ingKey, uid string, spec vcl.Spec) error {
 
-	if vc.spec != nil && vc.spec.key != "" && vc.spec.key != key {
-		return fmt.Errorf("Multiple Ingress definitions currently not "+
-			"supported: current=%s new=%s", vc.spec.key, key)
+	svc, exists := vc.svcs[svcKey]
+	if !exists {
+		svc = &varnishSvc{instances: make([]*varnishInst, 0)}
+		vc.svcs[svcKey] = svc
+		vc.log.Infof("Added Varnish service definition %s for Ingress "+
+			"%s uid=%s", svcKey, ingKey, uid)
 	}
-	if vc.spec == nil {
-		vc.spec = &vclSpec{}
+	svc.cfgLoaded = false
+	if svc.spec == nil {
+		svc.spec = &vclSpec{}
 	}
-	vc.spec.key = key
-	vc.spec.uid = uid
-	vc.spec.spec = spec
+	svc.spec.key = ingKey
+	svc.spec.uid = uid
+	svc.spec.spec = spec
+
+	if len(svc.instances) == 0 {
+		return fmt.Errorf("Ingress %s uid=%s: Currently no known "+
+			"endpoints for Varnish service %s", ingKey, uid, svcKey)
+	}
+	return vc.updateVarnishSvc(svcKey)
+}
+
+// We currently only support one Ingress definition at a time for a
+// Varnish Service, so deleting the Ingress means that we set Varnish
+// instances to the not ready state.
+func (vc *VarnishController) DeleteIngress(svcKey, ingKey string) error {
+	svc, ok := vc.svcs[svcKey]
+	if !ok {
+		return fmt.Errorf("Delete Ingress %s: no known Varnish service",
+			ingKey)
+	}
+	if svc.spec != nil && svc.spec.key != ingKey {
+		return fmt.Errorf("Delete Ingress %s: Ingress %s is assigned "+
+			"to Varnish service %s", ingKey, svc.spec.key, svcKey)
+	}
+	svc.spec = nil
 
 	var errs VarnishAdmErrors
-	for _, svcs := range vc.varnishSvcs {
-		updateErrs := vc.updateVarnishInstances(svcs)
-		vadmErrs, ok := updateErrs.(VarnishAdmErrors)
-		if ok {
-			errs = append(errs, vadmErrs...)
+	for _, inst := range svc.instances {
+		if err := vc.setCfgLabel(inst, notAvailCfg, readinessLabel,
+			false); err != nil {
+
+			admErr := VarnishAdmError{
+				addr: inst.addr,
+				err:  err,
+			}
+			errs = append(errs, admErr)
 			continue
 		}
-		return updateErrs
 	}
 	if len(errs) == 0 {
 		return nil
@@ -429,54 +527,65 @@ func (vc *VarnishController) Update(key, uid string, spec vcl.Spec) error {
 	return errs
 }
 
-// We currently only support one Ingress definition at a time, so
-// deleting the Ingress means that we set Varnish instances to the
-// not ready state.
-func (vc *VarnishController) DeleteIngress(key string) error {
-	if vc.spec != nil && vc.spec.key != "" && vc.spec.key != key {
-		return fmt.Errorf("Unknown Ingress %s", key)
-	}
-	vc.spec = nil
+// Currently only one Ingress at a time for a Varnish Service.
+func (vc *VarnishController) HasIngress(svcKey, ingKey, uid string,
+	spec vcl.Spec) bool {
 
-	var errs VarnishAdmErrors
-	for _, svcs := range vc.varnishSvcs {
-		for _, svc := range svcs {
-			if err := vc.setCfgLabel(svc, notAvailCfg,
-				readinessLabel, false); err != nil {
-
-				admErr := VarnishAdmError{
-					addr: svc.addr,
-					err:  err,
-				}
-				errs = append(errs, admErr)
-				continue
-			}
-		}
-	}
-	if len(errs) == 0 {
-		return nil
-	}
-	return errs
-}
-
-// Currently only one Ingress at a time
-func (vc *VarnishController) HasIngress(key, uid string, spec vcl.Spec) bool {
-	if vc.spec == nil {
+	svc, ok := vc.svcs[svcKey]
+	if !ok {
 		return false
 	}
-	return vc.spec.key == key &&
-		vc.spec.uid == uid &&
-		reflect.DeepEqual(vc.spec.spec.Canonical(), spec.Canonical())
+	return svc.cfgLoaded &&
+		svc.spec.key == ingKey &&
+		svc.spec.uid == uid &&
+		reflect.DeepEqual(svc.spec.spec.Canonical(), spec.Canonical())
 }
 
-func (vc *VarnishController) SetAdmSecret(secret []byte) {
-	vc.admSecret = make([]byte, len(secret))
-	copy(vc.admSecret, secret)
+func (vc *VarnishController) SetAdmSecret(key string, secret []byte) {
+	secr, exists := vc.secrets[key]
+	if !exists {
+		secretSlice := make([]byte, len(secret))
+		secr = &secretSlice
+		vc.secrets[key] = secr
+	}
+	copy(*vc.secrets[key], secret)
 }
 
-// XXX Controller becomes not ready
-func (vc *VarnishController) DeleteAdmSecret() {
-	vc.admSecret = nil
+func (vc *VarnishController) UpdateSvcForSecret(svcKey, secretKey string) error {
+	secret, exists := vc.secrets[secretKey]
+	if !exists {
+		secretKey = ""
+		secret = nil
+	}
+	svc, exists := vc.svcs[svcKey]
+	if !exists {
+		if secret == nil {
+			vc.log.Infof("Neither Varnish Service %s nor secret "+
+				"%s found", svcKey, secretKey)
+			return nil
+		}
+		vc.log.Infof("Creating Varnish Service %s to set secret %s",
+			svcKey, secretKey)
+		svc = &varnishSvc{instances: make([]*varnishInst, 0)}
+		vc.svcs[svcKey] = svc
+	}
+	svc.secrName = secretKey
+
+	for _, inst := range svc.instances {
+		vc.log.Infof("Setting secret for instance %s", inst.addr)
+		inst.admSecret = secret
+	}
+
+	vc.log.Infof("Updating Service %s after setting secret %s", svcKey,
+		secretKey)
+	return vc.updateVarnishSvc(svcKey)
+}
+
+func (vc *VarnishController) DeleteAdmSecret(name string) {
+	_, exists := vc.secrets[name]
+	if exists {
+		delete(vc.secrets, name)
+	}
 }
 
 func (vc *VarnishController) Quit() {

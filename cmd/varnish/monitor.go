@@ -37,11 +37,15 @@ import (
 
 const monitorIntvl = time.Second * 30
 
-func (vc *VarnishController) checkInst(inst *varnishSvc) {
+func (vc *VarnishController) checkInst(inst *varnishInst) {
+	if inst.admSecret == nil {
+		vc.log.Warnf("No admin secret known for endpoint %s", inst.addr)
+		return
+	}
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
 
-	adm, err := admin.Dial(inst.addr, vc.admSecret, admTimeout)
+	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
 	if err != nil {
 		vc.log.Errorf("Error connecting to %s: %v", inst.addr, err)
 		return
@@ -52,21 +56,21 @@ func (vc *VarnishController) checkInst(inst *varnishSvc) {
 
 	pong, err := adm.Ping()
 	if err != nil {
-		vc.log.Error("Error pinging at %s: %v", inst.addr, err)
+		vc.log.Errorf("Error pinging at %s: %v", inst.addr, err)
 		return
 	}
 	vc.log.Infof("Succesfully pinged instance %s: %+v", inst.addr, pong)
 
 	state, err := adm.Status()
 	if err != nil {
-		vc.log.Error("Error getting status at %s: %v", inst.addr, err)
+		vc.log.Errorf("Error getting status at %s: %v", inst.addr, err)
 		return
 	}
 	vc.log.Infof("Status at %s: %s", inst.addr, state)
 
 	panic, err := adm.GetPanic()
 	if err != nil {
-		vc.log.Error("Error getting panic at %s: %v", inst.addr, err)
+		vc.log.Errorf("Error getting panic at %s: %v", inst.addr, err)
 		return
 	}
 	if panic == "" {
@@ -78,7 +82,7 @@ func (vc *VarnishController) checkInst(inst *varnishSvc) {
 
 	vcls, err := adm.VCLList()
 	if err != nil {
-		vc.log.Error("Error getting VCL list at %s: %v", inst.addr, err)
+		vc.log.Errorf("Error getting VCL list at %s: %v", inst.addr, err)
 		return
 	}
 	for _, vcl := range vcls {
@@ -101,16 +105,17 @@ func (vc *VarnishController) monitor() {
 	for {
 		time.Sleep(monitorIntvl)
 
-		for svc, insts := range vc.varnishSvcs {
-			vc.log.Infof("Monitoring Varnish instances in %s", svc)
+		for svcName, svc := range vc.svcs {
+			vc.log.Infof("Monitoring Varnish instances in %s",
+				svcName)
 
-			for _, inst := range insts {
+			for _, inst := range svc.instances {
 				vc.checkInst(inst)
 			}
 
-			if err := vc.updateVarnishInstances(insts); err != nil {
+			if err := vc.updateVarnishSvc(svcName); err != nil {
 				vc.log.Errorf("Errors updating Varnish "+
-					"instances: %+v", err)
+					"Service %s: %+v", svcName, err)
 			}
 		}
 	}

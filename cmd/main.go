@@ -43,6 +43,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	api_v1 "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -52,6 +55,13 @@ var (
 	loglvlF  = flag.String("log-level", "INFO",
 		"log level: one of PANIC, FATAL, ERROR, WARN, INFO, DEBUG, \n"+
 			"or TRACE")
+	namespaceF = flag.String("namespace", api_v1.NamespaceAll,
+		"namespace in which to listen for resources (default all)")
+	tmplDirF = flag.String("templatedir", "",
+		"directory of templates for VCL generation. Defaults to \n"+
+			"the TEMPLATE_DIR env variable, if set, or the \n"+
+			"current working directory when the ingress \n"+
+			"controller is invoked")
 	logFormat = logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
@@ -61,13 +71,23 @@ var (
 		Formatter: &logFormat,
 		Level:     logrus.InfoLevel,
 	}
+	informerStop = make(chan struct{})
 )
+
+const resyncPeriod = 0
+
+//	resyncPeriod    = 30 * time.Second
+
+// Satisifes type TweakListOptionsFunc in
+// k8s.io/client-go/informers/internalinterfaces, for use in
+// NewFilteredSharedInformerFactory below.
+func noop(opts *meta_v1.ListOptions) {}
 
 func main() {
 	flag.Parse()
 
 	if *versionF {
-		fmt.Printf("%s version %s", os.Args[0], version)
+		fmt.Printf("%s version %s\n", os.Args[0], version)
 		os.Exit(0)
 	}
 
@@ -94,10 +114,13 @@ func main() {
 
 	log.Info("Starting Varnish Ingress controller version:", version)
 
-	var err error
-	var config *rest.Config
+	vController, err := varnish.NewVarnishController(log, *tmplDirF)
+	if err != nil {
+		log.Fatal("Cannot initialize Varnish controller: ", err)
+		os.Exit(-1)
+	}
 
-	config, err = rest.InClusterConfig()
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatalf("error creating client configuration: %v", err)
 	}
@@ -106,20 +129,36 @@ func main() {
 		log.Fatal("Failed to create client:", err)
 	}
 
-	vController := varnish.NewVarnishController(log)
+	var informerFactory informers.SharedInformerFactory
+	if *namespaceF == api_v1.NamespaceAll {
+		informerFactory = informers.NewSharedInformerFactory(
+			kubeClient, resyncPeriod)
+	} else {
+		informerFactory = informers.NewFilteredSharedInformerFactory(
+			kubeClient, resyncPeriod, *namespaceF, noop)
+
+		// XXX this is prefered, but only available in newer
+		// versions of client-go.
+		// informerFactory = informers.NewSharedInformerFactoryWithOptions(
+		// 	kubeClient, resyncPeriod,
+		// 	informers.WithNamespace(*namespaceF))
+	}
 
 	varnishDone := make(chan error, 1)
 	vController.Start(varnishDone)
 
-	namespace := os.Getenv("POD_NAMESPACE")
 	ingController := controller.NewIngressController(log, kubeClient,
-		vController, namespace)
+		vController, informerFactory)
 	go handleTermination(log, ingController, vController, varnishDone)
+	informerFactory.Start(informerStop)
 	ingController.Run()
 }
 
-func handleTermination(log *logrus.Logger, ingc *controller.IngressController,
-	vc *varnish.VarnishController, varnishDone chan error) {
+func handleTermination(
+	log *logrus.Logger,
+	ingc *controller.IngressController,
+	vc *varnish.VarnishController,
+	varnishDone chan error) {
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGTERM)
@@ -141,11 +180,14 @@ func handleTermination(log *logrus.Logger, ingc *controller.IngressController,
 		log.Info("Received SIGTERM, shutting down")
 	}
 
+	log.Info("Shutting down informers")
+	informerStop <- struct{}{}
+
 	log.Info("Shutting down the ingress controller")
 	ingc.Stop()
 
 	if !exited {
-		log.Info("Shutting down Varnish")
+		log.Info("Shutting down the Varnish controller")
 		vc.Quit()
 	}
 

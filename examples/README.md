@@ -7,5 +7,8 @@ requirements.
 
 * [The "cafe" example](/examples/hello), a "hello world" for Ingress.
 
-* [Self-sharding Varnish cluser](/examples/self-sharding)
+* Limiting the Ingress controller to
+  [a single namespace](/examples/namespace).
+
+* [Self-sharding Varnish cluster](/examples/self-sharding)
   ([docs](/docs/self-sharding.md))

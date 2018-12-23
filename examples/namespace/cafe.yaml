@@ -2,6 +2,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: coffee
+  namespace: varnish-ingress
 spec:
   replicas: 2
   selector:
@@ -22,6 +23,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: coffee-svc
+  namespace: varnish-ingress
 spec:
   ports:
   - port: 80
@@ -35,6 +37,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: tea
+  namespace: varnish-ingress
 spec:
   replicas: 3
   selector:
@@ -55,7 +58,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: tea-svc
-  labels:
+  namespace: varnish-ingress
 spec:
   ports:
   - port: 80

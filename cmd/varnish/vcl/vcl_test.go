@@ -30,7 +30,9 @@ package vcl
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -44,6 +46,20 @@ func cmpGold(got []byte, goldfile string) (bool, error) {
 		return false, err
 	}
 	return bytes.Equal(got, gold), nil
+}
+
+func TestMain(m *testing.M) {
+	tmplDir := ""
+	tmplEnv, exists := os.LookupEnv("TEMPLATE_DIR")
+	if !exists {
+		tmplDir = tmplEnv
+	}
+	if err := InitTemplates(tmplDir); err != nil {
+		fmt.Printf("Cannot parse templates: %v\n", err)
+		os.Exit(-1)
+	}
+	code := m.Run()
+	os.Exit(code)
 }
 
 var teaSvc = Service{

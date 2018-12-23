@@ -2,7 +2,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: varnish-ingress-controller
-  namespace: kube-system
+  namespace: varnish-ingress
 spec:
   replicas: 1
   selector:
@@ -13,12 +13,12 @@ spec:
       labels:
         app: varnish-ingress-controller
     spec:
-      serviceAccountName: varnish-ingress-controller
+      serviceAccountName: varnish-ingress
       containers:
       - image: varnish-ingress/controller
         imagePullPolicy: IfNotPresent
         name: varnish-ingress-controller
         args:
-        # log-level default is info, so this can be left out.
-        # Shown here to demonstrate setting options for the controller.
-        - -log-level=info
+        # Controller only observes Ingresses, Services etc. in the
+        # given namespace.
+        - -namespace=varnish-ingress
