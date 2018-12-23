@@ -18,7 +18,7 @@ folder](/examples).
 Define a ServiceAccount named ``varnish-ingress-controller`` and apply
 [Role-based access
 control](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
-(RBAC) to permits the necessary API access for the Ingress controller:
+(RBAC) to permit the necessary API access for the Ingress controller:
 ```
 $ kubectl apply -f serviceaccount.yaml
 ```
@@ -221,8 +221,9 @@ directed to Varnish instances.
 The Service definition must fulfill some requirements:
 
 * A port with the name ``varnishadm`` and whose ``targetPort``
-  matches the admin port defined above (named `´admport`` in the
+  matches the admin port defined above (named ``admport`` in the
   sample Deployment for Varnish) MUST be specified:
+
 ```
   ports:
   - port: 6081
@@ -258,8 +259,8 @@ spec:
 ```
 
   In recent versions, both specifications are permitted in the YAML,
-  as in example YAML (the annotation is deprecated, but is not yet an
-  error).
+  as in the example YAML (the annotation is deprecated, but is not yet
+  an error).
 * The ``selector`` must specify the label ``app: varnish-ingress``:
 
 ```
