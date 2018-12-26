@@ -47,7 +47,7 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var (
@@ -62,6 +62,10 @@ var (
 			"the TEMPLATE_DIR env variable, if set, or the \n"+
 			"current working directory when the ingress \n"+
 			"controller is invoked")
+	masterURLF = flag.String("masterurl", "", "cluster master URL, for "+
+		"out-of-cluster runs")
+	kubeconfigF = flag.String("kubeconfig", "", "config path for the "+
+		"cluster master URL, for out-of-cluster runs")
 	logFormat = logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
@@ -120,7 +124,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	config, err := rest.InClusterConfig()
+	config, err := clientcmd.BuildConfigFromFlags(*masterURLF, *kubeconfigF)
 	if err != nil {
 		log.Fatalf("error creating client configuration: %v", err)
 	}
