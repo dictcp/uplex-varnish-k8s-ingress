@@ -40,6 +40,8 @@ import (
 
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/controller"
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
+	clientset "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/clientset/versioned"
+	vcr_informers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/informers/externalversions"
 
 	"github.com/sirupsen/logrus"
 
@@ -132,14 +134,24 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create client:", err)
 	}
+	vingClient, err := clientset.NewForConfig(config)
+	if err != nil {
+		log.Fatal("Failed to create client:", err)
+	}
 
 	var informerFactory informers.SharedInformerFactory
+	var vcrInformerFactory vcr_informers.SharedInformerFactory
 	if *namespaceF == api_v1.NamespaceAll {
 		informerFactory = informers.NewSharedInformerFactory(
 			kubeClient, resyncPeriod)
+		vcrInformerFactory = vcr_informers.NewSharedInformerFactory(
+			vingClient, resyncPeriod)
 	} else {
 		informerFactory = informers.NewFilteredSharedInformerFactory(
 			kubeClient, resyncPeriod, *namespaceF, noop)
+		vcrInformerFactory =
+			vcr_informers.NewFilteredSharedInformerFactory(
+				vingClient, resyncPeriod, *namespaceF, noop)
 
 		// XXX this is prefered, but only available in newer
 		// versions of client-go.
@@ -152,7 +164,7 @@ func main() {
 	vController.Start(varnishDone)
 
 	ingController := controller.NewIngressController(log, kubeClient,
-		vController, informerFactory)
+		vController, informerFactory, vcrInformerFactory)
 	go handleTermination(log, ingController, vController, varnishDone)
 	informerFactory.Start(informerStop)
 	ingController.Run()

@@ -33,6 +33,8 @@ import (
 	"time"
 
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
+	vcr_informers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/informers/externalversions"
+	vcr_listers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/listers/varnishingress/v1alpha1"
 
 	"github.com/sirupsen/logrus"
 
@@ -57,6 +59,7 @@ type infrmrs struct {
 	svc  cache.SharedIndexInformer
 	endp cache.SharedIndexInformer
 	secr cache.SharedIndexInformer
+	vcfg cache.SharedIndexInformer
 }
 
 type Listers struct {
@@ -64,6 +67,7 @@ type Listers struct {
 	svc  core_v1_listers.ServiceLister
 	endp core_v1_listers.EndpointsLister
 	secr core_v1_listers.SecretLister
+	vcfg vcr_listers.VarnishConfigLister
 }
 
 // IngressController watches Kubernetes API and reconfigures Varnish
@@ -84,7 +88,8 @@ func NewIngressController(
 	log *logrus.Logger,
 	kubeClient kubernetes.Interface,
 	vc *varnish.VarnishController,
-	infFactory informers.SharedInformerFactory) *IngressController {
+	infFactory informers.SharedInformerFactory,
+	vcrInfFactory vcr_informers.SharedInformerFactory) *IngressController {
 
 	ingc := IngressController{
 		log:         log,
@@ -108,6 +113,8 @@ func NewIngressController(
 		svc:  infFactory.Core().V1().Services().Informer(),
 		endp: infFactory.Core().V1().Endpoints().Informer(),
 		secr: infFactory.Core().V1().Secrets().Informer(),
+		vcfg: vcrInfFactory.Ingress().V1alpha1().VarnishConfigs().
+			Informer(),
 	}
 
 	evtFuncs := cache.ResourceEventHandlerFuncs{
@@ -120,12 +127,15 @@ func NewIngressController(
 	ingc.informers.svc.AddEventHandler(evtFuncs)
 	ingc.informers.endp.AddEventHandler(evtFuncs)
 	ingc.informers.secr.AddEventHandler(evtFuncs)
+	ingc.informers.vcfg.AddEventHandler(evtFuncs)
 
 	ingc.listers = &Listers{
 		ing:  infFactory.Extensions().V1beta1().Ingresses().Lister(),
 		svc:  infFactory.Core().V1().Services().Lister(),
 		endp: infFactory.Core().V1().Endpoints().Lister(),
 		secr: infFactory.Core().V1().Secrets().Lister(),
+		vcfg: vcrInfFactory.Ingress().V1alpha1().VarnishConfigs().
+			Lister(),
 	}
 
 	ingc.nsQs = NewNamespaceQueues(ingc.log, ingc.vController, ingc.listers,
@@ -198,12 +208,20 @@ func (ingc *IngressController) Run() {
 	defer utilruntime.HandleCrash()
 	defer ingc.nsQs.Stop()
 
+	ingc.log.Info("Launching informers")
+	go ingc.informers.ing.Run(ingc.stopCh)
+	go ingc.informers.svc.Run(ingc.stopCh)
+	go ingc.informers.endp.Run(ingc.stopCh)
+	go ingc.informers.secr.Run(ingc.stopCh)
+	go ingc.informers.vcfg.Run(ingc.stopCh)
+
 	ingc.log.Info("Waiting for caches to sync")
 	if ok := cache.WaitForCacheSync(ingc.stopCh,
 		ingc.informers.ing.HasSynced,
 		ingc.informers.svc.HasSynced,
 		ingc.informers.endp.HasSynced,
-		ingc.informers.secr.HasSynced); !ok {
+		ingc.informers.secr.HasSynced,
+		ingc.informers.vcfg.HasSynced); !ok {
 
 		err := fmt.Errorf("Failed waiting for caches to sync")
 		utilruntime.HandleError(err)

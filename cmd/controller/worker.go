@@ -42,6 +42,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
+	ving_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
+	vcr_listers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/listers/varnishingress/v1alpha1"
 )
 
 const (
@@ -60,6 +62,7 @@ type NamespaceWorker struct {
 	svc         core_v1_listers.ServiceNamespaceLister
 	endp        core_v1_listers.EndpointsNamespaceLister
 	secr        core_v1_listers.SecretNamespaceLister
+	vcfg        vcr_listers.VarnishConfigNamespaceLister
 	client      kubernetes.Interface
 	recorder    record.EventRecorder
 }
@@ -83,6 +86,10 @@ func (worker *NamespaceWorker) infoEvent(obj interface{}, reason, msgFmt string,
 	case *api_v1.Secret:
 		secr, _ := obj.(*api_v1.Secret)
 		worker.recorder.Eventf(secr, api_v1.EventTypeNormal, reason,
+			msgFmt, args...)
+	case *ving_v1alpha1.VarnishConfig:
+		vcfg, _ := obj.(*ving_v1alpha1.VarnishConfig)
+		worker.recorder.Eventf(vcfg, api_v1.EventTypeNormal, reason,
 			msgFmt, args...)
 	default:
 		worker.log.Warnf("Unhandled type %T, no event generated", obj)
@@ -108,6 +115,10 @@ func (worker *NamespaceWorker) warnEvent(obj interface{}, reason, msgFmt string,
 	case *api_v1.Secret:
 		secr, _ := obj.(*api_v1.Secret)
 		worker.recorder.Eventf(secr, api_v1.EventTypeWarning, reason,
+			msgFmt, args...)
+	case *ving_v1alpha1.VarnishConfig:
+		vcfg, _ := obj.(*ving_v1alpha1.VarnishConfig)
+		worker.recorder.Eventf(vcfg, api_v1.EventTypeWarning, reason,
 			msgFmt, args...)
 	default:
 		worker.log.Warnf("Unhandled type %T, no event generated", obj)
@@ -144,6 +155,8 @@ func (worker *NamespaceWorker) dispatch(obj interface{}) error {
 		return worker.syncEndp(key)
 	case *api_v1.Secret:
 		return worker.syncSecret(key)
+	case *ving_v1alpha1.VarnishConfig:
+		return worker.syncVcfg(key)
 	default:
 		deleted, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
@@ -161,6 +174,8 @@ func (worker *NamespaceWorker) dispatch(obj interface{}) error {
 			return worker.syncEndp(key)
 		case *api_v1.Secret:
 			return worker.deleteSecret(key)
+		case *ving_v1alpha1.VarnishConfig:
+			return worker.deleteVcfg(key)
 		default:
 			worker.syncFailure(deleted, "Unhandled object type: %T",
 				deleted)
@@ -277,6 +292,7 @@ func (qs *NamespaceQueues) next() {
 			svc:         qs.listers.svc.Services(ns),
 			endp:        qs.listers.endp.Endpoints(ns),
 			secr:        qs.listers.secr.Secrets(ns),
+			vcfg:        qs.listers.vcfg.VarnishConfigs(ns),
 			client:      qs.client,
 			recorder:    qs.recorder,
 		}

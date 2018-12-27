@@ -32,10 +32,12 @@ package controller
 
 import (
 	"fmt"
-	"strings"
+	"strconv"
 
 	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
+	vcr_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
 
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	api_v1 "k8s.io/api/core/v1"
@@ -55,7 +57,6 @@ const (
 	varnishSvcKey          = annotationPrefix + "varnish-svc"
 )
 
-// XXX an annotation to identify the Service for an Ingress
 func (worker *NamespaceWorker) getVarnishSvcForIng(
 	ing *extensions.Ingress) (*api_v1.Service, error) {
 
@@ -167,19 +168,33 @@ func (worker *NamespaceWorker) ing2VCLSpec(
 }
 
 func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
-	ing *extensions.Ingress, svc *api_v1.Service) error {
+	svc *api_v1.Service) error {
 
-	ann, exists := ing.Annotations[annotationPrefix+selfShardKey]
-	if !exists ||
-		(!strings.EqualFold(ann, "on") &&
-			!strings.EqualFold(ann, "true")) {
-		worker.log.Debugf("No cluster shard configuration for Ingress "+
-			"%s/%s", ing.Namespace, ing.Name)
+	var vcfg *vcr_v1alpha1.VarnishConfig
+	vcfgs, err := worker.vcfg.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	worker.log.Debugf("Listing VarnishConfigs in namespace %s",
+		worker.namespace)
+	for _, v := range vcfgs {
+		worker.log.Debugf("VarnishConfig: %s/%s: %+v", v.Namespace,
+			v.Name, v)
+		for _, svcName := range v.Spec.Services {
+			if svcName == svc.Name {
+				vcfg = v
+				break
+			}
+		}
+	}
+	if vcfg == nil || vcfg.Spec.SelfSharding == nil {
+		worker.log.Debugf("No cluster shard configuration for Service "+
+			"%s/%s", svc.Namespace, svc.Name)
 		return nil
 	}
 
-	worker.log.Debugf("Set cluster shard configuration for Ingress %s/%s",
-		ing.Namespace, ing.Name)
+	worker.log.Debugf("Set cluster shard configuration for Service %s/%s",
+		svc.Namespace, svc.Name)
 
 	pods, err := worker.getPods(svc)
 	if err != nil {
@@ -230,36 +245,33 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 		node.Addresses[0].Port = httpPort
 		spec.ShardCluster.Nodes = append(spec.ShardCluster.Nodes, node)
 	}
-	worker.log.Debugf("Node configuration for self-sharding in Ingress "+
-		"%s/%s: %+v", ing.Namespace, ing.Name, spec.ShardCluster.Nodes)
+	worker.log.Debugf("Node configuration for self-sharding in Service "+
+		"%s/%s: %+v", svc.Namespace, svc.Name, spec.ShardCluster.Nodes)
 
-	anns := ing.Annotations
-	ann, exists = anns[annotationPrefix+shardProbeTimeoutKey]
-	if exists {
-		spec.ShardCluster.Probe.Timeout = ann
+	cfgSpec := vcfg.Spec.SelfSharding
+	if cfgSpec.Probe.Timeout != "" {
+		spec.ShardCluster.Probe.Timeout = cfgSpec.Probe.Timeout
 	}
-	ann, exists = anns[annotationPrefix+shardProbeIntervalKey]
-	if exists {
-		spec.ShardCluster.Probe.Interval = ann
+	if cfgSpec.Probe.Interval != "" {
+		spec.ShardCluster.Probe.Interval = cfgSpec.Probe.Interval
 	}
-	ann, exists = anns[annotationPrefix+shardProbeInitialKey]
-	if exists {
-		spec.ShardCluster.Probe.Initial = ann
+	if cfgSpec.Probe.Initial != nil {
+		spec.ShardCluster.Probe.Initial =
+			strconv.Itoa((int(*cfgSpec.Probe.Initial)))
 	}
-	ann, exists = anns[annotationPrefix+shardProbeWindowKey]
-	if exists {
-		spec.ShardCluster.Probe.Window = ann
+	if cfgSpec.Probe.Window != nil {
+		spec.ShardCluster.Probe.Window =
+			strconv.Itoa((int(*cfgSpec.Probe.Window)))
 	}
-	ann, exists = anns[annotationPrefix+shardProbeThresholdKey]
-	if exists {
-		spec.ShardCluster.Probe.Threshold = ann
+	if cfgSpec.Probe.Threshold != nil {
+		spec.ShardCluster.Probe.Threshold =
+			strconv.Itoa((int(*cfgSpec.Probe.Threshold)))
 	}
-	ann, exists = anns[annotationPrefix+shardMax2ndTTL]
-	if exists {
-		spec.ShardCluster.MaxSecondaryTTL = ann
+	if cfgSpec.Max2ndTTL != "" {
+		spec.ShardCluster.MaxSecondaryTTL = cfgSpec.Max2ndTTL
 	}
-	worker.log.Debugf("Spec configuration for self-sharding in Ingress "+
-		"%s/%s: %+v", ing.Namespace, ing.Name, spec.ShardCluster)
+	worker.log.Debugf("Spec configuration for self-sharding in Service "+
+		"%s/%s: %+v", svc.Namespace, svc.Name, spec.ShardCluster)
 	return nil
 }
 
@@ -294,7 +306,7 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 		return err
 	}
 
-	if err = worker.configSharding(&vclSpec, ing, svc); err != nil {
+	if err = worker.configSharding(&vclSpec, svc); err != nil {
 		return err
 	}
 

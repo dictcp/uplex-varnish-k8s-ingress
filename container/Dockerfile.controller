@@ -4,17 +4,18 @@ RUN go get -d -v github.com/slimhazard/gogitversion && \
     cd /go/src/github.com/slimhazard/gogitversion && \
     make install
 
-RUN mkdir -p /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd
-WORKDIR /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd
-COPY ./cmd/go.mod .
-COPY ./cmd/go.sum .
+RUN mkdir -p /go/src/code.uplex.de/uplex-varnish/k8s-ingress
+WORKDIR /go/src/code.uplex.de/uplex-varnish/k8s-ingress
+COPY go.mod .
+COPY go.sum .
 
 RUN vgo mod download
 
 COPY . /go/src/code.uplex.de/uplex-varnish/k8s-ingress
-RUN vgo generate && CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress *.go
+RUN vgo generate ./... && vgo build ./... && \
+    CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress cmd/*.go
 
 FROM alpine:3.8
-COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/k8s-ingress /k8s-ingress
+COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/k8s-ingress /k8s-ingress
 COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl/*.tmpl /
 ENTRYPOINT ["/k8s-ingress"]

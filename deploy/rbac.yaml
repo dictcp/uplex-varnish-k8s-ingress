@@ -47,6 +47,20 @@ rules:
   - ingresses/status
   verbs:
   - update
+- apiGroups:
+  - ingress.varnish-cache.org
+  resources:
+  - varnishconfigs
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - "ingress.varnish-cache.org"
+  resources:
+  - varnishconfigs/status
+  verbs:
+  - update
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1

@@ -1,0 +1,28 @@
+# Sample configuration for a self-sharding Varnish cluster
+
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: VarnishConfig
+metadata:
+  name: self-sharding-cfg
+spec:
+  # The services array is required and must have at least one element.
+  # Lists the Service names of Varnish services in the same namespace
+  # to which this config is to be applied.
+  services:
+    - varnish-ingress
+
+  # If the self-sharding object is present, then self-sharding will be
+  # implemented for the named service. All of its properties are
+  # optional, and defaults hold if they are left out. To just apply
+  # self-sharding with all default values, specify an empty object:
+  #
+  # self-sharding: {}
+  #
+  self-sharding:
+    max-secondary-ttl: 2m
+    probe:
+      timeout: 6s
+      interval: 6s
+      initial: 2
+      window: 4
+      threshold: 3

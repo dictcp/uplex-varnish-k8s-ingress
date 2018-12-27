@@ -1,5 +1,5 @@
 *~
 
 # Build artifacts
-/cmd/k8s-ingress
+/k8s-ingress
 /cmd/main_version.go

@@ -29,12 +29,43 @@ all: k8s-ingress
 vgo:
 	go get golang.org/x/vgo
 
-k8s-ingress: vgo
-	vgo generate
-	vgo fmt ./...
-	CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress *.go
+KUBEVER=kubernetes-1.9.11
+install-code-gen:
+	vgo get k8s.io/code-generator/cmd/client-gen@$(KUBEVER)
+	vgo get k8s.io/code-generator/cmd/deepcopy-gen@$(KUBEVER)
+	vgo get k8s.io/code-generator/cmd/lister-gen@$(KUBEVER)
+	vgo get k8s.io/code-generator/cmd/informer-gen@$(KUBEVER)
 
-check: k8s-ingress
+build: vgo
+	vgo fmt ./...
+	vgo generate ./...
+	vgo build ./...
+
+GENVER=code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1
+BOILERPLATE=hack/boilerplate.txt
+CLIENTPKG=code.uplex.de/uplex-varnish/k8s-ingress/pkg/client
+CLIENTSET=$(CLIENTPKG)/clientset
+LISTERS=$(CLIENTPKG)/listers
+PKGMACHINERY=k8s.io/apimachinery/pkg
+INPUTDIRS=$(PKGMACHINERY)/fields,$(PKGMACHINERY)/labels,$(PKGMACHINERY)/watch
+
+generate: install-code-gen
+	deepcopy-gen -i $(GENVER) -O zz_generated.deepcopy \
+		--bounding-dirs $(GENVER) -h $(BOILERPLATE)
+	lister-gen -i $(GENVER) --output-package $(LISTERS) \
+		-h $(BOILERPLATE)
+	client-gen --clientset-name versioned --input-base "" -i $(INPUTDIRS) \
+		--input $(GENVER) --output-package $(CLIENTSET) \
+		--clientset-path $(CLIENTSET) -h $(BOILERPLATE)
+	informer-gen -i $(GENVER) \
+		--versioned-clientset-package $(CLIENTSET)/versioned \
+		--listers-package $(LISTERS) \
+		--output-package $(CLIENTPKG)/informers -h $(BOILERPLATE)
+
+k8s-ingress: build
+	CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress cmd/*.go
+
+check: build
 	golint ./...
 	vgo test -v ./...
 
@@ -42,5 +73,5 @@ test: check
 
 clean:
 	vgo clean ./...
-	rm -f main_version.go
+	rm -f cmd/main_version.go
 	rm -f k8s-ingress
