@@ -1,10 +1,11 @@
 # Restricting the Ingress controller to a single namespace
 
-This folder contains an example of the use of the ``-namespace``
-argument of the Ingress controller to limit its actions to Services,
-Ingresses, Secrets and so on to a single namespace. The controller can
-then be deployed in that namespace. You may need to do so, for
-example, due to limits on authorization in the cluster.
+This folder contains an example of the use of the
+[``-namespace`` option](/docs/ref-cli-options.md) of the Ingress
+controller to limit its actions to Services, Ingresses, Secrets and so
+on to a single namespace. The controller can then be deployed in that
+namespace. You may need to do so, for example, due to limits on
+authorization in the cluster.
 
 The sample manifests use ``varnish-ingress`` as the example namespace,
 and re-uses the ["cafe" example](/examples/hello), with Services and

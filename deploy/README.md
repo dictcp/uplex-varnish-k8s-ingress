@@ -79,6 +79,9 @@ Command-line options for the controller invocation can be set using the
         - -log-level=info
 ```
 
+See the [command-line option reference](/docs/ref-cli-options.md) for
+details.
+
 ## Deploying Varnish as an Ingress
 
 These steps are executed for each namespace in which Varnish is to be
