@@ -136,6 +136,8 @@ of concerns for the controller:
 * ``pkg/varnish/vcl`` encapsulates the use of templates to generate
   VCL configurations.
 
+* ``cmd/`` contains the main package for the controller.
+
 ## Makefile
 
 Targets in the Makefile:
