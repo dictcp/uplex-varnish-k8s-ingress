@@ -116,7 +116,7 @@ written to configure the cluster.
 
 ## Packages
 
-In addition to the packages in the ``pkg/client`` discussed above,
+In addition to the packages in ``pkg/client`` discussed above,
 packages in the source are distinguished according to the separation
 of concerns for the controller:
 
@@ -152,9 +152,9 @@ Targets in the Makefile:
   target; run only when needed, for example when types in ``types.go``
   have been updated, or when a new API version is introduced.
 
-* ``build``: runs ``vgo generate`` (to run ``gogitversion``) ``vgo fmt``,
-  and build the code in ``pkg/`` and ``cmd/``. The executable is *not*
-  built.
+* ``build``: runs ``vgo generate`` (to run ``gogitversion``),
+  ``vgo fmt``, and builds the code in ``pkg/`` and ``cmd/``. The
+  executable is *not* built.
 
 * ``k8s-ingress``: runs the ``build`` target, and builds the
   controller executable.
