@@ -70,7 +70,7 @@ by default.
 the usage message shown above and exits.
 
 The remaining options exist because
-[code generated for the client API](/docs/dev.md) import the
+[code generated for the client API](/docs/dev.md) imports the
 [glog](https://github.com/golang/glog) logger.
 
 * ``-alsologtostderr``
