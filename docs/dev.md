@@ -7,11 +7,10 @@ targets for code generation, and for building and maintaining the
 controller.
 
 The controller is currently built with Go 1.10. Currently Kubernetes
-version 1.9 is supported (it controller has been also tested
-successfully with 1.10). This means that the code must be compatible
-with version 6.0.0 of k8s
-[client-go](https://github.com/kubernetes/client-go), which in turn
-means that it must be compatible with other k8s code required for
+version 1.9 is supported (it has been also tested successfully with
+1.10). This means that the code must be compatible with version 6.0.0
+of k8s [client-go](https://github.com/kubernetes/client-go), which in
+turn means that it must be compatible with other k8s code required for
 client-go 6.0.0.
 
 The controller is deployed in a cluster as the image
