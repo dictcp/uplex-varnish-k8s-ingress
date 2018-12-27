@@ -1,33 +1,57 @@
 # Self-sharding Varnish cluster
 
-The manifest in this folder is an example configuration for an Ingress
-with annotations for sharding the cache in a Varnish cluster. See
-[the documentation](/docs/self-sharding.md) for details.
-
-The Ingress may be deployed with the Services from
-[the "cafe" example](/examples/hello).
+The manifest in this folder is an example specification for a
+``VarnishConfig`` Custom Resource that defines sharding the cache in a
+Varnish cluster. See [the documentation](/docs/self-sharding.md) for a
+high-level discussion of the concept.
 
 ```
-$ kubectl apply -f cafe-ingress-selfshard.yaml
+$ kubectl apply -f self-sharding-cfg.yaml
 ```
 
-Its rules specification is the same as those in the Ingress from the cafe
-example, but it contains annotations to configure self-sharding:
+The YAML specifies the API group and version for the Custom Resource,
+and ``VarnishConfig`` as the ``kind``:
+```
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: VarnishConfig
+```
+
+The ``spec`` section of the ``VarnishConfig`` manifest MUST include the
+``services`` array, which MUST have at least one element. Strings in
+this array name Services in the same namespace in which the Custom
+Resource is defined, identifying the Varnish-as-Ingress Services to
+which the configuration is to be applied:
 
 ```
-kind: Ingress
-metadata:
-  name: cafe-ingress-varnish
-  annotations:
-    kubernetes.io/ingress.class: "varnish"
-    ingress.varnish-cache.org/self-sharding: "on"
-    ingress.varnish-cache.org/self-sharding-probe-timeout: "6s"
-    ingress.varnish-cache.org/self-sharding-probe-interval: "6s"
-    ingress.varnish-cache.org/self-sharding-probe-initial: "2"
-    ingress.varnish-cache.org/self-sharding-probe-window: "4"
-    ingress.varnish-cache.org/self-sharding-probe-threshold: "3"
-    ingress.varnish-cache.org/self-sharding-max-secondary-ttl: "1m"
-  namespace: varnish-ingress
+  # Apply the configuration to the Service 'varnish-ingress' in the
+  # same namespace.
+  services:
+    - varnish-ingress
+```
+
+Self-sharding is applied if the ``self-sharding`` object is present in
+the ``VarnishConfig`` resource. All of its config elements are optional,
+and default values hold if they are left out. To just specify self-sharding
+with all defaults, include ``self-sharding`` in the manifest as an
+empty object:
+
+```
+  # Implement self-sharding in the Varnish Services with all default
+  # options.
+  self-sharding: {}
+```
+
+The sample YAML sets values for all of the possible options:
+
+```
+  self-sharding:
+    max-secondary-ttl: 2m
+    probe:
+      timeout: 6s
+      interval: 6s
+      initial: 2
+      window: 4
+      threshold: 3
 ```
 
 Only the first annotation (``self-sharding``) is required to activate

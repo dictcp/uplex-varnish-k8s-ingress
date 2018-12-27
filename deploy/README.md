@@ -13,7 +13,22 @@ namespace, see the [instructions for single-namespace
 deployments](/examples/namespace) in the [``/examples``
 folder](/examples).
 
-## ServiceAccount and RBAC
+## The first time
+
+The first steps must be executed for a new cluster, and will probably
+be repeated only rarely afterward (for example for a software update).
+
+### Containers
+
+These containers must be availabe for pull in the Kubernetes cluster:
+
+* Controller: ``varnish-ingress/controller``
+* Varnish to implement Ingress: ``varnish-ingress/varnish``
+
+See the [``container/`` folder](/container) for instructions for
+building the containers.
+
+### ServiceAccount and RBAC
 
 Define a ServiceAccount named ``varnish-ingress-controller`` and apply
 [Role-based access
@@ -21,9 +36,55 @@ control](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
 (RBAC) to permit the necessary API access for the Ingress controller:
 ```
 $ kubectl apply -f serviceaccount.yaml
+$ kubectl apply -f rbac.yaml
 ```
 
-## Admin Secret
+### VarnishConfig Custom Resource definition
+
+The project defines a
+[Custom Resource](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
+``VarnishConfig`` to specify special configurations and features of
+Varnish running as an Ingress (beyond the standard Ingress
+specification):
+```
+$ kubectl apply -f varnishcfg-crd.yaml
+```
+
+### Deploy the controller
+
+This example uses a Deployment to run the controller container in the
+``kube-system`` namespace:
+```
+$ kubectl apply -f controller.yaml
+```
+The ``image`` in the manifest MUST be ``varnish-ingress/controller``.
+
+It does *not* make sense to deploy more than one replica of the
+controller. If there are more controllers, all of them will connect to
+the Varnish instances and send them the same administrative
+commands. That is not an error (or there is a bug in the controller if
+it does cause errors), but the extra work is superflous.
+
+#### Controller options
+
+Command-line options for the controller invocation can be set using the
+``args`` section of the ``container`` specification:
+
+```
+      containers:
+      - image: varnish-ingress/controller
+        name: varnish-ingress-controller
+        # [...]
+        args:
+        - -log-level=info
+```
+
+## Deploying Varnish as an Ingress
+
+These steps are executed for each namespace in which Varnish is to be
+deployed as an Ingress implementation.
+
+### Admin Secret
 
 The controller uses Varnish's admin interface to manage Varnish
 instances, which requires authorization using a shared secret. This is
@@ -59,7 +120,7 @@ everyone uses the same secret from an example.
 **TO DO**: The key for the Secret (in the ``data`` field) is
 hard-wired to ``admin``.
 
-## Deploy Varnish containers
+### Deploy Varnish containers
 
 The present example uses a Deployment to deploy Varnish instances
 (other possibilities are a DaemonSet or a StatefulSet):
@@ -151,7 +212,7 @@ properly:
 
   The port name must match the name given for port 8080 above.
 
-### varnishd options
+#### varnishd options
 
 Varnish command-line options can be specified using the ``args`` section
 of the ``container`` specfication:
@@ -206,7 +267,7 @@ Among these restrictions are:
   unload one, otherwise it interferes with the implementation of
   Ingress.
 
-## Expose the Varnish HTTP and admin ports
+### Expose the Varnish HTTP and admin ports
 
 With a Deployment, you may choose a resource such as a LoadBalancer or
 Nodeport to create external access to Varnish's HTTP port. The present
@@ -269,35 +330,7 @@ spec:
       app: varnish-ingress
 ```
 
-## Deploy the controller
-
-This example uses a Deployment to run the controller container:
-```
-$ kubectl apply -f controller.yaml
-```
-The ``image`` must be ``varnish-ingress/controller``.
-
-It does *not* make sense to deploy more than one replica of the
-controller. If there are more controllers, all of them will connect to
-the Varnish instances and send them the same administrative
-commands. That is not an error (or there is a bug in the controller if
-it does cause errors), but the extra work is superflous.
-
-### Controller options
-
-Command-line options for the controller invocation can be set using the
-``args`` section of the ``container`` specification:
-
-```
-      containers:
-      - image: varnish-ingress/controller
-        name: varnish-ingress-controller
-        # [...]
-        args:
-        - -log-level=info
-```
-
-# Done
+## Done
 
 When these commands succeed:
 
