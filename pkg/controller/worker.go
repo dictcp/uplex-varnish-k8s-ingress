@@ -181,7 +181,6 @@ func (worker *NamespaceWorker) dispatch(obj interface{}) error {
 				deleted)
 			return nil
 		}
-		return nil
 	}
 }
 
