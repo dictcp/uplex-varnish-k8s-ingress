@@ -114,6 +114,28 @@ The annotation MUST name fields used in the configuration manifests,
 otherwise the client APIs will not correctly retrieve data that was
 written to configure the cluster.
 
+## Packages
+
+In addition to the packages in the ``pkg/client`` discussed above,
+packages in the source are distinguished according to the separation
+of concerns for the controller:
+
+* ``pkg/controller`` encapsulates access to Kubernetes types and the
+  client API, watches for the API server, and use of the
+  [client-go cache](https://godoc.org/k8s.io/client-go/tools/cache).
+  Only sources in this package should import packages from ``k8s.io/``
+  and the ``pkg/client/`` paths.
+
+* ``pkg/varnish`` encapsulates actions on Varnish instances to
+  realize configurations from Ingress and VarnishConfig resources.
+  This package imports ``code.uplex.de/uplex-varnish/varnishapi/admin``,
+  which is a client for the
+  [Varnish CLI](https://varnish-cache.org/docs/6.1/reference/varnish-cli.html),
+  used to load VCL and administer Varnish instances.
+
+* ``pkg/varnish/vcl`` encapsulates the use of templates to generate
+  VCL configurations.
+
 ## Makefile
 
 Targets in the Makefile:
