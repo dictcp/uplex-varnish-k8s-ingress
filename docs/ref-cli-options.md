@@ -63,6 +63,12 @@ in ``kube-system`` and watch all namespaces. See the
 single-namespace configuration. The controller watches all namespaces
 by default.
 
+``-templatedir dir`` sets ``dir`` as the location for templates used
+by the controller to generate VCL configurations. By default, the
+controller uses the value of the environment variable
+``TEMPLATE_DIR``, or the current working director if neither of the
+command-line option nor the environment variable are set.
+
 ``-log-level`` sets the log level for the main controller code,
 ``INFO`` by default.
 
