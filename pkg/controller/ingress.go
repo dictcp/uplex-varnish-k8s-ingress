@@ -324,10 +324,9 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 		string(ing.ObjectMeta.UID), vclSpec)
 	if err != nil {
 		return err
-	} else {
-		worker.log.Debugf("Updated Ingress key=%s uuid=%s svc=%s: %+v",
-			ingKey, string(ing.ObjectMeta.UID), svcKey, vclSpec)
 	}
+	worker.log.Debugf("Updated Ingress key=%s uuid=%s svc=%s: %+v",	ingKey,
+		string(ing.ObjectMeta.UID), svcKey, vclSpec)
 	return nil
 }
 
