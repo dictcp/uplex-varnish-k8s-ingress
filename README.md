@@ -77,9 +77,10 @@ based on other technologies in the same Kubernetes cluster.
 
 The source code for the controller, which listens to the k8s cluster
 API and issues commands to Varnish instances to realize Ingress
-definitions, is in the [``cmd/``](/cmd) folder. The folder also
-containes a Makefile defining targets that encapsulate the build
-process for the controller executable.
+definitions, is in the [``pkg/``](/pkg) and [``cmd/``](/cmd)
+folders. The root folder of the repo contains a Makefile defining
+targets that encapsulate the build process for the controller
+executable. See the [developer doc](/docs/dev.md) for details.
 
 # Documentation
 

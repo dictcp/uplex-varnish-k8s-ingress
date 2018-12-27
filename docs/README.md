@@ -10,3 +10,6 @@ The docs in this folder cover these topics:
 
 * [Self-sharding Varnish cluster](self-sharding.md): High-level
   discussion of the design
+
+* [Developer documentation](dev.md) -- generating code; and building,
+  testing and maintaining the controller executable.
