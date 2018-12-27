@@ -32,9 +32,9 @@ import (
 	"fmt"
 	"time"
 
-	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
 	vcr_informers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/informers/externalversions"
 	vcr_listers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/listers/varnishingress/v1alpha1"
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish"
 
 	"github.com/sirupsen/logrus"
 

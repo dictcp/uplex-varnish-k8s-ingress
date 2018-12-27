@@ -36,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 )
 
 const (

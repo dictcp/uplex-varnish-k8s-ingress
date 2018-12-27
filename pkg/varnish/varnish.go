@@ -39,7 +39,7 @@ import (
 	"sync"
 	"time"
 
-	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 	"code.uplex.de/uplex-varnish/varnishapi/pkg/admin"
 
 	"github.com/sirupsen/logrus"

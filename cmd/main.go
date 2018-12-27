@@ -38,10 +38,10 @@ import (
 	"strings"
 	"syscall"
 
-	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/controller"
-	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish"
 	clientset "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/clientset/versioned"
 	vcr_informers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/informers/externalversions"
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/controller"
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish"
 
 	"github.com/sirupsen/logrus"
 

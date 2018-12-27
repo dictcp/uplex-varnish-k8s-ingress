@@ -31,7 +31,7 @@ package controller
 import (
 	"fmt"
 
-	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 
 	api_v1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"

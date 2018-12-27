@@ -34,8 +34,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"code.uplex.de/uplex-varnish/k8s-ingress/cmd/varnish/vcl"
 	vcr_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
