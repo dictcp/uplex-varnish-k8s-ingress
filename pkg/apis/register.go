@@ -26,7 +26,7 @@
  * SUCH DAMAGE.
  */
 
-// varnishingress is the client API for the API group
+// Package varnishingress is the client API for the API group
 // ingress.varnish-cache.org, used to define Custom Resources for the
 // Varnish ingress project.
 //
@@ -34,5 +34,7 @@
 package varnishingress
 
 const (
+	// GroupName is the API group name for Custom Resources
+	// defined for this project.
 	GroupName = "ingress.varnish-cache.org"
 )

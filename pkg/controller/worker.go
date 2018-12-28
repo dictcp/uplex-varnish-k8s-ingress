@@ -52,6 +52,13 @@ const (
 	syncFailure = "SyncFailure"
 )
 
+// NamespaceWorker serves fanout of work items to workers for each
+// namespace for which the controller is notified about a resource
+// update. The NamespaceQueues object creates a new instance when it
+// reads an item from a new namespace from its main queue. Each worker
+// has its own queue and listers filtered for its namespace. Thus each
+// namespace is synced separately and sequentially, and all of the
+// namespaces are synced in parallel.
 type NamespaceWorker struct {
 	namespace   string
 	log         *logrus.Logger
@@ -223,6 +230,10 @@ func (worker *NamespaceWorker) work() {
 	worker.log.Info("Shutting down worker for namespace:", worker.namespace)
 }
 
+// NamespaceQueues reads from the main queue to which informers add
+// new work items from all namespaces. The worker reads items from the
+// queue and places them on separate queues for NamespaceWorkers
+// responsible for each namespace.
 type NamespaceQueues struct {
 	Queue       workqueue.RateLimitingInterface
 	log         *logrus.Logger
@@ -233,6 +244,13 @@ type NamespaceQueues struct {
 	recorder    record.EventRecorder
 }
 
+// NewNamespaceQueues creates a NamespaceQueues object.
+//
+//    log: logger initialized at startup
+//    vController: Varnish controller initialied at startup
+//    listers: client-go/lister instance for each resource type
+//    client: k8s API client initialized at startup
+//    recorder: Event broadcaster initialized at startup
 func NewNamespaceQueues(
 	log *logrus.Logger,
 	vController *varnish.VarnishController,
@@ -302,6 +320,9 @@ func (qs *NamespaceQueues) next() {
 	qs.Queue.Forget(obj)
 }
 
+// Run comprises the main loop of the controller, reading from the
+// main queue of work items and handing them off to workers for each
+// namespace.
 func (qs *NamespaceQueues) Run() {
 	qs.log.Info("Starting dispatcher worker")
 	for !qs.Queue.ShuttingDown() {
@@ -310,6 +331,8 @@ func (qs *NamespaceQueues) Run() {
 	qs.log.Info("Shutting down dispatcher worker")
 }
 
+// Stop shuts down the main queue loop initiated by Run(), and in turn
+// shuts down all of the NamespaceWorkers.
 func (qs *NamespaceQueues) Stop() {
 	qs.Queue.ShutDown()
 	for _, worker := range qs.workers {

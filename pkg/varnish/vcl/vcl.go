@@ -26,6 +26,11 @@
  * SUCH DAMAGE.
  */
 
+// Package vcl encapsulates representations of a VCL configuration
+// derived from Ingress and VarnishConfig specifications, and
+// checking the representations for equivalence (to check if new
+// syncs are necessary). It drives the templating that generates
+// VCL source code.
 package vcl
 
 import (
@@ -40,6 +45,9 @@ import (
 	"text/template"
 )
 
+// Address represents an endpoint for either a backend instance
+// (Endpoint of a Service to which requests are routed) or a Varnish
+// instance (where the port is the admin port).
 type Address struct {
 	IP   string
 	Port int32
@@ -53,17 +61,20 @@ func (addr Address) hash(hash hash.Hash) {
 }
 
 // interface for sorting []Address
-type ByIPPort []Address
+type byIPPort []Address
 
-func (a ByIPPort) Len() int      { return len(a) }
-func (a ByIPPort) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a ByIPPort) Less(i, j int) bool {
+func (a byIPPort) Len() int      { return len(a) }
+func (a byIPPort) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a byIPPort) Less(i, j int) bool {
 	if a[i].IP < a[j].IP {
 		return true
 	}
 	return a[i].Port < a[j].Port
 }
 
+// Service represents either a backend Service (Endpoints to which
+// requests are routed) or a Varnish Service (with addresses for the
+// admin ports).
 type Service struct {
 	Name      string
 	Addresses []Address
@@ -77,12 +88,14 @@ func (svc Service) hash(hash hash.Hash) {
 }
 
 // interface for sorting []Service
-type ByName []Service
+type byName []Service
 
-func (a ByName) Len() int           { return len(a) }
-func (a ByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
+func (a byName) Len() int           { return len(a) }
+func (a byName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
+// Rule represents an IngressRule: a Host name (possibly empty) and a
+// map from URL paths to Services.
 type Rule struct {
 	Host    string
 	PathMap map[string]Service
@@ -104,12 +117,14 @@ func (rule Rule) hash(hash hash.Hash) {
 }
 
 // interface for sorting []Rule
-type ByHost []Rule
+type byHost []Rule
 
-func (a ByHost) Len() int           { return len(a) }
-func (a ByHost) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByHost) Less(i, j int) bool { return a[i].Host < a[j].Host }
+func (a byHost) Len() int           { return len(a) }
+func (a byHost) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byHost) Less(i, j int) bool { return a[i].Host < a[j].Host }
 
+// Probe represents the configuration of health probes derived from
+// the VarnishConfig Custom Resource.
 type Probe struct {
 	Timeout   string
 	Interval  string
@@ -126,6 +141,8 @@ func (probe Probe) hash(hash hash.Hash) {
 	hash.Write([]byte(probe.Threshold))
 }
 
+// ShardCluster represents the configuration for self-sharding derived
+// from the VarnishConfig Custom Resource.
 type ShardCluster struct {
 	Nodes           []Service
 	Probe           Probe
@@ -140,13 +157,27 @@ func (shard ShardCluster) hash(hash hash.Hash) {
 	hash.Write([]byte(shard.MaxSecondaryTTL))
 }
 
+// Spec is the specification for a VCL configuration derived from
+// Ingresses and VarnishConfig Custom Resources. This abstracts the
+// VCL to be loaded by all instances of a Varnish Service.
 type Spec struct {
+	// DefaultService corresponds to the default IngressBackend in
+	// an Ingress, if present.
 	DefaultService Service
-	Rules          []Rule
-	AllServices    map[string]Service
-	ShardCluster   ShardCluster
+	// Rules corresponds to the IngressRules in an Ingress.
+	Rules []Rule
+	// AllServices is a map of Service names to Service
+	// configurations for all IngressBackends mentioned in an
+	// Ingress, including the default Backend, and all Backends to
+	// which requests are to be routed.
+	AllServices map[string]Service
+	// ShardCluster is derived from the self-sharding
+	// specification in a VarnishConfig resource.
+	ShardCluster ShardCluster
 }
 
+// DeepHash computes a 64-bit hash value from a Spec such that if two
+// Specs are deeply equal, then their hash values are equal.
 func (spec Spec) DeepHash() uint64 {
 	hash := fnv.New64a()
 	spec.DefaultService.hash(hash)
@@ -168,6 +199,10 @@ func (spec Spec) DeepHash() uint64 {
 	return hash.Sum64()
 }
 
+// Canonical returns a canonical form of a Spec, in which all of its
+// fields are ordered. This ensures that reflect.DeepEqual and
+// DeepHash return values consistent with the equivalence of two
+// Specs.
 func (spec Spec) Canonical() Spec {
 	canon := Spec{
 		DefaultService: Service{Name: spec.DefaultService.Name},
@@ -176,36 +211,36 @@ func (spec Spec) Canonical() Spec {
 		ShardCluster:   spec.ShardCluster,
 	}
 	copy(canon.DefaultService.Addresses, spec.DefaultService.Addresses)
-	sort.Stable(ByIPPort(canon.DefaultService.Addresses))
+	sort.Stable(byIPPort(canon.DefaultService.Addresses))
 	copy(canon.Rules, spec.Rules)
-	sort.Stable(ByHost(canon.Rules))
+	sort.Stable(byHost(canon.Rules))
 	for _, rule := range canon.Rules {
 		for _, svc := range rule.PathMap {
-			sort.Stable(ByIPPort(svc.Addresses))
+			sort.Stable(byIPPort(svc.Addresses))
 		}
 	}
 	for name, svcs := range spec.AllServices {
 		canon.AllServices[name] = svcs
-		sort.Stable(ByIPPort(canon.AllServices[name].Addresses))
+		sort.Stable(byIPPort(canon.AllServices[name].Addresses))
 	}
-	sort.Stable(ByName(canon.ShardCluster.Nodes))
+	sort.Stable(byName(canon.ShardCluster.Nodes))
 	for _, node := range canon.ShardCluster.Nodes {
-		sort.Stable(ByIPPort(node.Addresses))
+		sort.Stable(byIPPort(node.Addresses))
 	}
 	return canon
 }
 
 var fMap = template.FuncMap{
 	"plusOne":   func(i int) int { return i + 1 },
-	"vclMangle": func(s string) string { return Mangle(s) },
+	"vclMangle": func(s string) string { return mangle(s) },
 	"backendName": func(svc Service, addr string) string {
-		return BackendName(svc, addr)
+		return backendName(svc, addr)
 	},
 	"dirName": func(svc Service) string {
-		return DirectorName(svc)
+		return directorName(svc)
 	},
 	"urlMatcher": func(rule Rule) string {
-		return URLMatcher(rule)
+		return urlMatcher(rule)
 	},
 }
 
@@ -215,23 +250,24 @@ const (
 )
 
 var (
-	IngressTmpl *template.Template
-	ShardTmpl   *template.Template
+	ingressTmpl *template.Template
+	shardTmpl   *template.Template
 	symPattern  = regexp.MustCompile("^[[:alpha:]][[:word:]-]*$")
 	first       = regexp.MustCompile("[[:alpha:]]")
 	restIllegal = regexp.MustCompile("[^[:word:]-]+")
 )
 
+// InitTemplates initializes templates for VCL generation.
 func InitTemplates(tmplDir string) error {
 	var err error
 	ingTmplPath := path.Join(tmplDir, ingTmplSrc)
 	shardTmplPath := path.Join(tmplDir, shardTmplSrc)
-	IngressTmpl, err = template.New(ingTmplSrc).
+	ingressTmpl, err = template.New(ingTmplSrc).
 		Funcs(fMap).ParseFiles(ingTmplPath)
 	if err != nil {
 		return err
 	}
-	ShardTmpl, err = template.New(shardTmplSrc).
+	shardTmpl, err = template.New(shardTmplSrc).
 		Funcs(fMap).ParseFiles(shardTmplPath)
 	if err != nil {
 		return err
@@ -248,20 +284,21 @@ func replIllegal(ill []byte) []byte {
 	return repl
 }
 
+// GetSrc returns the VCL generated to implement a Spec.
 func (spec Spec) GetSrc() (string, error) {
 	var buf bytes.Buffer
-	if err := IngressTmpl.Execute(&buf, spec); err != nil {
+	if err := ingressTmpl.Execute(&buf, spec); err != nil {
 		return "", err
 	}
 	if len(spec.ShardCluster.Nodes) > 0 {
-		if err := ShardTmpl.Execute(&buf, spec.ShardCluster); err != nil {
+		if err := shardTmpl.Execute(&buf, spec.ShardCluster); err != nil {
 			return "", err
 		}
 	}
 	return buf.String(), nil
 }
 
-func Mangle(s string) string {
+func mangle(s string) string {
 	var mangled string
 	bytes := []byte(s)
 	if s == "" || symPattern.Match(bytes) {
@@ -276,14 +313,14 @@ func Mangle(s string) string {
 	return mangled
 }
 
-func BackendName(svc Service, addr string) string {
-	return Mangle(svc.Name + "_" + addr)
+func backendName(svc Service, addr string) string {
+	return mangle(svc.Name + "_" + addr)
 }
 
-func DirectorName(svc Service) string {
-	return Mangle(svc.Name + "_director")
+func directorName(svc Service) string {
+	return mangle(svc.Name + "_director")
 }
 
-func URLMatcher(rule Rule) string {
-	return Mangle(rule.Host + "_url")
+func urlMatcher(rule Rule) string {
+	return mangle(rule.Host + "_url")
 }

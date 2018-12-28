@@ -112,7 +112,7 @@ var cafeSpec = Spec{
 func TestIngressTemplate(t *testing.T) {
 	var buf bytes.Buffer
 	gold := "ingressrule.golden"
-	if err := IngressTmpl.Execute(&buf, cafeSpec); err != nil {
+	if err := ingressTmpl.Execute(&buf, cafeSpec); err != nil {
 		t.Fatal("Execute():", err)
 	}
 	ok, err := cmpGold(buf.Bytes(), gold)

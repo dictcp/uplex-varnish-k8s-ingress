@@ -26,46 +26,11 @@
  * SUCH DAMAGE.
  */
 
-package v1alpha1
-
-import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	ving "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress"
-)
-
-// SchemeGroupVersion is group version used to register these objects
-var SchemeGroupVersion = schema.GroupVersion{
-	Group:   ving.GroupName,
-	Version: "v1alpha1",
-}
-
-// Kind takes an unqualified kind and returns back a Group qualified GroupKind
-func Kind(kind string) schema.GroupKind {
-	return SchemeGroupVersion.WithKind(kind).GroupKind()
-}
-
-// Resource takes an unqualified resource and returns a Group qualified GroupResource
-func Resource(resource string) schema.GroupResource {
-	return SchemeGroupVersion.WithResource(resource).GroupResource()
-}
-
-var (
-	// SchemeBuilder adds Go types for Custom Resources to the
-	// client API.
-	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	// AddToScheme specifies k8s.io/apimachinery/pkg/runtime.AddToScheme
-	AddToScheme = SchemeBuilder.AddToScheme
-)
-
-// Adds the list of known types to Scheme.
-func addKnownTypes(scheme *runtime.Scheme) error {
-	scheme.AddKnownTypes(SchemeGroupVersion,
-		&VarnishConfig{},
-		&VarnishConfigList{},
-	)
-	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
-	return nil
-}
+// Package controller provides access to the k8s server API and drives
+// the main loops of the Ingress controller. It sets up informers,
+// lister, event handlers, queues and workers, and it starts and stops
+// the workers that sync resources.
+//
+// Only this package imports packages from k8s.io and from the
+// project's own client APIs (in pkg/client).
+package controller

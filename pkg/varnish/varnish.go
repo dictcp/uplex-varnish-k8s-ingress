@@ -26,6 +26,11 @@
  * SUCH DAMAGE.
  */
 
+// Package varnish encapsulates interaction with Varnish instances to
+// transform desired states from Ingress and VarnishConfig configs to
+// the actual state of the cluster. Only this package imports
+// varnishapi/pkg/admin to interact with the CLI of each Varnish
+// instance.
 package varnish
 
 import (
@@ -59,17 +64,33 @@ var (
 	admTimeout = time.Second * 10
 )
 
+// VarnishAdmError encapsulates an error encountered for an individual
+// Varnish instance, and satisfies the Error interface.
 type VarnishAdmError struct {
 	addr string
 	err  error
 }
 
+// Error returns an error meesage for an error encountered at a
+// Varnish instance, identifying the instance by its Endpoint address
+// (internal IP) and admin port.
 func (vadmErr VarnishAdmError) Error() string {
 	return fmt.Sprintf("%s: %v", vadmErr.addr, vadmErr.err)
 }
 
+// VarnishAdmErrors is a collection of errors encountered at Varnish
+// instances. Most attempts to sync the state of Varnish instances do
+// not break off at the first error; the attempt is repeated for each
+// instance in a cluster, collecting error information along the way.
+// This object contains error information for each instance in a
+// cluster that failed to sync. The type satisifies the Error
+// interface.
 type VarnishAdmErrors []VarnishAdmError
 
+// Error returns an error message that includes errors for each
+// instance in a Varnish cluster that failed a sync operation, where
+// each instance is identified by it Endpoint (internal IP) and admin
+// port.
 func (vadmErrs VarnishAdmErrors) Error() string {
 	var sb strings.Builder
 	sb.WriteRune('[')
@@ -108,6 +129,9 @@ type varnishSvc struct {
 	cfgLoaded bool
 }
 
+// VarnishController encapsulates information about each Varnish
+// cluster deployed as Ingress implementations in the cluster, and
+// their current states.
 type VarnishController struct {
 	log     *logrus.Logger
 	svcs    map[string]*varnishSvc
@@ -115,6 +139,14 @@ type VarnishController struct {
 	errChan chan error
 }
 
+// NewVarnishController returns an instance of VarnishController.
+//
+//    log: logger object initialized at startup
+//    tmplDir: directory containing templates for VCL generation
+//
+// If tmplDir is the empty string, use the environment variable
+// TEMPLATE_DIR. If the env variable does not exist, use the current
+// working directory.
 func NewVarnishController(
 	log *logrus.Logger, tmplDir string) (*VarnishController, error) {
 
@@ -134,6 +166,8 @@ func NewVarnishController(
 	}, nil
 }
 
+// Start initiates the Varnish controller and starts the monitor
+// goroutine.
 func (vc *VarnishController) Start(errChan chan error) {
 	vc.errChan = errChan
 	vc.log.Info("Starting Varnish controller")
@@ -415,6 +449,15 @@ func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 	return errs
 }
 
+// AddOrUpdateVarnishSvc causes a sync for the Varnish Service
+// identified by namespace/name key.
+//
+//    addrs: list of admin addresses for instances in the Service
+//           (internal IPs and admin ports)
+//    secrName: namespace/name of the admin secret to use for the
+//              Service
+//    loadVCL: true if the VCL config for the Service should be
+//             reloaded
 func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
 	addrs []vcl.Address, secrName string, loadVCL bool) error {
 
@@ -456,6 +499,10 @@ func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
 	return vc.updateVarnishSvcAddrs(key, addrs, secrPtr, loadVCL)
 }
 
+// DeleteVarnishSvc is called on the Delete event for the Varnish
+// Service identified by the namespace/name key. The Varnish instance
+// is set to the unready state, and no further action is taken (other
+// resources in the cluster may shut down the Varnish instances).
 func (vc *VarnishController) DeleteVarnishSvc(key string) error {
 	svc, ok := vc.svcs[key]
 	if !ok {
@@ -468,6 +515,12 @@ func (vc *VarnishController) DeleteVarnishSvc(key string) error {
 	return err
 }
 
+// Update a Varnish Service to implement an Ingress.
+//
+//    svcKey: namespace/name key for the Service
+//    ingKey: namespace/name key for the Ingress
+//    uid: UID field from the Ingress
+//    spec: VCL spec corresponding to the Ingress definition
 func (vc *VarnishController) Update(
 	svcKey, ingKey, uid string, spec vcl.Spec) error {
 
@@ -493,6 +546,12 @@ func (vc *VarnishController) Update(
 	return vc.updateVarnishSvc(svcKey)
 }
 
+// DeleteIngress is called for the Delete event on an Ingress, and
+// syncs its effect for a Varnish Service.
+//
+//    svcKey: namespace/name key for the Varnish Service
+//    ingKey: namespace/name key for the Ingress
+//
 // We currently only support one Ingress definition at a time for a
 // Varnish Service, so deleting the Ingress means that we set Varnish
 // instances to the not ready state.
@@ -527,7 +586,13 @@ func (vc *VarnishController) DeleteIngress(svcKey, ingKey string) error {
 	return errs
 }
 
-// Currently only one Ingress at a time for a Varnish Service.
+// HasIngress returns true iff an Ingress definition is already loaded
+// for a Varnish Service (so a new sync attempt is not necessary).
+//
+//    svcKey: namespace/name key for the Varnish Service
+//    ingKey: namespace/name key for the Ingress
+//    uid: UID field from the Ingress
+//    spec: VCL specification derived from the Ingress
 func (vc *VarnishController) HasIngress(svcKey, ingKey, uid string,
 	spec vcl.Spec) bool {
 
@@ -541,6 +606,8 @@ func (vc *VarnishController) HasIngress(svcKey, ingKey, uid string,
 		reflect.DeepEqual(svc.spec.spec.Canonical(), spec.Canonical())
 }
 
+// SetAdmSecret stores the Secret data identified by the
+// namespace/name key.
 func (vc *VarnishController) SetAdmSecret(key string, secret []byte) {
 	secr, exists := vc.secrets[key]
 	if !exists {
@@ -551,6 +618,9 @@ func (vc *VarnishController) SetAdmSecret(key string, secret []byte) {
 	copy(*vc.secrets[key], secret)
 }
 
+// UpdateSvcForSecret associates the Secret identified by the
+// namespace/name secretKey with the Varnish Service identified by the
+// namespace/name svcKey. The Service is newly synced if necessary.
 func (vc *VarnishController) UpdateSvcForSecret(svcKey, secretKey string) error {
 	secret, exists := vc.secrets[secretKey]
 	if !exists {
@@ -581,6 +651,8 @@ func (vc *VarnishController) UpdateSvcForSecret(svcKey, secretKey string) error 
 	return vc.updateVarnishSvc(svcKey)
 }
 
+// DeleteAdmSecret removes the secret identified by the namespace/name
+// key.
 func (vc *VarnishController) DeleteAdmSecret(name string) {
 	_, exists := vc.secrets[name]
 	if exists {
@@ -588,6 +660,7 @@ func (vc *VarnishController) DeleteAdmSecret(name string) {
 	}
 }
 
+// Quit stops the Varnish controller.
 func (vc *VarnishController) Quit() {
 	vc.errChan <- nil
 }

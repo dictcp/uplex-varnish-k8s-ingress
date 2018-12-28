@@ -62,6 +62,10 @@ type infrmrs struct {
 	vcfg cache.SharedIndexInformer
 }
 
+// Listers aggregates listers from k8s.io/client-go/listers for the
+// various resource types of interested. These are initialized by
+// IngressController, and handed off to NamespaceWorker workers to
+// read data from the client-go cache.
 type Listers struct {
 	ing  ext_listers.IngressLister
 	svc  core_v1_listers.ServiceLister
@@ -83,7 +87,14 @@ type IngressController struct {
 	recorder    record.EventRecorder
 }
 
-// NewIngressController creates a controller
+// NewIngressController creates a controller.
+//
+//    log: logger initialized at startup
+//    kubeClient: k8s client initialized at startup
+//    vc: Varnish controller
+//    infFactory: SharedInformerFactory to create informers & listers for
+//                the k8s standard client APIs
+//    vcrInfFactory: SharedInformerFactory for the project's own client APIs
 func NewIngressController(
 	log *logrus.Logger,
 	kubeClient kubernetes.Interface,
@@ -203,7 +214,9 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 	ingc.nsQs.Queue.Add(new)
 }
 
-// Run the Ingress controller
+// Run the Ingress controller -- start the informers in goroutines,
+// wait for the caches to sync, and call Run() for the
+// NamespaceQueues. Then block until Stop() is invoked.
 func (ingc *IngressController) Run() {
 	defer utilruntime.HandleCrash()
 	defer ingc.nsQs.Stop()
@@ -235,7 +248,7 @@ func (ingc *IngressController) Run() {
 	ingc.log.Info("Shutting down workers")
 }
 
-// Stop the Ingress controller
+// Stop the Ingress controller -- signal the workers to stop.
 func (ingc *IngressController) Stop() {
 	close(ingc.stopCh)
 }
