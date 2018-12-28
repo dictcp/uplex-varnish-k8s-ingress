@@ -18,6 +18,13 @@ spec:
       - image: varnish-ingress/controller
         imagePullPolicy: IfNotPresent
         name: varnish-ingress-controller
+        livenessProbe:
+          exec:
+            command:
+            - /usr/bin/pgrep
+            - -P
+            - "0"
+            - k8s-ingress
         args:
         # log-level default is info, so this can be left out.
         # Shown here to demonstrate setting options for the controller.
