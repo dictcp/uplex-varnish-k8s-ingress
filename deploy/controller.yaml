@@ -25,7 +25,11 @@ spec:
             - -P
             - "0"
             - k8s-ingress
+        readinessProbe:
+          exec:
+            command:
+            - /usr/bin/test
+            - -e
+            - /ready
         args:
-        # log-level default is info, so this can be left out.
-        # Shown here to demonstrate setting options for the controller.
-        - -log-level=info
+        - -readyfile=/ready

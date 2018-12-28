@@ -30,6 +30,7 @@ package controller
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	vcr_informers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/informers/externalversions"
@@ -217,7 +218,10 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 // Run the Ingress controller -- start the informers in goroutines,
 // wait for the caches to sync, and call Run() for the
 // NamespaceQueues. Then block until Stop() is invoked.
-func (ingc *IngressController) Run() {
+//
+// If readyFile is non-empty, it is the path of a file to touch when
+// the controller is ready (after informers have launched).
+func (ingc *IngressController) Run(readyFile string) {
 	defer utilruntime.HandleCrash()
 	defer ingc.nsQs.Stop()
 
@@ -227,6 +231,24 @@ func (ingc *IngressController) Run() {
 	go ingc.informers.endp.Run(ingc.stopCh)
 	go ingc.informers.secr.Run(ingc.stopCh)
 	go ingc.informers.vcfg.Run(ingc.stopCh)
+
+	ingc.log.Info("Controller ready")
+	if readyFile != "" {
+		f, err := os.Create(readyFile)
+		if err != nil {
+			e := fmt.Errorf("Cannot create ready file %s: %v",
+				readyFile, err)
+			utilruntime.HandleError(e)
+			return
+		}
+		if err = f.Close(); err != nil {
+			e := fmt.Errorf("Cannot close ready file %s: %v",
+				readyFile, err)
+			utilruntime.HandleError(e)
+			defer f.Close()
+		}
+		ingc.log.Infof("Created ready file %s", readyFile)
+	}
 
 	ingc.log.Info("Waiting for caches to sync")
 	if ok := cache.WaitForCacheSync(ingc.stopCh,

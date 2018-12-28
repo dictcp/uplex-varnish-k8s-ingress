@@ -25,6 +25,8 @@ Usage of ./k8s-ingress:
     	cluster master URL, for out-of-cluster runs
   -namespace string
     	namespace in which to listen for resources (default all)
+  -readyfile string
+    	path of a file to touch when the controller is ready, for readiness probes
   -stderrthreshold value
     	logs at or above this threshold go to stderr
   -templatedir string
@@ -68,6 +70,11 @@ by the controller to generate VCL configurations. By default, the
 controller uses the value of the environment variable
 ``TEMPLATE_DIR``, or the current working director if neither of the
 command-line option nor the environment variable are set.
+
+If ``-readyfile /path/to/file`` is set, then the controller removes
+the file at that path immediately at startup, if any exists, and
+touches it when it is ready. Readiness probes can then test the file
+for existence. By default, no readiness file is created.
 
 ``-log-level`` sets the log level for the main controller code,
 ``INFO`` by default.

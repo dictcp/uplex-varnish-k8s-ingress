@@ -68,6 +68,8 @@ var (
 		"out-of-cluster runs")
 	kubeconfigF = flag.String("kubeconfig", "", "config path for the "+
 		"cluster master URL, for out-of-cluster runs")
+	readyfileF = flag.String("readyfile", "", "path of a file to touch "+
+		"when the controller is ready, for readiness probes")
 	logFormat = logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
@@ -95,6 +97,14 @@ func main() {
 	if *versionF {
 		fmt.Printf("%s version %s\n", os.Args[0], version)
 		os.Exit(0)
+	}
+
+	if *readyfileF != "" {
+		if err := os.Remove(*readyfileF); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Cannot remove ready file %s: %v",
+				*readyfileF, err)
+			os.Exit(-1)
+		}
 	}
 
 	lvl := strings.ToLower(*loglvlF)
@@ -167,7 +177,7 @@ func main() {
 		vController, informerFactory, vcrInformerFactory)
 	go handleTermination(log, ingController, vController, varnishDone)
 	informerFactory.Start(informerStop)
-	ingController.Run()
+	ingController.Run(*readyfileF)
 }
 
 func handleTermination(
