@@ -45,16 +45,9 @@ import (
 )
 
 const (
-	ingressClassKey        = "kubernetes.io/ingress.class"
-	annotationPrefix       = "ingress.varnish-cache.org/"
-	selfShardKey           = "self-sharding"
-	shardProbeTimeoutKey   = "self-sharding-probe-timeout"
-	shardProbeIntervalKey  = "self-sharding-probe-interval"
-	shardProbeInitialKey   = "self-sharding-probe-initial"
-	shardProbeWindowKey    = "self-sharding-probe-window"
-	shardProbeThresholdKey = "self-sharding-probe-threshold"
-	shardMax2ndTTL         = "self-sharding-max-secondary-ttl"
-	varnishSvcKey          = annotationPrefix + "varnish-svc"
+	ingressClassKey  = "kubernetes.io/ingress.class"
+	annotationPrefix = "ingress.varnish-cache.org/"
+	varnishSvcKey    = annotationPrefix + "varnish-svc"
 )
 
 func (worker *NamespaceWorker) getVarnishSvcForIng(

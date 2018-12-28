@@ -105,9 +105,19 @@ func (worker *NamespaceWorker) enqueueIngressForService(
 
 // Return true if changes in Varnish services may lead to changes in
 // the VCL config generated for the Ingress.
-func isVarnishInVCLSpec(ing *extensions.Ingress) bool {
-	_, selfShard := ing.Annotations[selfShardKey]
-	return selfShard
+func (worker *NamespaceWorker) isVarnishInVCLSpec(ing *extensions.Ingress) bool {
+	vcfgs, err := worker.vcfg.List(labels.Everything())
+	if err != nil {
+		worker.log.Warnf("Error retrieving VarnishConfigs in "+
+			"namespace %s: %v", worker.namespace, err)
+		return false
+	}
+	for _, vcfg := range vcfgs {
+		if vcfg.Spec.SelfSharding != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (worker *NamespaceWorker) syncSvc(key string) error {
@@ -143,7 +153,7 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 			ingSvc.Name != svc.Name {
 			continue
 		}
-		if !isVarnishInVCLSpec(ing) {
+		if !worker.isVarnishInVCLSpec(ing) {
 			continue
 		}
 		updateVCL = true
