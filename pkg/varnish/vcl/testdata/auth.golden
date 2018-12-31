@@ -1,0 +1,79 @@
+
+import re2;
+
+sub vcl_init {
+	new vk8s_foo_auth = re2.set(anchor=both);
+	vk8s_foo_auth.add("\s*Basic\s+\QQWxhZGRpbjpvcGVuIHNlc2FtZQ==\E\s*");
+	vk8s_foo_auth.add("\s*Basic\s+\QQWxhZGRpbjpPcGVuU2VzYW1l\E\s*");
+	vk8s_foo_auth.compile();
+
+	new vk8s_bar_auth = re2.set(anchor=both);
+	vk8s_bar_auth.add("\s*Basic\s+\QZm9vOmJhcg==\E\s*");
+	vk8s_bar_auth.add("\s*Basic\s+\QYmF6OnF1dXg=\E\s*");
+	vk8s_bar_auth.compile();
+
+	new vk8s_baz_auth = re2.set(anchor=both);
+	vk8s_baz_auth.add("\s*Basic\s+\QdXNlcjpwYXNzd29yZDE=\E\s*");
+	vk8s_baz_auth.add("\s*Basic\s+\QbmFtZTpzZWNyZXQ=\E\s*");
+	vk8s_baz_auth.compile();
+
+	new vk8s_quux_auth = re2.set(anchor=both);
+	vk8s_quux_auth.add("\s*Basic\s+\QYmVudXR6ZXI6Z2VoZWlt\E\s*");
+	vk8s_quux_auth.add("\s*Basic\s+\QQWxiZXJ0IEFkZGluOm9wZW4gc2V6IG1l\E\s*");
+	vk8s_quux_auth.compile();
+
+	new vk8s_urlhost_auth = re2.set(anchor=both);
+	vk8s_urlhost_auth.add("\s*Basic\s+\QdXJsOmhvc3Q=\E\s*");
+	vk8s_urlhost_auth.add("\s*Basic\s+\QYWRtaW46c3VwZXJwb3dlcnM=\E\s*");
+	vk8s_urlhost_auth.compile();
+}
+
+sub vcl_recv {
+	if (
+	    !vk8s_foo_auth.match(req.http.Authorization)
+	   ) {
+		set req.http.VK8S-Authenticate = {"Basic realm="foo""};
+		return(synth(60000 + 401));
+	}
+	if (
+	    !vk8s_bar_auth.match(req.http.Proxy-Authorization)
+	   ) {
+		set req.http.VK8S-Authenticate = {"Basic realm="bar""};
+		return(synth(60000 + 407));
+	}
+	if (
+	    req.http.Host ~ "^baz\.com$" &&
+	    !vk8s_baz_auth.match(req.http.Authorization)
+	   ) {
+		set req.http.VK8S-Authenticate =
+			{"Basic realm="baz", charset="UTF-8""};
+		return(synth(60000 + 401));
+	}
+	if (
+	    req.url ~ "^/baz/quux" &&
+	    !vk8s_quux_auth.match(req.http.Proxy-Authorization)
+	   ) {
+		set req.http.VK8S-Authenticate =
+			{"Basic realm="quux", charset="UTF-8""};
+		return(synth(60000 + 407));
+	}
+	if (
+	    req.http.Host ~ "^url\.regex\.org$" &&
+	    req.url ~ "^/secret/path" &&
+	    !vk8s_urlhost_auth.match(req.http.Authorization)
+	   ) {
+		set req.http.VK8S-Authenticate = {"Basic realm="urlhost""};
+		return(synth(60000 + 401));
+	}
+}
+
+sub vcl_synth {
+	if (resp.status == 60401) {
+		set resp.http.WWW-Authenticate = req.http.VK8S-Authenticate;
+		return(deliver);
+	}
+	if (resp.status == 60407) {
+		set resp.http.Proxy-Authenticate = req.http.VK8S-Authenticate;
+		return(deliver);
+	}
+}

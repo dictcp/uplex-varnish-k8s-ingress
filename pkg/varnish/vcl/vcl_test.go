@@ -312,3 +312,88 @@ func TestGetSrc(t *testing.T) {
 		}
 	}
 }
+
+var auths = Spec{
+	Auths: []Auth{
+		{
+			Realm:  "foo",
+			Status: Basic,
+			Credentials: []string{
+				"QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
+				"QWxhZGRpbjpPcGVuU2VzYW1l",
+			},
+		},
+		{
+			Realm:  "bar",
+			Status: Proxy,
+			Credentials: []string{
+				"Zm9vOmJhcg==",
+				"YmF6OnF1dXg=",
+			},
+			UTF8: false,
+		},
+		{
+			Realm:  "baz",
+			Status: Basic,
+			Credentials: []string{
+				"dXNlcjpwYXNzd29yZDE=",
+				"bmFtZTpzZWNyZXQ=",
+			},
+			Condition: Condition{
+				HostRegex: `^baz\.com$`,
+			},
+			UTF8: true,
+		},
+		{
+			Realm:  "quux",
+			Status: Proxy,
+			Credentials: []string{
+				"YmVudXR6ZXI6Z2VoZWlt",
+				"QWxiZXJ0IEFkZGluOm9wZW4gc2V6IG1l",
+			},
+			Condition: Condition{
+				URLRegex: "^/baz/quux",
+			},
+			UTF8: true,
+		},
+		{
+			Realm:  "urlhost",
+			Status: Basic,
+			Credentials: []string{
+				"dXJsOmhvc3Q=",
+				"YWRtaW46c3VwZXJwb3dlcnM=",
+			},
+			Condition: Condition{
+				HostRegex: `^url\.regex\.org$`,
+				URLRegex:  "^/secret/path",
+			},
+		},
+	},
+}
+
+func TestAuthTemplate(t *testing.T) {
+	var buf bytes.Buffer
+	gold := "auth.golden"
+	tmplName := "auth.tmpl"
+
+	tmpl, err := template.New(tmplName).Funcs(fMap).ParseFiles(tmplName)
+	if err != nil {
+		t.Error("Cannot parse auth template:", err)
+		return
+	}
+	if err := tmpl.Execute(&buf, auths); err != nil {
+		t.Error("auths template Execute():", err)
+		return
+	}
+	ok, err := cmpGold(buf.Bytes(), gold)
+	if err != nil {
+		t.Fatalf("Reading %s: %v", gold, err)
+	}
+	if !ok {
+		t.Errorf("Generated VCL for authorization does not match gold "+
+			"file: %s", gold)
+		if testing.Verbose() {
+			t.Logf("Generated: %s", buf.String())
+		}
+	}
+}

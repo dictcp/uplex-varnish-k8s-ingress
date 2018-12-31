@@ -31,6 +31,7 @@ package controller
 // Methods for syncing Ingresses
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strconv"
 
@@ -161,26 +162,9 @@ func (worker *NamespaceWorker) ing2VCLSpec(
 }
 
 func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
-	svc *api_v1.Service) error {
+	vcfg *vcr_v1alpha1.VarnishConfig, svc *api_v1.Service) error {
 
-	var vcfg *vcr_v1alpha1.VarnishConfig
-	vcfgs, err := worker.vcfg.List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	worker.log.Debugf("Listing VarnishConfigs in namespace %s",
-		worker.namespace)
-	for _, v := range vcfgs {
-		worker.log.Debugf("VarnishConfig: %s/%s: %+v", v.Namespace,
-			v.Name, v)
-		for _, svcName := range v.Spec.Services {
-			if svcName == svc.Name {
-				vcfg = v
-				break
-			}
-		}
-	}
-	if vcfg == nil || vcfg.Spec.SelfSharding == nil {
+	if vcfg.Spec.SelfSharding == nil {
 		worker.log.Debugf("No cluster shard configuration for Service "+
 			"%s/%s", svc.Namespace, svc.Name)
 		return nil
@@ -268,6 +252,63 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 	return nil
 }
 
+func (worker *NamespaceWorker) configAuth(spec *vcl.Spec,
+	vcfg *vcr_v1alpha1.VarnishConfig) error {
+
+	if len(vcfg.Spec.Auth) == 0 {
+		worker.log.Infof("No Auth spec found for VarnishConfig %s/%s",
+			vcfg.Namespace, vcfg.Name)
+		return nil
+	}
+	worker.log.Debugf("VarnishConfig %s/%s: configure %d VCL auths",
+		vcfg.Namespace, vcfg.Name, len(vcfg.Spec.Auth))
+	spec.Auths = make([]vcl.Auth, 0, len(vcfg.Spec.Auth))
+	for _, auth := range vcfg.Spec.Auth {
+		worker.log.Debugf("VarnishConfig %s/%s configuring VCL auth "+
+			"from: %+v", vcfg.Namespace, vcfg.Name, auth)
+		secret, err := worker.secr.Get(auth.SecretName)
+		if err != nil {
+			return err
+		}
+		if len(secret.Data) == 0 {
+			worker.log.Warnf("No secrets found in Secret %s/%s "+
+				"for realm %s in VarnishConfig %s/%s, ignoring",
+				secret.Namespace, secret.Name, auth.Realm,
+				vcfg.Namespace, vcfg.Name)
+			continue
+		}
+		worker.log.Debugf("VarnishConfig %s/%s configure %d "+
+			"credentials for realm %s", vcfg.Namespace, vcfg.Name,
+			len(secret.Data), auth.Realm)
+		vclAuth := vcl.Auth{
+			Realm:       auth.Realm,
+			Credentials: make([]string, 0, len(secret.Data)),
+			UTF8:        auth.UTF8,
+		}
+		if auth.Type == "" || auth.Type == vcr_v1alpha1.Basic {
+			vclAuth.Status = vcl.Basic
+		} else {
+			vclAuth.Status = vcl.Proxy
+		}
+		for user, pass := range secret.Data {
+			str := user + ":" + string(pass)
+			cred := base64.StdEncoding.EncodeToString([]byte(str))
+			worker.log.Debugf("VarnishConfig %s/%s: add cred %s "+
+				"for realm %s to VCL config", vcfg.Namespace,
+				vcfg.Name, cred, vclAuth.Realm)
+			vclAuth.Credentials = append(vclAuth.Credentials, cred)
+		}
+		if auth.Condition != nil {
+			vclAuth.Condition.URLRegex = auth.Condition.URLRegex
+			vclAuth.Condition.HostRegex = auth.Condition.HostRegex
+		}
+		worker.log.Debugf("VarnishConfig %s/%s add VCL auth config: "+
+			"%+v", vcfg.Namespace, vcfg.Name, vclAuth)
+		spec.Auths = append(spec.Auths, vclAuth)
+	}
+	return nil
+}
+
 func (worker *NamespaceWorker) hasIngress(svc *api_v1.Service,
 	ing *extensions.Ingress, spec vcl.Spec) bool {
 
@@ -299,8 +340,36 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 		return err
 	}
 
-	if err = worker.configSharding(&vclSpec, svc); err != nil {
+	var vcfg *vcr_v1alpha1.VarnishConfig
+	worker.log.Debugf("Listing VarnishConfigs in namespace %s",
+		worker.namespace)
+	vcfgs, err := worker.vcfg.List(labels.Everything())
+	if err != nil {
 		return err
+	}
+	for _, v := range vcfgs {
+		worker.log.Debugf("VarnishConfig: %s/%s: %+v", v.Namespace,
+			v.Name, v)
+		for _, svcName := range v.Spec.Services {
+			if svcName == svc.Name {
+				vcfg = v
+				break
+			}
+		}
+	}
+	if vcfg != nil {
+		worker.log.Infof("Found VarnishConfig %s/%s for Varnish "+
+			"Service %s/%s", vcfg.Namespace, vcfg.Name,
+			svc.Namespace, svc.Name)
+		if err = worker.configSharding(&vclSpec, vcfg, svc); err != nil {
+			return err
+		}
+		if err = worker.configAuth(&vclSpec, vcfg); err != nil {
+			return err
+		}
+	} else {
+		worker.log.Infof("Found no VarnishConfigs for Varnish Service "+
+			"%s/%s", svc.Namespace, svc.Name)
 	}
 
 	worker.log.Debugf("Check if Ingress is loaded: key=%s uuid=%s hash=%0x",

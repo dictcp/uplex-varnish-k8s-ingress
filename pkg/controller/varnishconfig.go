@@ -39,6 +39,9 @@ import (
 // the Timeout, Interval and Initial fields, and that Window and
 // Threshold have been checked for permitted ranges.
 func validateSharding(spec *vcr_v1alpha1.SelfShardSpec) error {
+	if spec == nil {
+		return nil
+	}
 	if spec.Probe.Window != nil && spec.Probe.Threshold != nil &&
 		*spec.Probe.Threshold > *spec.Probe.Window {
 		return fmt.Errorf("Threshold (%d) may not be greater than "+
@@ -59,11 +62,6 @@ func (worker *NamespaceWorker) syncVcfg(key string) error {
 	if len(vcfg.Spec.Services) == 0 {
 		// CRD validation should prevent this.
 		worker.log.Infof("VarnishConfig %s/%s: no services defined, "+
-			"ignoring", vcfg.Namespace, vcfg.Name)
-		return nil
-	}
-	if vcfg.Spec.SelfSharding == nil {
-		worker.log.Infof("VarnishConfig %s/%s: no config defined, "+
 			"ignoring", vcfg.Namespace, vcfg.Name)
 		return nil
 	}

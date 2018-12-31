@@ -157,6 +157,62 @@ func (shard ShardCluster) hash(hash hash.Hash) {
 	hash.Write([]byte(shard.MaxSecondaryTTL))
 }
 
+// Condition specifies conditions under which an authentication
+// protocols must be executed -- the URL path or the Host must match
+// patterns, the request must be received from a TLS offloader, or any
+// combination of the three.
+type Condition struct {
+	URLRegex  string
+	HostRegex string
+	TLS       bool
+}
+
+// AuthStatus is the response code to be sent for authentication
+// failures, and serves to distinguish the protocols.
+type AuthStatus uint16
+
+const (
+	// Basic Authentication
+	Basic AuthStatus = 401
+	// Proxy Authentication
+	Proxy = 407
+)
+
+// Auth specifies Basic or Proxy Authentication, derived from an
+// AuthSpec in a VarnishConfig resource.
+type Auth struct {
+	Realm       string
+	Credentials []string
+	Status      AuthStatus
+	Condition   Condition
+	UTF8        bool
+}
+
+func (auth Auth) hash(hash hash.Hash) {
+	hash.Write([]byte(auth.Realm))
+	for _, cred := range auth.Credentials {
+		hash.Write([]byte(cred))
+	}
+	statusBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(statusBytes, uint16(auth.Status))
+	hash.Write(statusBytes)
+	hash.Write([]byte(auth.Condition.URLRegex))
+	hash.Write([]byte(auth.Condition.HostRegex))
+	if auth.Condition.TLS {
+		hash.Write([]byte("TLS"))
+	}
+	if auth.UTF8 {
+		hash.Write([]byte("UTF8"))
+	}
+}
+
+// interface for sorting []Auth
+type byRealm []Auth
+
+func (a byRealm) Len() int           { return len(a) }
+func (a byRealm) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byRealm) Less(i, j int) bool { return a[i].Realm < a[j].Realm }
+
 // Spec is the specification for a VCL configuration derived from
 // Ingresses and VarnishConfig Custom Resources. This abstracts the
 // VCL to be loaded by all instances of a Varnish Service.
@@ -174,6 +230,10 @@ type Spec struct {
 	// ShardCluster is derived from the self-sharding
 	// specification in a VarnishConfig resource.
 	ShardCluster ShardCluster
+	// Auths is a list of specifications for Basic or Proxy
+	// Authentication, derived from the Auth section of a
+	// VarnishConfig.
+	Auths []Auth
 }
 
 // DeepHash computes a 64-bit hash value from a Spec such that if two
@@ -196,6 +256,9 @@ func (spec Spec) DeepHash() uint64 {
 		spec.AllServices[svc].hash(hash)
 	}
 	spec.ShardCluster.hash(hash)
+	for _, auth := range spec.Auths {
+		auth.hash(hash)
+	}
 	return hash.Sum64()
 }
 
@@ -209,6 +272,7 @@ func (spec Spec) Canonical() Spec {
 		Rules:          make([]Rule, len(spec.Rules)),
 		AllServices:    make(map[string]Service, len(spec.AllServices)),
 		ShardCluster:   spec.ShardCluster,
+		Auths:          make([]Auth, len(spec.Auths)),
 	}
 	copy(canon.DefaultService.Addresses, spec.DefaultService.Addresses)
 	sort.Stable(byIPPort(canon.DefaultService.Addresses))
@@ -226,6 +290,11 @@ func (spec Spec) Canonical() Spec {
 	sort.Stable(byName(canon.ShardCluster.Nodes))
 	for _, node := range canon.ShardCluster.Nodes {
 		sort.Stable(byIPPort(node.Addresses))
+	}
+	copy(canon.Auths, spec.Auths)
+	sort.Stable(byRealm(canon.Auths))
+	for _, auth := range canon.Auths {
+		sort.Strings(auth.Credentials)
 	}
 	return canon
 }
@@ -247,11 +316,13 @@ var fMap = template.FuncMap{
 const (
 	ingTmplSrc   = "vcl.tmpl"
 	shardTmplSrc = "self-shard.tmpl"
+	authTmplSrc  = "auth.tmpl"
 )
 
 var (
 	ingressTmpl *template.Template
 	shardTmpl   *template.Template
+	authTmpl    *template.Template
 	symPattern  = regexp.MustCompile("^[[:alpha:]][[:word:]-]*$")
 	first       = regexp.MustCompile("[[:alpha:]]")
 	restIllegal = regexp.MustCompile("[^[:word:]-]+")
@@ -262,6 +333,7 @@ func InitTemplates(tmplDir string) error {
 	var err error
 	ingTmplPath := path.Join(tmplDir, ingTmplSrc)
 	shardTmplPath := path.Join(tmplDir, shardTmplSrc)
+	authTmplPath := path.Join(tmplDir, authTmplSrc)
 	ingressTmpl, err = template.New(ingTmplSrc).
 		Funcs(fMap).ParseFiles(ingTmplPath)
 	if err != nil {
@@ -269,6 +341,11 @@ func InitTemplates(tmplDir string) error {
 	}
 	shardTmpl, err = template.New(shardTmplSrc).
 		Funcs(fMap).ParseFiles(shardTmplPath)
+	if err != nil {
+		return err
+	}
+	authTmpl, err = template.New(authTmplSrc).
+		Funcs(fMap).ParseFiles(authTmplPath)
 	if err != nil {
 		return err
 	}
@@ -292,6 +369,11 @@ func (spec Spec) GetSrc() (string, error) {
 	}
 	if len(spec.ShardCluster.Nodes) > 0 {
 		if err := shardTmpl.Execute(&buf, spec.ShardCluster); err != nil {
+			return "", err
+		}
+	}
+	if len(spec.Auths) > 0 {
+		if err := authTmpl.Execute(&buf, spec); err != nil {
 			return "", err
 		}
 	}

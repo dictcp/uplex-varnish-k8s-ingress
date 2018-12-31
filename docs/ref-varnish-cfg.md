@@ -156,3 +156,104 @@ spec:
       window: 4
       threshold: 3
 ```
+
+### ``spec.auth``
+
+The ``auth`` object is optional, and if present it contains a
+non-empty array of specifications for authentication protocols (Basic
+or Proxy) to be implemented by Varnish Services listed in the
+``services`` array. See [RFC7235](https://tools.ietf.org/html/rfc7235)
+for the HTTP Authentication standard.
+
+For each element of ``auth``, these two fields are required:
+
+* ``realm``: string identifying the realm or "protection space" for
+  authentication
+* ``secretName``: the name of a Secret in the same namespace as the
+  VarnishConfig resource and Varnish Services that contains the
+  username/password credentials for authentication
+
+The key-value pairs in the Secret are the username-password pairs to
+be used for authentication.
+
+These fields in the elements of ``auth`` are optional:
+
+* ``type`` (string): one of the values ``basic`` or ``proxy`` to
+  specify the authentication protocol, ``basic`` by default
+* ``utf8`` (boolean): if ``true``, then the ``charset="UTF-8"``
+  field is added to the ``*-Authenticate`` response header
+  (``WWW-Authentcate`` or ``Proxy-Authenticate``) in the case of
+  authentication failures, to advise clients that UTF-8 character
+  encoding is used for the username/password (see
+  [RFC 7617 2.1](https://tools.ietf.org/html/rfc7617#section-2.1)).
+  By default, ``charset`` is ``false``.
+* ``condition``: conditions under which the authentication protocol is
+  to be executed.
+
+If the ``condition`` object is present, it may have either or both of
+these fields:
+
+* ``url-match`` (regular expression): pattern to match against the
+  URL path of the request
+* ``host-match`` (regular expression): pattern to match against the
+  ``Host`` request header
+
+If either or both of these two fields are present, then the
+authentication protocol is executed for matching requests. If the
+``condition`` is left out, then the authentication is required for
+every client request.  The patterns in ``url-match`` and
+``host-match`` are implemented as
+[VCL regular expressions](https://varnish-cache.org/docs/6.1/reference/vcl.html#regular-expressions),
+and hence have the syntax and semantics of
+[PCRE](https://www.pcre.org/original/doc/html/).
+
+Validation for ``VarnishConfig`` reports errors at apply time if:
+
+* the ``auth`` array is empty
+* either of the fields ``realm`` or ``secretName`` is left out
+* any of the string fields are empty
+* ``type`` has an illegal value (neither of ``basic`` or ``proxy``)
+
+Other errors, in particular illegal regex syntax for ``url-match`` or
+``host-match``, are not reported until VCL load time. Check the
+controller log and Events generated for the Varnish Service for error
+messages from the VCL compiler.
+
+Examples:
+```
+spec:
+  # Require Basic Authentication for both the coffee and tea Services.
+  auth:
+    # For the coffee Service, require authentication for the realm
+    # "coffee" when the Host is "cafe.example.com" and the URL path
+    # begins with "/coffee".  Username/password pairs are taken from
+    # the Secret "coffee-creds" in the same namespace, and clients
+    # are advised that they are encoded with UTF-8.
+    - realm: coffee
+      secretName: coffee-creds
+      type: basic
+      utf8: true
+      condition:
+        host-match: ^cafe\.example\.com$
+        url-match: ^/coffee($|/)
+
+    # For the tea Service, require authentication for the realm "tea"
+    # when the Host is "cafe.example.com" and the URL path begins with
+    # "/tea", with usernames/passwords from the Secret
+    # "tea-creds". Note that the "type" defaults to basic and can be
+    # left out.
+    - realm: tea
+      secretName: tea-creds
+      condition:
+        host-match: ^cafe\.example\.com$
+        url-match: ^/tea($|/)
+```
+```
+spec:
+  # Require Proxy Authentication for the realm "ingress" for every
+  # request, using usernames/passwords from the Secret "proxy-creds".
+  auth:
+    - realm: ingress
+      secretName: proxy-creds
+      type: proxy
+```

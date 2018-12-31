@@ -51,6 +51,7 @@ type VarnishConfig struct {
 type VarnishConfigSpec struct {
 	Services     []string       `json:"services,omitempty"`
 	SelfSharding *SelfShardSpec `json:"self-sharding,omitempty"`
+	Auth         []AuthSpec     `json:"auth,omitempty"`
 }
 
 // SelfShardSpec specifies self-sharding in a Varnish cluster.
@@ -68,6 +69,33 @@ type ProbeSpec struct {
 	Initial   *int32 `json:"initial,omitempty"`
 	Window    *int32 `json:"window,omitempty"`
 	Threshold *int32 `json:"threshold,omitempty"`
+}
+
+// AuthSpec specifies authentication (basic or proxy).
+type AuthSpec struct {
+	Realm      string         `json:"realm"`
+	SecretName string         `json:"secretName"`
+	Type       AuthType       `json:"type,omitempty"`
+	Condition  *AuthCondition `json:"condition,omitempty"`
+	UTF8       bool           `json:"utf8,omitempty"`
+}
+
+// AuthType classifies the protocol for an AuthSpec.
+type AuthType string
+
+const (
+	// Basic Authentication
+	Basic AuthType = "basic"
+	// Proxy Authentication
+	Proxy = "proxy"
+)
+
+// AuthCondition specifies a condition under which an authentication
+// protocol must be executed -- the URL path or the Host must match a
+// pattern (or both).
+type AuthCondition struct {
+	URLRegex  string `json:"url-match,omitempty"`
+	HostRegex string `json:"host-match,omitempty"`
 }
 
 // VarnishConfigStatus is the status for a VarnishConfig resource

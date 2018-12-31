@@ -31,7 +31,10 @@ package controller
 import (
 	"fmt"
 
+	vcr_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
 	api_v1 "k8s.io/api/core/v1"
+
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // XXX make this configurable
@@ -73,6 +76,47 @@ func (worker *NamespaceWorker) getVarnishSvcsForSecret(
 	return secrSvcs, nil
 }
 
+func (worker *NamespaceWorker) updateVcfgsForSecret(secrName string) error {
+	var vcfgs []*vcr_v1alpha1.VarnishConfig
+	vs, err := worker.vcfg.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	for _, v := range vs {
+		for _, auth := range v.Spec.Auth {
+			if auth.SecretName == secrName {
+				vcfgs = append(vcfgs, v)
+			}
+		}
+	}
+	if len(vcfgs) == 0 {
+		worker.log.Infof("No VarnishConfigs found for secret: "+
+			"%s/%s", worker.namespace, secrName)
+		return nil
+	}
+	for _, vcfg := range vcfgs {
+		worker.log.Infof("Requeuing VarnishConfig %s/%s "+
+			"after update for secret %s/%s",
+			vcfg.Namespace, vcfg.Name, worker.namespace, secrName)
+		worker.queue.Add(vcfg)
+	}
+	return nil
+}
+
+func (worker *NamespaceWorker) updateVarnishSvcsForSecret(
+	svcs []*api_v1.Service, secretKey string) error {
+
+	for _, svc := range svcs {
+		svcKey := svc.Namespace + "/" + svc.Name
+		if err := worker.vController.
+			UpdateSvcForSecret(svcKey, secretKey); err != nil {
+
+			return err
+		}
+	}
+	return nil
+}
+
 func (worker *NamespaceWorker) syncSecret(key string) error {
 	worker.log.Infof("Syncing Secret: %s/%s", worker.namespace, key)
 	secret, err := worker.secr.Get(key)
@@ -82,10 +126,23 @@ func (worker *NamespaceWorker) syncSecret(key string) error {
 
 	app, ok := secret.Labels[labelKey]
 	if !ok || app != labelVal {
-		worker.log.Infof("Not a Varnish admin secret, ignoring: %s/%s",
+		worker.log.Infof("Not a Varnish secret: %s/%s",
 			secret.Namespace, secret.Name)
 		return nil
 	}
+
+	svcs, err := worker.getVarnishSvcsForSecret(secret.Name)
+	if err != nil {
+		return err
+	}
+	worker.log.Debugf("Found Varnish services for secret %s/%s: %v",
+		secret.Namespace, secret.Name, svcs)
+	if len(svcs) == 0 {
+		worker.log.Infof("No Varnish services with admin secret: %s/%s",
+			secret.Namespace, secret.Name)
+		return worker.updateVcfgsForSecret(secret.Name)
+	}
+
 	secretData, exists := secret.Data[admSecretKey]
 	if !exists {
 		return fmt.Errorf("Secret %s/%s does not have key %s",
@@ -95,41 +152,25 @@ func (worker *NamespaceWorker) syncSecret(key string) error {
 	worker.log.Debugf("Setting secret %s", secretKey)
 	worker.vController.SetAdmSecret(secretKey, secretData)
 
-	svcs, err := worker.getVarnishSvcsForSecret(secret.Name)
-	if err != nil {
-		return err
-	}
-	worker.log.Debugf("Found Varnish services for secret %s/%s: %v",
-		secret.Namespace, secret.Name, svcs)
-	for _, svc := range svcs {
-		svcKey := svc.Namespace + "/" + svc.Name
-		if err = worker.vController.
-			UpdateSvcForSecret(svcKey, secretKey); err != nil {
-
-			return err
-		}
-	}
-	return nil
+	return worker.updateVarnishSvcsForSecret(svcs, secretKey)
 }
 
 func (worker *NamespaceWorker) deleteSecret(key string) error {
-	worker.log.Infof("Deleting Secret: %s", key)
+	worker.log.Infof("Deleting Secret: %s/%s", worker.namespace, key)
 	svcs, err := worker.getVarnishSvcsForSecret(key)
 	if err != nil {
 		return err
 	}
 	worker.log.Debugf("Found Varnish services for secret %s/%s: %v",
 		worker.namespace, key, svcs)
+	if len(svcs) == 0 {
+		worker.log.Infof("No Varnish services with admin secret: %s/%s",
+			worker.namespace, key)
+		return worker.updateVcfgsForSecret(key)
+	}
 
 	secretKey := worker.namespace + "/" + key
 	worker.vController.DeleteAdmSecret(secretKey)
-	for _, svc := range svcs {
-		svcKey := svc.Namespace + "/" + svc.Name
-		if err = worker.vController.
-			UpdateSvcForSecret(svcKey, secretKey); err != nil {
 
-			return err
-		}
-	}
-	return nil
+	return worker.updateVarnishSvcsForSecret(svcs, secretKey)
 }

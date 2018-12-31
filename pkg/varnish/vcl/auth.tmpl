@@ -1,0 +1,49 @@
+
+import re2;
+
+sub vcl_init {
+{{- range $auth := .Auths}}
+	new vk8s_{{vclMangle .Realm}}_auth = re2.set(anchor=both);
+	{{- range $cred := .Credentials}}
+	vk8s_{{vclMangle $auth.Realm}}_auth.add("\s*Basic\s+\Q{{$cred}}\E\s*");
+	{{- end}}
+	vk8s_{{vclMangle .Realm}}_auth.compile();
+{{end -}}
+}
+
+sub vcl_recv {
+{{- range .Auths}}
+	if (
+	    {{- if ne .Condition.HostRegex ""}}
+	    req.http.Host ~ "{{.Condition.HostRegex}}" &&
+	    {{- end}}
+	    {{- if ne .Condition.URLRegex ""}}
+	    req.url ~ "{{.Condition.URLRegex}}" &&
+	    {{- end}}
+	    {{- if eq .Status 401}}
+	    !vk8s_{{vclMangle .Realm}}_auth.match(req.http.Authorization)
+	    {{- else}}
+	    !vk8s_{{vclMangle .Realm}}_auth.match(req.http.Proxy-Authorization)
+	    {{- end}}
+	   ) {
+		{{- if .UTF8 }}
+		set req.http.VK8S-Authenticate =
+			{"Basic realm="{{.Realm}}", charset="UTF-8""};
+		{{- else}}
+		set req.http.VK8S-Authenticate = {"Basic realm="{{.Realm}}""};
+		{{- end}}
+		return(synth(60000 + {{.Status}}));
+	}
+{{- end}}
+}
+
+sub vcl_synth {
+	if (resp.status == 60401) {
+		set resp.http.WWW-Authenticate = req.http.VK8S-Authenticate;
+		return(deliver);
+	}
+	if (resp.status == 60407) {
+		set resp.http.Proxy-Authenticate = req.http.VK8S-Authenticate;
+		return(deliver);
+	}
+}
