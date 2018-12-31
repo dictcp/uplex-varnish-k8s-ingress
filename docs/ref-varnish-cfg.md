@@ -173,6 +173,10 @@ For each element of ``auth``, these two fields are required:
   VarnishConfig resource and Varnish Services that contains the
   username/password credentials for authentication
 
+The Secret identified by ``secretName`` MUST have the label
+``app: varnish-ingress``; otherwise it is ignored by the Ingress
+controller, and the authentication scheme will not be implemented.
+
 The key-value pairs in the Secret are the username-password pairs to
 be used for authentication.
 
