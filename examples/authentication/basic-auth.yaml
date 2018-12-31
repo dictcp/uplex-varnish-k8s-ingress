@@ -1,0 +1,38 @@
+# Sample configurations for Basic Authentication.
+
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: VarnishConfig
+metadata:
+  name: basic-auth-cfg
+spec:
+  # The services array is required and must have at least one element.
+  # Lists the Service names of Varnish services in the same namespace
+  # to which this config is to be applied.
+  services:
+    - varnish-ingress
+
+  # Require Basic Authentication for both the coffee and tea Services.
+  auth:
+    # For the coffee Service, require authentication for the realm
+    # "coffee" when the Host is "cafe.example.com" and the URL path
+    # begins with "/coffee".  Username/password pairs are taken from
+    # the Secret "coffee-creds" in the same namespace, and clients
+    # are advised that they are encoded with UTF-8.
+    - realm: coffee
+      secretName: coffee-creds
+      type: basic
+      utf8: true
+      condition:
+        host-match: ^cafe\.example\.com$
+        url-match: ^/coffee($|/)
+
+    # For the tea Service, require authentication for the realm "tea"
+    # when the Host is "cafe.example.com" and the URL path begins with
+    # "/tea", with usernames/passwords from the Secret
+    # "tea-creds". Note that the "type" defaults to basic and can be
+    # left out.
+    - realm: tea
+      secretName: tea-creds
+      condition:
+        host-match: ^cafe\.example\.com$
+        url-match: ^/tea($|/)

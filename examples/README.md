@@ -12,3 +12,5 @@ requirements.
 
 * [Self-sharding Varnish cluster](/examples/self-sharding)
   ([docs](/docs/self-sharding.md))
+
+* [Basic and Proxy Authentication](/examples/authentication)

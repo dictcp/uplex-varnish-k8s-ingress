@@ -261,3 +261,6 @@ spec:
       secretName: proxy-creds
       type: proxy
 ```
+
+See the [``examples/`` folder](/examples/authentication) for working
+examples of authentication configurations.

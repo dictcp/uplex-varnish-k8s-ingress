@@ -1,0 +1,19 @@
+# Sample configuration for Proxy Authentication.
+
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: VarnishConfig
+metadata:
+  name: proxy-auth-cfg
+spec:
+  # The services array is required and must have at least one element.
+  # Lists the Service names of Varnish services in the same namespace
+  # to which this config is to be applied.
+  services:
+    - varnish-ingress
+
+  # Require Proxy Authentication for the realm "ingress" for every
+  # request, using usernames/passwords from the Secret "proxy-creds".
+  auth:
+    - realm: ingress
+      secretName: proxy-creds
+      type: proxy
