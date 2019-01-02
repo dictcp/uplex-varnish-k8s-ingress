@@ -173,8 +173,12 @@ func main() {
 	varnishDone := make(chan error, 1)
 	vController.Start(varnishDone)
 
-	ingController := controller.NewIngressController(log, kubeClient,
+	ingController, err := controller.NewIngressController(log, kubeClient,
 		vController, informerFactory, vcrInformerFactory)
+	if err != nil {
+		log.Fatalf("Could not initialize controller: %v")
+		os.Exit(-1)
+	}
 	go handleTermination(log, ingController, vController, varnishDone)
 	informerFactory.Start(informerStop)
 	ingController.Run(*readyfileF)

@@ -33,6 +33,7 @@ import (
 	"os"
 	"time"
 
+	vcr_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
 	vcr_informers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/informers/externalversions"
 	vcr_listers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/listers/varnishingress/v1alpha1"
 	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish"
@@ -40,11 +41,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	core_v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	core_v1_listers "k8s.io/client-go/listers/core/v1"
 	ext_listers "k8s.io/client-go/listers/extensions/v1beta1"
@@ -52,6 +53,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	api_v1 "k8s.io/api/core/v1"
+	extensions "k8s.io/api/extensions/v1beta1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -121,7 +123,8 @@ func NewIngressController(
 	kubeClient kubernetes.Interface,
 	vc *varnish.VarnishController,
 	infFactory informers.SharedInformerFactory,
-	vcrInfFactory vcr_informers.SharedInformerFactory) *IngressController {
+	vcrInfFactory vcr_informers.SharedInformerFactory,
+) (*IngressController, error) {
 
 	ingc := IngressController{
 		log:         log,
@@ -134,10 +137,18 @@ func NewIngressController(
 	eventBroadcaster.StartLogging(ingc.log.Printf)
 	eventBroadcaster.StartRecordingToSink(&core_v1.EventSinkImpl{
 		Interface: ingc.client.CoreV1().Events(""),
-		// Interface: core_v1.New(ingc.client.CoreV1().RESTClient()).
-		// 	Events(""),
 	})
-	ingc.recorder = eventBroadcaster.NewRecorder(scheme.Scheme,
+	evtScheme := runtime.NewScheme()
+	if err := api_v1.AddToScheme(evtScheme); err != nil {
+		return nil, err
+	}
+	if err := extensions.AddToScheme(evtScheme); err != nil {
+		return nil, err
+	}
+	if err := vcr_v1alpha1.AddToScheme(evtScheme); err != nil {
+		return nil, err
+	}
+	ingc.recorder = eventBroadcaster.NewRecorder(evtScheme,
 		api_v1.EventSource{Component: "varnish-ingress-controller"})
 
 	ingc.informers = &infrmrs{
@@ -173,7 +184,7 @@ func NewIngressController(
 	ingc.nsQs = NewNamespaceQueues(ingc.log, ingc.vController, ingc.listers,
 		ingc.client, ingc.recorder)
 
-	return &ingc
+	return &ingc, nil
 }
 
 func (ingc *IngressController) logObj(action string, obj interface{}) {
