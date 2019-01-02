@@ -63,6 +63,26 @@ type infrmrs struct {
 	vcfg cache.SharedIndexInformer
 }
 
+// SyncType classifies the sync event, passed through to workers.
+type SyncType uint8
+
+const (
+	// Add event
+	Add SyncType = iota
+	// Update event
+	Update
+	// Delete event
+	Delete
+)
+
+// SyncObj wraps the object for which event handlers are notified, and
+// encodes the sync event. These are the objects passed into the
+// queues for workers.
+type SyncObj struct {
+	Type SyncType
+	Obj  interface{}
+}
+
 // Listers aggregates listers from k8s.io/client-go/listers for the
 // various resource types of interested. These are initialized by
 // IngressController, and handed off to NamespaceWorker workers to
@@ -130,8 +150,8 @@ func NewIngressController(
 	}
 
 	evtFuncs := cache.ResourceEventHandlerFuncs{
-		AddFunc:    ingc.handleObj,
-		DeleteFunc: ingc.handleObj,
+		AddFunc:    ingc.addObj,
+		DeleteFunc: ingc.deleteObj,
 		UpdateFunc: ingc.updateObj,
 	}
 
@@ -156,15 +176,29 @@ func NewIngressController(
 	return &ingc
 }
 
-func (ingc *IngressController) handleObj(obj interface{}) {
-	ingc.log.Debug("Handle:", obj)
+func (ingc *IngressController) logObj(action string, obj interface{}) {
+	ingc.log.Debug(action, ":", obj)
 	m, mErr := meta.Accessor(obj)
 	t, tErr := meta.TypeAccessor(obj)
 	if mErr == nil && tErr == nil {
-		ingc.log.Infof("Handle %s: %s/%s", t.GetKind(),
-			m.GetNamespace(), m.GetName())
+		if t.GetKind() != "" {
+			ingc.log.Infof("%s %s: %s/%s", action, t.GetKind(),
+				m.GetNamespace(), m.GetName())
+		} else {
+			ingc.log.Infof("%s: %s/%s", action, m.GetNamespace(),
+				m.GetName())
+		}
 	}
-	ingc.nsQs.Queue.Add(obj)
+}
+
+func (ingc *IngressController) addObj(obj interface{}) {
+	ingc.logObj("Add", obj)
+	ingc.nsQs.Queue.Add(&SyncObj{Type: Add, Obj: obj})
+}
+
+func (ingc *IngressController) deleteObj(obj interface{}) {
+	ingc.logObj("Delete", obj)
+	ingc.nsQs.Queue.Add(&SyncObj{Type: Delete, Obj: obj})
 }
 
 func (ingc *IngressController) updateObj(old, new interface{}) {
@@ -212,7 +246,7 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 				(*metaObj).GetNamespace(), (*metaObj).GetName())
 		}
 	}
-	ingc.nsQs.Queue.Add(new)
+	ingc.nsQs.Queue.Add(&SyncObj{Type: Update, Obj: new})
 }
 
 // Run the Ingress controller -- start the informers in goroutines,

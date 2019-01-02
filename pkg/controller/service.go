@@ -98,7 +98,7 @@ func (worker *NamespaceWorker) enqueueIngressForService(
 		if !isVarnishIngress(ing) {
 			continue
 		}
-		worker.queue.Add(ing)
+		worker.queue.Add(&SyncObj{Type: Update, Obj: ing})
 	}
 	return nil
 }
@@ -160,7 +160,7 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 		worker.log.Debugf("Requeueing Ingress %s/%s after changed "+
 			"Varnish service %s/%s: %+v", ing.Namespace,
 			ing.Name, svc.Namespace, svc.Name, ing)
-		worker.queue.Add(ing)
+		worker.queue.Add(&SyncObj{Type: Update, Obj: ing})
 	}
 	if !updateVCL {
 		worker.log.Debugf("No change in VCL due to changed Varnish "+
@@ -233,15 +233,24 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 		svc.Namespace+"/"+svc.Name, addrs, secrName, !updateVCL)
 }
 
-func (worker *NamespaceWorker) deleteSvc(key string) error {
-	nsKey := worker.namespace + "/" + key
-	worker.log.Info("Deleting Service:", nsKey)
-	svcObj, err := worker.svc.Get(key)
-	if err != nil {
-		return err
+func (worker *NamespaceWorker) addSvc(key string) error {
+	return worker.syncSvc(key)
+}
+
+func (worker *NamespaceWorker) updateSvc(key string) error {
+	return worker.syncSvc(key)
+}
+
+func (worker *NamespaceWorker) deleteSvc(obj interface{}) error {
+	svc, ok := obj.(*api_v1.Service)
+	if !ok || svc == nil {
+		worker.log.Warnf("Delete Service: not found: %v", obj)
+		return nil
 	}
-	if !worker.isVarnishIngSvc(svcObj) {
-		return worker.enqueueIngressForService(svcObj)
+	nsKey := svc.Namespace + "/" + svc.Name
+	worker.log.Info("Deleting Service:", nsKey)
+	if !worker.isVarnishIngSvc(svc) {
+		return worker.enqueueIngressForService(svc)
 	}
 
 	return worker.vController.DeleteVarnishSvc(nsKey)

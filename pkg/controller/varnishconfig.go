@@ -31,7 +31,13 @@ package controller
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
+
 	vcr_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
+
+	api_v1 "k8s.io/api/core/v1"
+	extensions "k8s.io/api/extensions/v1beta1"
 )
 
 // XXX a validation webhook should do this.
@@ -46,6 +52,63 @@ func validateSharding(spec *vcr_v1alpha1.SelfShardSpec) error {
 		*spec.Probe.Threshold > *spec.Probe.Window {
 		return fmt.Errorf("Threshold (%d) may not be greater than "+
 			"Window (%d)", spec.Probe.Threshold, spec.Probe.Window)
+	}
+	return nil
+}
+
+// Don't return error (requeuing the vcfg) if either of Ingresses or
+// Services are not found -- they will sync as needed when and if they
+// are discovered.
+func (worker *NamespaceWorker) enqueueIngsForVcfg(
+	vcfg *vcr_v1alpha1.VarnishConfig) error {
+
+	svc2ing := make(map[*api_v1.Service]*extensions.Ingress)
+	ings, err := worker.ing.List(labels.Everything())
+	if errors.IsNotFound(err) {
+		worker.log.Infof("VarnishConfig %s/%s: no Ingresses found in "+
+			"workspace %s", vcfg.Namespace, vcfg.Name,
+			worker.namespace)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, ing := range ings {
+		if !isVarnishIngress(ing) {
+			continue
+		}
+		vSvc, err := worker.getVarnishSvcForIng(ing)
+		if errors.IsNotFound(err) {
+			worker.log.Infof("VarnishConfig %s/%s: no Varnish "+
+				"Services found in workspace %s",
+				vcfg.Namespace, vcfg.Name, worker.namespace)
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if vSvc != nil {
+			svc2ing[vSvc] = ing
+		}
+	}
+
+	svcSet := make(map[string]struct{})
+	for _, svc := range vcfg.Spec.Services {
+		if _, exists := svcSet[svc]; exists {
+			continue
+		}
+		svcSet[svc] = struct{}{}
+
+		svcObj, err := worker.svc.Get(svc)
+		if err != nil {
+			return err
+		}
+		if ing, exists := svc2ing[svcObj]; exists {
+			worker.log.Infof("VarnishConfig %s/%s: enqueuing "+
+				"Ingress %s/%s for update", vcfg.Namespace,
+				vcfg.Name, ing.Namespace, ing.Name)
+			worker.queue.Add(&SyncObj{Type: Update, Obj: ing})
+		}
 	}
 	return nil
 }
@@ -71,39 +134,24 @@ func (worker *NamespaceWorker) syncVcfg(key string) error {
 			"spec: %v", vcfg.Namespace, vcfg.Name, err)
 	}
 
-	svcSet := make(map[string]struct{})
-	for _, svc := range vcfg.Spec.Services {
-		if _, exists := svcSet[svc]; exists {
-			continue
-		}
-		svcSet[svc] = struct{}{}
-
-		svcObj, err := worker.svc.Get(svc)
-		if err != nil {
-			return err
-		}
-		worker.log.Infof("VarnishConfig %s/%s: enqueuing service %s/%s"+
-			" for update", vcfg.Namespace, vcfg.Name,
-			svcObj.Namespace, svcObj.Name)
-		worker.queue.Add(svcObj)
-	}
-	return nil
+	return worker.enqueueIngsForVcfg(vcfg)
 }
 
-func (worker *NamespaceWorker) deleteVcfg(key string) error {
-	nsKey := worker.namespace + "/" + key
-	worker.log.Info("Deleting VarnishConfig:", nsKey)
-	vcfg, err := worker.vcfg.Get(key)
-	if err != nil {
-		worker.log.Warnf("Cannot get VarnishConfig %s, ignoring: %v",
-			nsKey, err)
+func (worker *NamespaceWorker) addVcfg(key string) error {
+	return worker.syncVcfg(key)
+}
+
+func (worker *NamespaceWorker) updateVcfg(key string) error {
+	return worker.syncVcfg(key)
+}
+
+func (worker *NamespaceWorker) deleteVcfg(obj interface{}) error {
+	vcfg, ok := obj.(*vcr_v1alpha1.VarnishConfig)
+	if !ok || vcfg == nil {
+		worker.log.Warnf("Delete VarnishConfig: not found: %v", obj)
 		return nil
 	}
-	for _, svc := range vcfg.Spec.Services {
-		worker.log.Infof("VarnishConfig %s/%s: enqueuing service %s/%s"+
-			" for update", vcfg.Namespace, vcfg.Name,
-			worker.namespace, svc)
-		worker.queue.Add(svc)
-	}
-	return nil
+	worker.log.Infof("Deleting VarnishConfig: %s/%s", vcfg.Namespace,
+		vcfg.Name)
+	return worker.enqueueIngsForVcfg(vcfg)
 }

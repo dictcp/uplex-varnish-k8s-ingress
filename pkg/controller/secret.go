@@ -98,7 +98,7 @@ func (worker *NamespaceWorker) updateVcfgsForSecret(secrName string) error {
 		worker.log.Infof("Requeuing VarnishConfig %s/%s "+
 			"after update for secret %s/%s",
 			vcfg.Namespace, vcfg.Name, worker.namespace, secrName)
-		worker.queue.Add(vcfg)
+		worker.queue.Add(&SyncObj{Type: Update, Obj: vcfg})
 	}
 	return nil
 }
@@ -155,21 +155,34 @@ func (worker *NamespaceWorker) syncSecret(key string) error {
 	return worker.updateVarnishSvcsForSecret(svcs, secretKey)
 }
 
-func (worker *NamespaceWorker) deleteSecret(key string) error {
-	worker.log.Infof("Deleting Secret: %s/%s", worker.namespace, key)
-	svcs, err := worker.getVarnishSvcsForSecret(key)
+func (worker *NamespaceWorker) addSecret(key string) error {
+	return worker.syncSecret(key)
+}
+
+func (worker *NamespaceWorker) updateSecret(key string) error {
+	return worker.syncSecret(key)
+}
+
+func (worker *NamespaceWorker) deleteSecret(obj interface{}) error {
+	secr, ok := obj.(*api_v1.Secret)
+	if !ok || secr == nil {
+		worker.log.Warnf("Delete Secret: not found: %v", obj)
+		return nil
+	}
+	worker.log.Infof("Deleting Secret: %s/%s", secr.Namespace, secr.Name)
+	svcs, err := worker.getVarnishSvcsForSecret(secr.Name)
 	if err != nil {
 		return err
 	}
 	worker.log.Debugf("Found Varnish services for secret %s/%s: %v",
-		worker.namespace, key, svcs)
+		secr.Namespace, secr.Name, svcs)
 	if len(svcs) == 0 {
 		worker.log.Infof("No Varnish services with admin secret: %s/%s",
-			worker.namespace, key)
-		return worker.updateVcfgsForSecret(key)
+			secr.Namespace, secr.Name)
+		return worker.updateVcfgsForSecret(secr.Name)
 	}
 
-	secretKey := worker.namespace + "/" + key
+	secretKey := secr.Namespace + "/" + secr.Name
 	worker.vController.DeleteAdmSecret(secretKey)
 
 	return worker.updateVarnishSvcsForSecret(svcs, secretKey)

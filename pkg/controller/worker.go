@@ -29,6 +29,8 @@
 package controller
 
 import (
+	"fmt"
+
 	api_v1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -77,58 +79,68 @@ type NamespaceWorker struct {
 func (worker *NamespaceWorker) infoEvent(obj interface{}, reason, msgFmt string,
 	args ...interface{}) {
 
-	switch obj.(type) {
+	eventObj := obj
+	if syncObj, ok := obj.(*SyncObj); ok {
+		eventObj = syncObj.Obj
+	}
+	switch eventObj.(type) {
 	case *extensions.Ingress:
-		ing, _ := obj.(*extensions.Ingress)
+		ing, _ := eventObj.(*extensions.Ingress)
 		worker.recorder.Eventf(ing, api_v1.EventTypeNormal, reason,
 			msgFmt, args...)
 	case *api_v1.Service:
-		svc, _ := obj.(*api_v1.Service)
+		svc, _ := eventObj.(*api_v1.Service)
 		worker.recorder.Eventf(svc, api_v1.EventTypeNormal, reason,
 			msgFmt, args...)
 	case *api_v1.Endpoints:
-		endp, _ := obj.(*api_v1.Endpoints)
+		endp, _ := eventObj.(*api_v1.Endpoints)
 		worker.recorder.Eventf(endp, api_v1.EventTypeNormal, reason,
 			msgFmt, args...)
 	case *api_v1.Secret:
-		secr, _ := obj.(*api_v1.Secret)
+		secr, _ := eventObj.(*api_v1.Secret)
 		worker.recorder.Eventf(secr, api_v1.EventTypeNormal, reason,
 			msgFmt, args...)
 	case *ving_v1alpha1.VarnishConfig:
-		vcfg, _ := obj.(*ving_v1alpha1.VarnishConfig)
+		vcfg, _ := eventObj.(*ving_v1alpha1.VarnishConfig)
 		worker.recorder.Eventf(vcfg, api_v1.EventTypeNormal, reason,
 			msgFmt, args...)
 	default:
-		worker.log.Warnf("Unhandled type %T, no event generated", obj)
+		worker.log.Warnf("Unhandled type %T, no event generated",
+			eventObj)
 	}
 }
 
 func (worker *NamespaceWorker) warnEvent(obj interface{}, reason, msgFmt string,
 	args ...interface{}) {
 
-	switch obj.(type) {
+	eventObj := obj
+	if syncObj, ok := obj.(*SyncObj); ok {
+		eventObj = syncObj.Obj
+	}
+	switch eventObj.(type) {
 	case *extensions.Ingress:
-		ing, _ := obj.(*extensions.Ingress)
+		ing, _ := eventObj.(*extensions.Ingress)
 		worker.recorder.Eventf(ing, api_v1.EventTypeWarning, reason,
 			msgFmt, args...)
 	case *api_v1.Service:
-		svc, _ := obj.(*api_v1.Service)
+		svc, _ := eventObj.(*api_v1.Service)
 		worker.recorder.Eventf(svc, api_v1.EventTypeWarning, reason,
 			msgFmt, args...)
 	case *api_v1.Endpoints:
-		endp, _ := obj.(*api_v1.Endpoints)
+		endp, _ := eventObj.(*api_v1.Endpoints)
 		worker.recorder.Eventf(endp, api_v1.EventTypeWarning, reason,
 			msgFmt, args...)
 	case *api_v1.Secret:
-		secr, _ := obj.(*api_v1.Secret)
+		secr, _ := eventObj.(*api_v1.Secret)
 		worker.recorder.Eventf(secr, api_v1.EventTypeWarning, reason,
 			msgFmt, args...)
 	case *ving_v1alpha1.VarnishConfig:
-		vcfg, _ := obj.(*ving_v1alpha1.VarnishConfig)
+		vcfg, _ := eventObj.(*ving_v1alpha1.VarnishConfig)
 		worker.recorder.Eventf(vcfg, api_v1.EventTypeWarning, reason,
 			msgFmt, args...)
 	default:
-		worker.log.Warnf("Unhandled type %T, no event generated", obj)
+		worker.log.Warnf("Unhandled type %T, no event generated",
+			eventObj)
 	}
 }
 
@@ -147,47 +159,78 @@ func (worker *NamespaceWorker) syncFailure(obj interface{}, msgFmt string,
 }
 
 func (worker *NamespaceWorker) dispatch(obj interface{}) error {
-	_, key, err := getNameSpace(obj)
-	if err != nil {
-		worker.syncFailure(obj, "Cannot get key for object %v: %v", obj,
-			err)
+	syncObj, ok := obj.(*SyncObj)
+	if !ok {
+		worker.syncFailure(obj, "Unhandled type %T", obj)
 		return nil
 	}
-	switch obj.(type) {
-	case *extensions.Ingress:
-		return worker.syncIng(key)
-	case *api_v1.Service:
-		return worker.syncSvc(key)
-	case *api_v1.Endpoints:
-		return worker.syncEndp(key)
-	case *api_v1.Secret:
-		return worker.syncSecret(key)
-	case *ving_v1alpha1.VarnishConfig:
-		return worker.syncVcfg(key)
-	default:
-		deleted, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			worker.syncFailure(obj, "Unhandled object type: %T",
-				obj)
-			return nil
-		}
-		switch deleted.Obj.(type) {
+	_, key, err := getNameSpace(syncObj.Obj)
+	if err != nil {
+		worker.syncFailure(syncObj.Obj,
+			"Cannot get key for object %v: %v", syncObj.Obj, err)
+		return nil
+	}
+	switch syncObj.Type {
+	case Add:
+		switch syncObj.Obj.(type) {
 		case *extensions.Ingress:
-			return worker.deleteIng(key)
+			return worker.addIng(key)
 		case *api_v1.Service:
-			return worker.deleteSvc(key)
+			return worker.addSvc(key)
 		case *api_v1.Endpoints:
-			// Delete and sync do the same thing
-			return worker.syncEndp(key)
+			return worker.addEndp(key)
 		case *api_v1.Secret:
-			return worker.deleteSecret(key)
+			return worker.addSecret(key)
 		case *ving_v1alpha1.VarnishConfig:
-			return worker.deleteVcfg(key)
+			return worker.addVcfg(key)
 		default:
-			worker.syncFailure(deleted, "Unhandled object type: %T",
-				deleted)
+			worker.syncFailure(syncObj.Obj,
+				"Unhandled object type: %T", syncObj.Obj)
 			return nil
 		}
+	case Update:
+		switch syncObj.Obj.(type) {
+		case *extensions.Ingress:
+			return worker.updateIng(key)
+		case *api_v1.Service:
+			return worker.updateSvc(key)
+		case *api_v1.Endpoints:
+			return worker.updateEndp(key)
+		case *api_v1.Secret:
+			return worker.updateSecret(key)
+		case *ving_v1alpha1.VarnishConfig:
+			return worker.updateVcfg(key)
+		default:
+			worker.syncFailure(syncObj.Obj,
+				"Unhandled object type: %T", syncObj.Obj)
+			return nil
+		}
+	case Delete:
+		deletedObj := syncObj.Obj
+		deleted, ok := obj.(cache.DeletedFinalStateUnknown)
+		if ok {
+			deletedObj = deleted.Obj
+		}
+		switch deletedObj.(type) {
+		case *extensions.Ingress:
+			return worker.deleteIng(deletedObj)
+		case *api_v1.Service:
+			return worker.deleteSvc(deletedObj)
+		case *api_v1.Endpoints:
+			return worker.deleteEndp(deletedObj)
+		case *api_v1.Secret:
+			return worker.deleteSecret(deletedObj)
+		case *ving_v1alpha1.VarnishConfig:
+			return worker.deleteVcfg(deletedObj)
+		default:
+			worker.syncFailure(deletedObj,
+				"Unhandled object type: %T", deletedObj)
+			return nil
+		}
+	default:
+		worker.syncFailure(syncObj.Obj, "Unhandled sync type: %v",
+			syncObj.Type)
+		return nil
 	}
 }
 
@@ -277,9 +320,6 @@ func getNameSpace(obj interface{}) (namespace, name string, err error) {
 		return
 	}
 	namespace, name, err = cache.SplitMetaNamespaceKey(k)
-	if err != nil {
-		return
-	}
 	return
 }
 
@@ -290,7 +330,12 @@ func (qs *NamespaceQueues) next() {
 	}
 	defer qs.Queue.Done(obj)
 
-	ns, _, err := getNameSpace(obj)
+	syncObj, ok := obj.(*SyncObj)
+	if !ok {
+		utilruntime.HandleError(fmt.Errorf("Unhandled type %T", obj))
+		return
+	}
+	ns, _, err := getNameSpace(syncObj.Obj)
 	if err != nil {
 		utilruntime.HandleError(err)
 		return

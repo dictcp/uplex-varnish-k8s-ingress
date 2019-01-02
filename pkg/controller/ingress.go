@@ -415,11 +415,19 @@ func (worker *NamespaceWorker) syncIng(key string) error {
 	return worker.addOrUpdateIng(ing)
 }
 
-func (worker *NamespaceWorker) deleteIng(key string) error {
-	ing, err := worker.ing.Get(key)
-	if err != nil || ing == nil {
+func (worker *NamespaceWorker) addIng(key string) error {
+	return worker.syncIng(key)
+}
+
+func (worker *NamespaceWorker) updateIng(key string) error {
+	return worker.syncIng(key)
+}
+
+func (worker *NamespaceWorker) deleteIng(obj interface{}) error {
+	ing, ok := obj.(*extensions.Ingress)
+	if !ok || ing == nil {
 		// XXX should clean up Varnish config nevertheless
-		worker.log.Warnf("Delete Ingress %s: not found (%v)", key, err)
+		worker.log.Warnf("Delete Ingress: not found: %v", obj)
 		return nil
 	}
 	svc, err := worker.getVarnishSvcForIng(ing)

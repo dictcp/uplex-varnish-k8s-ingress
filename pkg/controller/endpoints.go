@@ -28,6 +28,8 @@
 
 package controller
 
+import api_v1 "k8s.io/api/core/v1"
+
 func (worker *NamespaceWorker) syncEndp(key string) error {
 	worker.log.Infof("Syncing Endpoints: %s/%s", worker.namespace, key)
 	svc, err := worker.svc.Get(key)
@@ -41,7 +43,7 @@ func (worker *NamespaceWorker) syncEndp(key string) error {
 		worker.log.Infof("Endpoints changed for Varnish Ingress "+
 			"service %s/%s, enqueuing service sync", svc.Namespace,
 			svc.Name)
-		worker.queue.Add(svc)
+		worker.queue.Add(&SyncObj{Type: Update, Obj: svc})
 		return nil
 	}
 
@@ -70,4 +72,21 @@ func (worker *NamespaceWorker) syncEndp(key string) error {
 		}
 	}
 	return nil
+}
+
+func (worker *NamespaceWorker) addEndp(key string) error {
+	return worker.syncEndp(key)
+}
+
+func (worker *NamespaceWorker) updateEndp(key string) error {
+	return worker.syncEndp(key)
+}
+
+func (worker *NamespaceWorker) deleteEndp(obj interface{}) error {
+	endp, ok := obj.(*api_v1.Endpoints)
+	if !ok || endp == nil {
+		worker.log.Warnf("Delete Endpoints: not found: %v", obj)
+		return nil
+	}
+	return worker.syncEndp(endp.Name)
 }
