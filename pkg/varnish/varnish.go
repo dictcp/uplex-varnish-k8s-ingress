@@ -179,19 +179,13 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	cfgName string, vclSrc string) error {
 
 	if inst == nil {
-		return VarnishAdmError{
-			addr: "",
-			err:  fmt.Errorf("Instance object is nil"),
-		}
+		return fmt.Errorf("Instance object is nil")
 	}
 
 	vc.log.Infof("Update Varnish instance at %s", inst.addr)
 	vc.log.Debugf("Varnish instance %s: %+v", inst.addr, *inst)
 	if inst.admSecret == nil {
-		return VarnishAdmError{
-			addr: inst.addr,
-			err:  fmt.Errorf("No known admin secret"),
-		}
+		return fmt.Errorf("No known admin secret")
 	}
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
@@ -199,7 +193,7 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	vc.log.Debugf("Connect to %s, timeout=%v", inst.addr, admTimeout)
 	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
 	if err != nil {
-		return VarnishAdmError{addr: inst.addr, err: err}
+		return err
 	}
 	defer adm.Close()
 	inst.Banner = adm.Banner
@@ -209,7 +203,7 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	vc.log.Debugf("List VCLs at %s", inst.addr)
 	vcls, err := adm.VCLList()
 	if err != nil {
-		return VarnishAdmError{addr: inst.addr, err: err}
+		return err
 	}
 	vc.log.Debugf("VCL List at %s: %+v", inst.addr, vcls)
 	for _, vcl := range vcls {
@@ -235,7 +229,7 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 		if err != nil {
 			vc.log.Debugf("Error loading config %s at %s: %v",
 				cfgName, inst.addr, err)
-			return VarnishAdmError{addr: inst.addr, err: err}
+			return err
 		}
 		vc.log.Infof("Loaded config %s at Varnish endpoint %s", cfgName,
 			inst.addr)
@@ -249,7 +243,7 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 			regularLabel, inst.addr)
 		err = adm.VCLLabel(regularLabel, cfgName)
 		if err != nil {
-			return VarnishAdmError{addr: inst.addr, err: err}
+			return err
 		}
 		vc.log.Infof("Labeled config %s as %s at Varnish endpoint %s",
 			cfgName, regularLabel, inst.addr)
@@ -263,7 +257,7 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 			readinessLabel, inst.addr)
 		err = adm.VCLLabel(readinessLabel, readyCfg)
 		if err != nil {
-			return VarnishAdmError{addr: inst.addr, err: err}
+			return err
 		}
 		vc.log.Infof("Labeled config %s as %s at Varnish endpoint %s",
 			readyCfg, readinessLabel, inst.addr)
@@ -298,7 +292,7 @@ func (vc *VarnishController) updateVarnishSvc(name string) error {
 	var errs VarnishAdmErrors
 	for _, inst := range svc.instances {
 		if e := vc.updateVarnishInstance(inst, cfgName, vclSrc); e != nil {
-			admErr := VarnishAdmError{addr: inst.addr, err: err}
+			admErr := VarnishAdmError{addr: inst.addr, err: e}
 			errs = append(errs, admErr)
 			continue
 		}
