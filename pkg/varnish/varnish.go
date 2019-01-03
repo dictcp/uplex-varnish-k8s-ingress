@@ -134,11 +134,12 @@ type varnishSvc struct {
 // cluster deployed as Ingress implementations in the cluster, and
 // their current states.
 type VarnishController struct {
-	log     *logrus.Logger
-	svcEvt  interfaces.SvcEventGenerator
-	svcs    map[string]*varnishSvc
-	secrets map[string]*[]byte
-	errChan chan error
+	log      *logrus.Logger
+	svcEvt   interfaces.SvcEventGenerator
+	svcs     map[string]*varnishSvc
+	secrets  map[string]*[]byte
+	errChan  chan error
+	monIntvl time.Duration
 }
 
 // NewVarnishController returns an instance of VarnishController.
@@ -151,7 +152,8 @@ type VarnishController struct {
 // working directory.
 func NewVarnishController(
 	log *logrus.Logger,
-	tmplDir string) (*VarnishController, error) {
+	tmplDir string,
+	monIntvl time.Duration) (*VarnishController, error) {
 
 	if tmplDir == "" {
 		tmplEnv, exists := os.LookupEnv("TEMPLATE_DIR")
@@ -163,9 +165,10 @@ func NewVarnishController(
 		return nil, err
 	}
 	return &VarnishController{
-		svcs:    make(map[string]*varnishSvc),
-		secrets: make(map[string]*[]byte),
-		log:     log,
+		svcs:     make(map[string]*varnishSvc),
+		secrets:  make(map[string]*[]byte),
+		log:      log,
+		monIntvl: monIntvl,
 	}, nil
 }
 
@@ -182,7 +185,7 @@ func (vc *VarnishController) Start(errChan chan error) {
 	vc.errChan = errChan
 	vc.log.Info("Starting Varnish controller")
 	fmt.Printf("Varnish controller logging at level: %s\n", vc.log.Level)
-	go vc.monitor()
+	go vc.monitor(vc.monIntvl)
 }
 
 func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,

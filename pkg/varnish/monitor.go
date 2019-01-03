@@ -36,8 +36,6 @@ import (
 )
 
 const (
-	// XXX monitorIntvl configurable
-	monitorIntvl = time.Second * 30
 	noAdmSecret  = "NoAdminSecret"
 	connectErr   = "ConnectFailure"
 	pingErr      = "PingFailure"
@@ -148,8 +146,8 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	return true
 }
 
-func (vc *VarnishController) monitor() {
-	vc.log.Info("Varnish monitor starting")
+func (vc *VarnishController) monitor(monitorIntvl time.Duration) {
+	vc.log.Info("Varnish monitor starting, interval: ", monitorIntvl)
 
 	for {
 		time.Sleep(monitorIntvl)

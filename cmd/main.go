@@ -37,6 +37,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	clientset "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/clientset/versioned"
 	vcr_informers "code.uplex.de/uplex-varnish/k8s-ingress/pkg/client/informers/externalversions"
@@ -70,6 +71,9 @@ var (
 		"cluster master URL, for out-of-cluster runs")
 	readyfileF = flag.String("readyfile", "", "path of a file to touch "+
 		"when the controller is ready, for readiness probes")
+	monIntvlF = flag.Duration("monitorintvl", 30*time.Second,
+		"interval at which the monitor thread checks and updates\n"+
+			"instances of Varnish deployed to implement Ingress")
 	logFormat = logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
@@ -130,7 +134,8 @@ func main() {
 
 	log.Info("Starting Varnish Ingress controller version:", version)
 
-	vController, err := varnish.NewVarnishController(log, *tmplDirF)
+	vController, err := varnish.NewVarnishController(log, *tmplDirF,
+		*monIntvlF)
 	if err != nil {
 		log.Fatal("Cannot initialize Varnish controller: ", err)
 		os.Exit(-1)
