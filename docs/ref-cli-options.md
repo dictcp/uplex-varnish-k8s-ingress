@@ -25,7 +25,8 @@ Usage of ./k8s-ingress:
     	cluster master URL, for out-of-cluster runs
   -monitorintvl duration
 	interval at which the monitor thread checks and updates
-	instances of Varnish deployed to implement Ingress (default 30s)
+	instances of Varnish that implement Ingress.
+	Monitor deactivated when <= 0s (default 30s)
   -namespace string
     	namespace in which to listen for resources (default all)
   -readyfile string
@@ -81,9 +82,10 @@ touches it when it is ready. Readiness probes can then test the file
 for existence. By default, no readiness file is created.
 
 ``-monitorintvl`` sets the interval for the
-[monitor](/docs/monitor.md), default 30 seconds. The monitor sleeps
-this long between monitor runs for Varnish Services. See the
-documentation at the link for more details.
+[monitor](/docs/monitor.md). By default 30 seconds, and the monitor is
+deactivated for values <= 0. The monitor sleeps this long between
+monitor runs for Varnish Services. See the documentation at the link
+for more details.
 
 ``-log-level`` sets the log level for the main controller code,
 ``INFO`` by default.

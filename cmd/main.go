@@ -73,7 +73,8 @@ var (
 		"when the controller is ready,\nfor readiness probes")
 	monIntvlF = flag.Duration("monitorintvl", 30*time.Second,
 		"interval at which the monitor thread checks and updates\n"+
-			"instances of Varnish deployed to implement Ingress")
+			"instances of Varnish that implement Ingress.\n"+
+			"Monitor deactivated when <= 0s")
 	logFormat = logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,

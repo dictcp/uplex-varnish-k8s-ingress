@@ -147,6 +147,11 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 }
 
 func (vc *VarnishController) monitor(monitorIntvl time.Duration) {
+	if monitorIntvl <= 0 {
+		vc.log.Infof("Varnish monitor interval=%v, monitor not running",
+			monitorIntvl)
+		return
+	}
 	vc.log.Info("Varnish monitor starting, interval: ", monitorIntvl)
 
 	for {
