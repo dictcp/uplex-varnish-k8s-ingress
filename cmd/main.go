@@ -70,7 +70,7 @@ var (
 	kubeconfigF = flag.String("kubeconfig", "", "config path for the "+
 		"cluster master URL, for out-of-cluster runs")
 	readyfileF = flag.String("readyfile", "", "path of a file to touch "+
-		"when the controller is ready, for readiness probes")
+		"when the controller is ready,\nfor readiness probes")
 	monIntvlF = flag.Duration("monitorintvl", 30*time.Second,
 		"interval at which the monitor thread checks and updates\n"+
 			"instances of Varnish deployed to implement Ingress")
