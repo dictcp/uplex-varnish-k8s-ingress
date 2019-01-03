@@ -23,10 +23,14 @@ Usage of ./k8s-ingress:
     	log to standard error instead of files
   -masterurl string
     	cluster master URL, for out-of-cluster runs
+  -monitorintvl duration
+	interval at which the monitor thread checks and updates
+	instances of Varnish deployed to implement Ingress (default 30s)
   -namespace string
     	namespace in which to listen for resources (default all)
   -readyfile string
-    	path of a file to touch when the controller is ready, for readiness probes
+	path of a file to touch when the controller is ready,
+	for readiness probes
   -stderrthreshold value
     	logs at or above this threshold go to stderr
   -templatedir string
@@ -75,6 +79,11 @@ If ``-readyfile /path/to/file`` is set, then the controller removes
 the file at that path immediately at startup, if any exists, and
 touches it when it is ready. Readiness probes can then test the file
 for existence. By default, no readiness file is created.
+
+``-monitorintvl`` sets the interval for the
+[monitor](/docs/monitor.md), default 30 seconds. The monitor sleeps
+this long between monitor runs for Varnish Services. See the
+documentation at the link for more details.
 
 ``-log-level`` sets the log level for the main controller code,
 ``INFO`` by default.
