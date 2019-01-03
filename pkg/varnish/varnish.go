@@ -44,6 +44,7 @@ import (
 	"sync"
 	"time"
 
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/interfaces"
 	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 	"code.uplex.de/uplex-varnish/varnishapi/pkg/admin"
 
@@ -134,6 +135,7 @@ type varnishSvc struct {
 // their current states.
 type VarnishController struct {
 	log     *logrus.Logger
+	svcEvt  interfaces.SvcEventGenerator
 	svcs    map[string]*varnishSvc
 	secrets map[string]*[]byte
 	errChan chan error
@@ -148,7 +150,8 @@ type VarnishController struct {
 // TEMPLATE_DIR. If the env variable does not exist, use the current
 // working directory.
 func NewVarnishController(
-	log *logrus.Logger, tmplDir string) (*VarnishController, error) {
+	log *logrus.Logger,
+	tmplDir string) (*VarnishController, error) {
 
 	if tmplDir == "" {
 		tmplEnv, exists := os.LookupEnv("TEMPLATE_DIR")
@@ -164,6 +167,13 @@ func NewVarnishController(
 		secrets: make(map[string]*[]byte),
 		log:     log,
 	}, nil
+}
+
+// EvtGenerator sets the object that implements interface
+// SvcEventGenerator, and will be used by the monitor goroutine to
+// generate Events for Varnish Services.
+func (vc *VarnishController) EvtGenerator(svcEvt interfaces.SvcEventGenerator) {
+	vc.svcEvt = svcEvt
 }
 
 // Start initiates the Varnish controller and starts the monitor

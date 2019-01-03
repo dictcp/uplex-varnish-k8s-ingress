@@ -170,16 +170,16 @@ func main() {
 		// 	informers.WithNamespace(*namespaceF))
 	}
 
-	varnishDone := make(chan error, 1)
-	vController.Start(varnishDone)
-
 	ingController, err := controller.NewIngressController(log, kubeClient,
 		vController, informerFactory, vcrInformerFactory)
 	if err != nil {
 		log.Fatalf("Could not initialize controller: %v")
 		os.Exit(-1)
 	}
+	vController.EvtGenerator(ingController)
+	varnishDone := make(chan error, 1)
 	go handleTermination(log, ingController, vController, varnishDone)
+	vController.Start(varnishDone)
 	informerFactory.Start(informerStop)
 	ingController.Run(*readyfileF)
 }

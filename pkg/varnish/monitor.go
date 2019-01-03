@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 UPLEX Nils Goroll Systemoptimierung
+ * Copyright (c) 2019 UPLEX Nils Goroll Systemoptimierung
  * All rights reserved
  *
  * Author: Geoffrey Simmons <geoffrey.simmons@uplex.de>
@@ -35,68 +35,117 @@ import (
 	"code.uplex.de/uplex-varnish/varnishapi/pkg/admin"
 )
 
-const monitorIntvl = time.Second * 30
+const (
+	// XXX monitorIntvl configurable
+	monitorIntvl = time.Second * 30
+	noAdmSecret  = "NoAdminSecret"
+	connectErr   = "ConnectFailure"
+	pingErr      = "PingFailure"
+	statusErr    = "StatusFailure"
+	statusNotRun = "StatusNotRunning"
+	panicErr     = "PanicFailure"
+	panic        = "Panic"
+	vclListErr   = "VCLListFailure"
+	discardErr   = "VCLDiscardFailure"
+	updateErr    = "UpdateFailure"
+	monitorGood  = "MonitorGood"
+)
 
-func (vc *VarnishController) checkInst(inst *varnishInst) {
+func (vc *VarnishController) infoEvt(svc, reason, msgFmt string,
+	args ...interface{}) {
+
+	vc.log.Infof(msgFmt, args...)
+	vc.svcEvt.SvcInfoEvent(svc, reason, msgFmt, args...)
+}
+
+func (vc *VarnishController) warnEvt(svc, reason, msgFmt string,
+	args ...interface{}) {
+
+	vc.log.Warnf(msgFmt, args...)
+	vc.svcEvt.SvcWarnEvent(svc, reason, msgFmt, args...)
+}
+
+func (vc *VarnishController) errorEvt(svc, reason, msgFmt string,
+	args ...interface{}) {
+
+	vc.log.Errorf(msgFmt, args...)
+	vc.svcEvt.SvcWarnEvent(svc, reason, msgFmt, args...)
+}
+
+func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	if inst.admSecret == nil {
-		vc.log.Warnf("No admin secret known for endpoint %s", inst.addr)
-		return
+		vc.warnEvt(svc, noAdmSecret,
+			"No admin secret known for endpoint %s", inst.addr)
+		return false
 	}
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
 
 	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
 	if err != nil {
-		vc.log.Errorf("Error connecting to %s: %v", inst.addr, err)
-		return
+		vc.errorEvt(svc, connectErr, "Error connecting to %s: %v",
+			inst.addr, err)
+		return false
 	}
 	defer adm.Close()
 	inst.Banner = adm.Banner
-	vc.log.Infof("Connected to Varnish instance %s", inst.addr)
+	vc.log.Infof("Connected to Varnish instance %s, banner: %s", inst.addr,
+		adm.Banner)
 
 	pong, err := adm.Ping()
 	if err != nil {
-		vc.log.Errorf("Error pinging at %s: %v", inst.addr, err)
-		return
+		vc.errorEvt(svc, pingErr, "Error pinging at %s: %v", inst.addr,
+			err)
+		return false
 	}
 	vc.log.Infof("Succesfully pinged instance %s: %+v", inst.addr, pong)
 
 	state, err := adm.Status()
 	if err != nil {
-		vc.log.Errorf("Error getting status at %s: %v", inst.addr, err)
-		return
+		vc.errorEvt(svc, statusErr, "Error getting status at %s: %v",
+			inst.addr, err)
+		return false
 	}
-	vc.log.Infof("Status at %s: %s", inst.addr, state)
+	if state == admin.Running {
+		vc.log.Infof("Status at %s: %s", inst.addr, state)
+	} else {
+		vc.warnEvt(svc, statusNotRun, "Status at %s: %s", inst.addr,
+			state)
+	}
 
 	panic, err := adm.GetPanic()
 	if err != nil {
-		vc.log.Errorf("Error getting panic at %s: %v", inst.addr, err)
-		return
+		vc.errorEvt(svc, panicErr, "Error getting panic at %s: %v",
+			inst.addr, err)
+		return false
 	}
 	if panic == "" {
 		vc.log.Infof("No panic at %s", inst.addr)
 	} else {
-		vc.log.Warnf("Panic at %s: %s", inst.addr, panic)
+		vc.errorEvt(svc, panic, "Panic at %s: %s", inst.addr, panic)
 		// XXX clear the panic? Should be configurable
 	}
 
 	vcls, err := adm.VCLList()
 	if err != nil {
-		vc.log.Errorf("Error getting VCL list at %s: %v", inst.addr, err)
-		return
+		vc.errorEvt(svc, vclListErr,
+			"Error getting VCL list at %s: %v", inst.addr, err)
+		return false
 	}
 	for _, vcl := range vcls {
 		if strings.HasPrefix(vcl.Name, ingressPrefix) &&
 			vcl.State == admin.ColdState {
 			if err = adm.VCLDiscard(vcl.Name); err != nil {
-				vc.log.Errorf("Error discarding VCL %s at %s: "+
-					"%v", vcl.Name, inst.addr, err)
-				return
+				vc.errorEvt(svc, discardErr,
+					"Error discarding VCL %s at %s: "+
+						"%v", vcl.Name, inst.addr, err)
+				return false
 			}
 			vc.log.Infof("Discarded VCL %s at %s", vcl.Name,
 				inst.addr)
 		}
 	}
+	return true
 }
 
 func (vc *VarnishController) monitor() {
@@ -109,13 +158,22 @@ func (vc *VarnishController) monitor() {
 			vc.log.Infof("Monitoring Varnish instances in %s",
 				svcName)
 
+			good := true
 			for _, inst := range svc.instances {
-				vc.checkInst(inst)
+				if !vc.checkInst(svcName, inst) {
+					good = false
+				}
 			}
 
 			if err := vc.updateVarnishSvc(svcName); err != nil {
-				vc.log.Errorf("Errors updating Varnish "+
-					"Service %s: %+v", svcName, err)
+				vc.errorEvt(svcName, updateErr,
+					"Errors updating Varnish "+
+						"Service %s: %+v", svcName, err)
+				good = false
+			}
+			if good {
+				vc.infoEvt(svcName, monitorGood,
+					"Monitor check good")
 			}
 		}
 	}
