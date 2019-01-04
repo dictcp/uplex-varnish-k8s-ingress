@@ -218,8 +218,8 @@ Pod template for running Varnish, but it can be customized by setting
 in ``args`` and/or environment variables in ``env``. You may need to
 do so, for example, to set the PROXY protocol for the HTTP listener,
 change container port numbers, or configure Varnish tunables. See the
-[documentation](varnish-pod-template.md) for details and requirements,
-and the [``examples/`` folder](/examples/varnish_pod_templates) for
+[documentation](/docs/varnish-pod-template.md) for details and requirements,
+and the [``examples/`` folder](/examples/varnish_pod_template) for
 working examples.
 
 ### Expose the Varnish HTTP and admin ports

@@ -21,7 +21,7 @@ environment variables in ``env``. You may want to do this in order to:
   to set non-default port numbers, or a non-default mount path for the
   admin Secret
 
-The [``examples/`` folder](/examples/varnish_pod_templates) has
+The [``examples/`` folder](/examples/varnish_pod_template) has
 working examples that demonstrate such configurations. The present
 document describes what may, and what may not be customized.
 
