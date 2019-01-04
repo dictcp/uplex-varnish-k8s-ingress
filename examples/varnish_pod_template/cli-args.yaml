@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: varnish
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: varnish-ingress
@@ -38,6 +38,16 @@ spec:
           httpGet:
             path: /ready
             port: k8s
+        args:
+        # varnishd command-line options
+        # In this example:
+        # varnishd -s malloc,256m -t 900 -p workspace_client=256k
+        - -s
+        - malloc,256m
+        - -t
+        - "900"
+        - -p
+        - workspace_client=256k
       volumes:
       - name: adm-secret
         secret:

@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: varnish
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: varnish-ingress
@@ -38,6 +38,12 @@ spec:
           httpGet:
             path: /ready
             port: k8s
+        env:
+        # PROTO=PROXY causes the listener at the http port to accept
+        # the PROXY protocol (v1 or v2).
+        # see: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+        - name: PROTO
+          value: PROXY
       volumes:
       - name: adm-secret
         secret:

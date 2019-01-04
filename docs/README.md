@@ -6,6 +6,7 @@ The docs in this folder cover these topics:
 
   * [``VarnishConfig`` Custom Resource](ref-varnish-cfg.md)
   * [controller command-line options](ref-cli-options.md)
+  * [customizing the Pod template](varnish-pod-template.md) for Varnish
 
 * [Logging, Events and the Varnish Service monitor](monitor.md)
 

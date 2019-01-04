@@ -10,6 +10,9 @@ requirements.
 * Limiting the Ingress controller to
   [a single namespace](/examples/namespace).
 
+* [Customizing the Pod template](/examples/varnish_pod_template)
+  for Varnish
+
 * [Self-sharding Varnish cluster](/examples/self-sharding)
   ([docs](/docs/self-sharding.md))
 
