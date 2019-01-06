@@ -244,7 +244,7 @@ $ curl -H 'X-Forwarded-For: 203.0.113.47, 192.0.2.11' -v -x $ADDR:$PORT http://c
 [...]
 
 # A request in which the first field of X-Forwarded-For matches the
-# blacklist is not blocked, and the client receives the 404 response
+# blacklist is blocked, and the client receives the 404 response
 # as specified by fail-status:
 $ curl -H 'X-Forwarded-For: 192.0.2.11' -v -x $ADDR:$PORT http://cafe.example.com/coffee/black
 [...]
