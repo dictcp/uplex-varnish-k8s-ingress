@@ -440,5 +440,5 @@ when the URL begins with "/tea", and the Host header is exactly
         regex: ^cafe\.example\.com$
 ```
 
-See the [``examples/`` folder](/examples/cal) for working examples
+See the [``examples/`` folder](/examples/acl) for working examples
 of ACL configurations.
