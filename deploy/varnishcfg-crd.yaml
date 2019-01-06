@@ -88,6 +88,65 @@ spec:
                       host-match:
                         type: string
                         minLength: 1
+            acl:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                required:
+                  - name
+                  - addrs
+                properties:
+                  name:
+                    type: string
+                    minLength: 1
+                  addrs:
+                    type: array
+                    minItems: 1
+                    items:
+                      type: object
+                      required:
+                        - addr
+                      properties:
+                        addr:
+                          type: string
+                          pattern: '^[^"]+$'
+                        mask-bits:
+                          type: integer
+                          minimum: 0
+                          maximum: 128
+                        negate:
+                          type: boolean
+                  type:
+                    enum:
+                    - whitelist
+                    - blacklist
+                    type: string
+                  fail-status:
+                    type: integer
+                    minimum: 100
+                    maximum: 599
+                  comparand:
+                    type: string
+                    pattern: "^((client|server|local|remote)\\.ip|xff-(first|2ndlast)|req\\.http\\.[a-zA-Z0-9!#$%&'*+-.^_`|~]+)$"
+                  conditions:
+                    type: array
+                    minItems: 1
+                    items:
+                      type: object
+                      required:
+                        - comparand
+                        - regex
+                        - match
+                      properties:
+                        comparand:
+                          type: string
+                          pattern: "^req\\.(url|http\\.[a-zA-Z0-9!#$%&'*+-.^_`|~]+)$"
+                        regex:
+                          type: string
+                          minLength: 1
+                        match:
+                          type: boolean
 status:
   acceptedNames:
     kind: VarnishConfig

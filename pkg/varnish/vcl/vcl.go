@@ -42,6 +42,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strings"
 	"text/template"
 )
 
@@ -213,6 +214,91 @@ func (a byRealm) Len() int           { return len(a) }
 func (a byRealm) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byRealm) Less(i, j int) bool { return a[i].Realm < a[j].Realm }
 
+// NoMaskBits is a sentinel value for ACLAddress.MaskBits indicating
+// that a CIDR range is not to be used.
+const NoMaskBits uint8 = 255
+
+// ACLAddress represents an element in an ACL -- a host name to be
+// resolved at VCL load, an IP address, or address range in CIDR
+// notation. Use the '!' for negation when Negate is true.
+type ACLAddress struct {
+	Addr     string
+	MaskBits uint8
+	Negate   bool
+}
+
+func (addr ACLAddress) hash(hash hash.Hash) {
+	hash.Write([]byte(addr.Addr))
+	hash.Write([]byte{byte(addr.MaskBits)})
+	if addr.Negate {
+		hash.Write([]byte("Negate"))
+	}
+}
+
+// interface for sorting []ACLAddress
+type byACLAddr []ACLAddress
+
+func (a byACLAddr) Len() int           { return len(a) }
+func (a byACLAddr) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byACLAddr) Less(i, j int) bool { return a[i].Addr < a[j].Addr }
+
+// MatchTerm is a term describing the comparison of a VCL object with
+// a pattern.
+type MatchTerm struct {
+	Comparand string
+	Regex     string
+	Match     bool
+}
+
+func (match MatchTerm) hash(hash hash.Hash) {
+	hash.Write([]byte(match.Comparand))
+	hash.Write([]byte(match.Regex))
+	if match.Match {
+		hash.Write([]byte("Match"))
+	}
+}
+
+// interface for sorting []MatchTerm
+type byComparand []MatchTerm
+
+func (a byComparand) Len() int      { return len(a) }
+func (a byComparand) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a byComparand) Less(i, j int) bool {
+	return a[i].Comparand < a[j].Comparand
+}
+
+// ACL represents an Access Control List, derived from a
+// VarnishConfig.
+type ACL struct {
+	Name       string
+	Comparand  string
+	FailStatus uint16
+	Whitelist  bool
+	Addresses  []ACLAddress
+	Conditions []MatchTerm
+}
+
+func (acl ACL) hash(hash hash.Hash) {
+	hash.Write([]byte(acl.Name))
+	hash.Write([]byte(acl.Comparand))
+	statusBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(statusBytes, uint16(acl.FailStatus))
+	hash.Write(statusBytes)
+	for _, addr := range acl.Addresses {
+		addr.hash(hash)
+	}
+	for _, cond := range acl.Conditions {
+		cond.hash(hash)
+	}
+}
+
+// interface for sorting []ACL
+type byACLName []ACL
+
+func (a byACLName) Len() int           { return len(a) }
+func (a byACLName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byACLName) Less(i, j int) bool { return a[i].Name < a[j].Name }
+
 // Spec is the specification for a VCL configuration derived from
 // Ingresses and VarnishConfig Custom Resources. This abstracts the
 // VCL to be loaded by all instances of a Varnish Service.
@@ -234,6 +320,7 @@ type Spec struct {
 	// Authentication, derived from the Auth section of a
 	// VarnishConfig.
 	Auths []Auth
+	ACLs  []ACL
 }
 
 // DeepHash computes a 64-bit hash value from a Spec such that if two
@@ -259,6 +346,9 @@ func (spec Spec) DeepHash() uint64 {
 	for _, auth := range spec.Auths {
 		auth.hash(hash)
 	}
+	for _, acl := range spec.ACLs {
+		acl.hash(hash)
+	}
 	return hash.Sum64()
 }
 
@@ -273,6 +363,7 @@ func (spec Spec) Canonical() Spec {
 		AllServices:    make(map[string]Service, len(spec.AllServices)),
 		ShardCluster:   spec.ShardCluster,
 		Auths:          make([]Auth, len(spec.Auths)),
+		ACLs:           make([]ACL, len(spec.ACLs)),
 	}
 	copy(canon.DefaultService.Addresses, spec.DefaultService.Addresses)
 	sort.Stable(byIPPort(canon.DefaultService.Addresses))
@@ -296,12 +387,21 @@ func (spec Spec) Canonical() Spec {
 	for _, auth := range canon.Auths {
 		sort.Strings(auth.Credentials)
 	}
+	copy(canon.ACLs, spec.ACLs)
+	sort.Stable(byACLName(canon.ACLs))
+	for _, acl := range canon.ACLs {
+		sort.Stable(byACLAddr(acl.Addresses))
+		sort.Stable(byComparand(acl.Conditions))
+	}
 	return canon
 }
 
 var fMap = template.FuncMap{
 	"plusOne":   func(i int) int { return i + 1 },
 	"vclMangle": func(s string) string { return mangle(s) },
+	"aclMask":   func(bits uint8) string { return aclMask(bits) },
+	"aclCmp":    func(comparand string) string { return aclCmp(comparand) },
+	"hasXFF":    func(acls []ACL) bool { return hasXFF(acls) },
 	"backendName": func(svc Service, addr string) string {
 		return backendName(svc, addr)
 	},
@@ -311,18 +411,23 @@ var fMap = template.FuncMap{
 	"urlMatcher": func(rule Rule) string {
 		return urlMatcher(rule)
 	},
+	"aclName": func(name string) string {
+		return "vk8s_" + mangle(name) + "_acl"
+	},
 }
 
 const (
 	ingTmplSrc   = "vcl.tmpl"
 	shardTmplSrc = "self-shard.tmpl"
 	authTmplSrc  = "auth.tmpl"
+	aclTmplSrc   = "acl.tmpl"
 )
 
 var (
 	ingressTmpl *template.Template
 	shardTmpl   *template.Template
 	authTmpl    *template.Template
+	aclTmpl     *template.Template
 	symPattern  = regexp.MustCompile("^[[:alpha:]][[:word:]-]*$")
 	first       = regexp.MustCompile("[[:alpha:]]")
 	restIllegal = regexp.MustCompile("[^[:word:]-]+")
@@ -334,6 +439,8 @@ func InitTemplates(tmplDir string) error {
 	ingTmplPath := path.Join(tmplDir, ingTmplSrc)
 	shardTmplPath := path.Join(tmplDir, shardTmplSrc)
 	authTmplPath := path.Join(tmplDir, authTmplSrc)
+	aclTmplPath := path.Join(tmplDir, aclTmplSrc)
+
 	ingressTmpl, err = template.New(ingTmplSrc).
 		Funcs(fMap).ParseFiles(ingTmplPath)
 	if err != nil {
@@ -346,6 +453,11 @@ func InitTemplates(tmplDir string) error {
 	}
 	authTmpl, err = template.New(authTmplSrc).
 		Funcs(fMap).ParseFiles(authTmplPath)
+	if err != nil {
+		return err
+	}
+	aclTmpl, err = template.New(aclTmplSrc).
+		Funcs(fMap).ParseFiles(aclTmplPath)
 	if err != nil {
 		return err
 	}
@@ -369,6 +481,11 @@ func (spec Spec) GetSrc() (string, error) {
 	}
 	if len(spec.ShardCluster.Nodes) > 0 {
 		if err := shardTmpl.Execute(&buf, spec.ShardCluster); err != nil {
+			return "", err
+		}
+	}
+	if len(spec.ACLs) > 0 {
+		if err := aclTmpl.Execute(&buf, spec); err != nil {
 			return "", err
 		}
 	}
@@ -405,4 +522,39 @@ func directorName(svc Service) string {
 
 func urlMatcher(rule Rule) string {
 	return mangle(rule.Host + "_url")
+}
+
+func aclMask(bits uint8) string {
+	if bits > 128 {
+		return ""
+	}
+	return fmt.Sprintf("/%d", bits)
+}
+
+const (
+	xffFirst   = `regsub(req.http.X-Forwarded-For,"^([^,\s]+).*","\1")`
+	xff2ndLast = `regsub(req.http.X-Forwarded-For,"^.*?([\d.]+)\s*,[^,]*$","\1")`
+)
+
+func aclCmp(comparand string) string {
+	if strings.HasPrefix(comparand, "xff-") ||
+		strings.HasPrefix(comparand, "req.http.") {
+
+		if comparand == "xff-first" {
+			comparand = xffFirst
+		} else if comparand == "xff-2ndlast" {
+			comparand = xff2ndLast
+		}
+		return fmt.Sprintf(`std.ip(%s, "0.0.0.0")`, comparand)
+	}
+	return comparand
+}
+
+func hasXFF(acls []ACL) bool {
+	for _, acl := range acls {
+		if strings.HasPrefix(acl.Comparand, "xff-") {
+			return true
+		}
+	}
+	return false
 }

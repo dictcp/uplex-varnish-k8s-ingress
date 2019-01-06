@@ -1,0 +1,58 @@
+
+import std;
+acl vk8s_man_vcl_example_acl {
+	"localhost";
+	"192.0.2.0"/24;
+	! "192.0.2.23";
+}
+acl vk8s_wikipedia_example_acl {
+	"192.168.100.14"/24;
+	"192.168.100.0"/22;
+	"2001:db8::"/48;
+}
+acl vk8s_private4_acl {
+	"10.0.0.0"/24;
+	"172.16.0.0"/12;
+	"192.168.0.0"/16;
+}
+acl vk8s_rfc5737_acl {
+	"192.0.2.0"/24;
+	"198.51.100.0"/24;
+	"203.0.113.0"/24;
+}
+acl vk8s_local_acl {
+	"127.0.0.0"/8;
+	"::1";
+}
+
+sub vcl_recv {
+        std.collect(req.http.X-Forwarded-For);
+	if (
+	    req.http.Host ~ "^cafe\.example\.com$" &&
+	    req.url ~ "^/coffee(/|$)" &&
+	    client.ip !~ vk8s_man_vcl_example_acl
+	   ) {
+		return(synth(403));
+	}
+	if (
+	    req.url !~ "^/tea(/|$)" &&
+	    server.ip ~ vk8s_wikipedia_example_acl
+	   ) {
+		return(synth(404));
+	}
+	if (
+	    std.ip(req.http.X-Real-IP, "0.0.0.0") !~ vk8s_private4_acl
+	   ) {
+		return(synth(403));
+	}
+	if (
+	    std.ip(regsub(req.http.X-Forwarded-For,"^([^,\s]+).*","\1"), "0.0.0.0") !~ vk8s_rfc5737_acl
+	   ) {
+		return(synth(403));
+	}
+	if (
+	    std.ip(regsub(req.http.X-Forwarded-For,"^.*?([\d.]+)\s*,[^,]*$","\1"), "0.0.0.0") !~ vk8s_local_acl
+	   ) {
+		return(synth(403));
+	}
+}

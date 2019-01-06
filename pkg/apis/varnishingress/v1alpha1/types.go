@@ -52,6 +52,7 @@ type VarnishConfigSpec struct {
 	Services     []string       `json:"services,omitempty"`
 	SelfSharding *SelfShardSpec `json:"self-sharding,omitempty"`
 	Auth         []AuthSpec     `json:"auth,omitempty"`
+	ACLs         []ACLSpec      `json:"acl,omitempty"`
 }
 
 // SelfShardSpec specifies self-sharding in a Varnish cluster.
@@ -97,6 +98,46 @@ type AuthCondition struct {
 	URLRegex  string `json:"url-match,omitempty"`
 	HostRegex string `json:"host-match,omitempty"`
 }
+
+// ACLSpec specifies whitelisting or blacklisting IP addresses against
+// an access control list.
+type ACLSpec struct {
+	Name       string       `json:"name,omitempty"`
+	ACLType    ACLType      `json:"type,omitempty"`
+	Comparand  string       `json:"comparand,omitempty"`
+	FailStatus *int32       `json:"fail-status,omitempty"`
+	Addresses  []ACLAddress `json:"addrs,omitempty"`
+	Conditions []Condition  `json:"conditions,omitempty"`
+}
+
+// ACLAddress represents an entry in a VCL. If MaskBits is non-nil, it
+// is a CIDR range. If Negate is true, use the '!' notation in the VCL
+// ACL.
+type ACLAddress struct {
+	Address  string `json:"addr,omitempty"`
+	MaskBits *int32 `json:"mask-bits,omitempty"`
+	Negate   bool   `json:"negate,omitempty"`
+}
+
+// Condition represents a term in a boolean expression -- match or
+// non-match against a VCL object.
+type Condition struct {
+	Comparand string `json:"comparand,omitempty"`
+	Regex     string `json:"regex,omitempty"`
+	Match     bool   `json:"match,omitempty"`
+}
+
+// ACLType classifies an ACL.
+type ACLType string
+
+const (
+	// Whitelist means that the failure status is returned when an
+	// IP address does not match an ACL.
+	Whitelist ACLType = "whitelist"
+	// Blacklist means that the failure status is returned when an
+	// IP address does match an ACL.
+	Blacklist = "blacklist"
+)
 
 // VarnishConfigStatus is the status for a VarnishConfig resource
 // type VarnishConfigStatus struct {

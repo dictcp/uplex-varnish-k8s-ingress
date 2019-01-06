@@ -49,6 +49,8 @@ const (
 	ingressClassKey  = "kubernetes.io/ingress.class"
 	annotationPrefix = "ingress.varnish-cache.org/"
 	varnishSvcKey    = annotationPrefix + "varnish-svc"
+	defACLcomparand  = "client.ip"
+	defACLfailStatus = uint16(403)
 )
 
 func (worker *NamespaceWorker) getVarnishSvcForIng(
@@ -309,6 +311,63 @@ func (worker *NamespaceWorker) configAuth(spec *vcl.Spec,
 	return nil
 }
 
+func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
+	vcfg *vcr_v1alpha1.VarnishConfig) error {
+
+	if len(vcfg.Spec.ACLs) == 0 {
+		worker.log.Infof("No ACL spec found for VarnishConfig %s/%s",
+			vcfg.Namespace, vcfg.Name)
+		return nil
+	}
+	spec.ACLs = make([]vcl.ACL, 0, len(vcfg.Spec.ACLs))
+	for _, acl := range vcfg.Spec.ACLs {
+		worker.log.Debugf("VarnishConfig %s/%s configuring VCL ACL "+
+			"from: %+v", vcfg.Namespace, vcfg.Name, acl)
+		vclACL := vcl.ACL{
+			Name:       acl.Name,
+			Addresses:  make([]vcl.ACLAddress, 0, len(acl.Addresses)),
+			Conditions: make([]vcl.MatchTerm, 0, len(acl.Conditions)),
+		}
+		if acl.Comparand == "" {
+			vclACL.Comparand = defACLcomparand
+		} else {
+			vclACL.Comparand = acl.Comparand
+		}
+		if acl.ACLType == "" || acl.ACLType == vcr_v1alpha1.Whitelist {
+			vclACL.Whitelist = true
+		}
+		if acl.FailStatus == nil {
+			vclACL.FailStatus = defACLfailStatus
+		} else {
+			vclACL.FailStatus = uint16(*acl.FailStatus)
+		}
+		for _, addr := range acl.Addresses {
+			vclAddr := vcl.ACLAddress{
+				Addr:   addr.Address,
+				Negate: addr.Negate,
+			}
+			if addr.MaskBits == nil {
+				vclAddr.MaskBits = vcl.NoMaskBits
+			} else {
+				vclAddr.MaskBits = uint8(*addr.MaskBits)
+			}
+			vclACL.Addresses = append(vclACL.Addresses, vclAddr)
+		}
+		for _, cond := range acl.Conditions {
+			vclMatch := vcl.MatchTerm{
+				Comparand: cond.Comparand,
+				Regex:     cond.Regex,
+				Match:     cond.Match,
+			}
+			vclACL.Conditions = append(vclACL.Conditions, vclMatch)
+		}
+		worker.log.Debugf("VarnishConfig %s/%s add VCL ACL config: "+
+			"%+v", vcfg.Namespace, vcfg.Name, vclACL)
+		spec.ACLs = append(spec.ACLs, vclACL)
+	}
+	return nil
+}
+
 func (worker *NamespaceWorker) hasIngress(svc *api_v1.Service,
 	ing *extensions.Ingress, spec vcl.Spec) bool {
 
@@ -365,6 +424,9 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 			return err
 		}
 		if err = worker.configAuth(&vclSpec, vcfg); err != nil {
+			return err
+		}
+		if err = worker.configACL(&vclSpec, vcfg); err != nil {
 			return err
 		}
 	} else {

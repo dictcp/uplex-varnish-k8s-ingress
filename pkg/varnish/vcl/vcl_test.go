@@ -397,3 +397,167 @@ func TestAuthTemplate(t *testing.T) {
 		}
 	}
 }
+
+var acls = Spec{
+	ACLs: []ACL{
+		{
+			Name:       "man_vcl_example",
+			Comparand:  "client.ip",
+			FailStatus: 403,
+			Whitelist:  true,
+			Addresses: []ACLAddress{
+				ACLAddress{
+					Addr:     "localhost",
+					MaskBits: 255,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "192.0.2.0",
+					MaskBits: 24,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "192.0.2.23",
+					MaskBits: 255,
+					Negate:   true,
+				},
+			},
+			Conditions: []MatchTerm{
+				MatchTerm{
+					Comparand: "req.http.Host",
+					Match:     true,
+					Regex:     `^cafe\.example\.com$`,
+				},
+				MatchTerm{
+					Comparand: "req.url",
+					Match:     true,
+					Regex:     `^/coffee(/|$)`,
+				},
+			},
+		},
+		{
+			Name:       "wikipedia_example",
+			Comparand:  "server.ip",
+			FailStatus: 404,
+			Whitelist:  false,
+			Addresses: []ACLAddress{
+				ACLAddress{
+					Addr:     "192.168.100.14",
+					MaskBits: 24,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "192.168.100.0",
+					MaskBits: 22,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "2001:db8::",
+					MaskBits: 48,
+					Negate:   false,
+				},
+			},
+			Conditions: []MatchTerm{
+				MatchTerm{
+					Comparand: "req.url",
+					Match:     false,
+					Regex:     `^/tea(/|$)`,
+				},
+			},
+		},
+		{
+			Name:       "private4",
+			Comparand:  "req.http.X-Real-IP",
+			FailStatus: 403,
+			Whitelist:  true,
+			Addresses: []ACLAddress{
+				ACLAddress{
+					Addr:     "10.0.0.0",
+					MaskBits: 24,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "172.16.0.0",
+					MaskBits: 12,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "192.168.0.0",
+					MaskBits: 16,
+					Negate:   false,
+				},
+			},
+			Conditions: []MatchTerm{},
+		},
+		{
+			Name:       "rfc5737",
+			Comparand:  "xff-first",
+			FailStatus: 403,
+			Whitelist:  true,
+			Addresses: []ACLAddress{
+				ACLAddress{
+					Addr:     "192.0.2.0",
+					MaskBits: 24,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "198.51.100.0",
+					MaskBits: 24,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "203.0.113.0",
+					MaskBits: 24,
+					Negate:   false,
+				},
+			},
+			Conditions: []MatchTerm{},
+		},
+		{
+			Name:       "local",
+			Comparand:  "xff-2ndlast",
+			FailStatus: 403,
+			Whitelist:  true,
+			Addresses: []ACLAddress{
+				ACLAddress{
+					Addr:     "127.0.0.0",
+					MaskBits: 8,
+					Negate:   false,
+				},
+				ACLAddress{
+					Addr:     "::1",
+					MaskBits: 255,
+					Negate:   false,
+				},
+			},
+			Conditions: []MatchTerm{},
+		},
+	},
+}
+
+func TestAclTemplate(t *testing.T) {
+	var buf bytes.Buffer
+	gold := "acl.golden"
+	tmplName := "acl.tmpl"
+
+	tmpl, err := template.New(tmplName).Funcs(fMap).ParseFiles(tmplName)
+	if err != nil {
+		t.Error("Cannot parse acl template:", err)
+		return
+	}
+	if err := tmpl.Execute(&buf, acls); err != nil {
+		t.Error("acls template Execute():", err)
+		return
+	}
+	ok, err := cmpGold(buf.Bytes(), gold)
+	if err != nil {
+		t.Fatalf("Reading %s: %v", gold, err)
+	}
+	if !ok {
+		t.Errorf("Generated VCL for authorization does not match gold "+
+			"file: %s", gold)
+		if testing.Verbose() {
+			t.Logf("Generated: %s", buf.String())
+		}
+	}
+}

@@ -1,0 +1,26 @@
+
+import std;
+
+{{- range .ACLs}}
+acl {{aclName .Name}} {
+	{{- range .Addresses}}
+	{{if .Negate}}! {{end}}"{{.Addr}}"{{aclMask .MaskBits}};
+	{{- end}}
+}
+{{- end}}
+
+sub vcl_recv {
+	{{- if hasXFF .ACLs}}
+        std.collect(req.http.X-Forwarded-For);
+        {{- end}}
+	{{- range .ACLs}}
+	if (
+	    {{- range $cond := .Conditions}}
+	    {{$cond.Comparand}} {{if not .Match}}!{{end}}~ "{{.Regex}}" &&
+	    {{- end}}
+	    {{aclCmp .Comparand}} {{if .Whitelist}}!{{end}}~ {{aclName .Name}}
+	   ) {
+		return(synth({{.FailStatus}}));
+	}
+	{{- end}}
+}
