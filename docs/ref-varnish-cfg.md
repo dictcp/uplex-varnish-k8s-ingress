@@ -264,3 +264,181 @@ spec:
 
 See the [``examples/`` folder](/examples/authentication) for working
 examples of authentication configurations.
+
+### ``spec.acl``
+
+The ``acl`` element is optional, and if present contains a non-empty
+array of specifications of access control lists for whitelisting or
+blacklisting requests by IP address.
+
+For each element of ``acl``, the required fields are:
+
+* ``name`` (string): unique among the names for acl specifications
+
+* ``addrs``: non-empty array of IP specifications (detailed below)
+
+Optional fields for ``acl`` are:
+
+* ``type``: ``whitelist`` or ``blacklist``, default ``whitelist``
+
+* ``fail-status`` (integer): HTTP status for a synthetic failure
+  response, default 403 (for "403 Forbidden")
+
+* ``comparand``: specification of the IP value against which the ACL
+  is matched, as detailed below; default ``client.ip``
+
+* ``conditions``: array of conditions under which the ACL match is
+  executed, as detailed below. By default, ``conditions`` is empty,
+  in which case the match is executed for every client request.
+
+Each element of the ``addrs`` array may have these fields, of which
+``addr`` is required:
+
+* ``addr`` (string, required): an IPv4 address, IPv6 address, or host
+  name that is resolved by Varnish to an IP address at VCL load time
+
+* ``mask-bits`` (integer, >= 0 and <= 128): bitmask as expressed by
+  [CIDR notation](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing),
+  so that an address range is specified; that is, the number of
+  leading 1-bits in a subnet mask. By default (when ``mask-bits``
+  is left out), there is no bitmask, and ``addr`` defines an exact
+  IP address.
+
+* ``negate`` (boolean): when true, the ACL does not match an IP
+  if it matches the address or range specified by ``addr`` and
+  ``mask-bits``; default false.
+
+So the range 192.0.2.0/24 is expressed as:
+
+```
+      - addr: 192.0.2.0
+        mask-bits: 24
+```
+
+``negate`` can be used to define IPs as "exceptions" if they fall in
+ranges specified by other elements of the ACL:
+
+```
+      # Match all IPs in 192.0.2.0/24, but not 192.0.2.23.
+      - addr: 192.0.2.0
+        mask-bits: 24
+      - addr: 192.0.2.23
+        negate: true
+```
+
+When ``type`` is ``whitelist``, the failure response is sent when an
+IP does not match the ACL. For ``blacklist``, the failure response is
+invoked for an IP that does match the ACL.
+
+``comparand`` specifies the IP value against which the ACL is matched,
+and can have one of these values:
+
+* ``client.ip``: interpreted as in
+  [VCL](https://varnish-cache.org/docs/6.1/reference/vcl.html#local-server-remote-and-client)
+
+* ``server.ip``: as in VCL
+
+* ``remote.ip``: as in VCL
+
+* ``local.ip``: as in VCL
+
+* ``req.http.$HEADER``, where ``$HEADER`` is the name of a client
+  request header
+
+* ``xff-first``: match the first comma-separated field in the
+   ``X-Forwarded-For`` request header
+
+* ``xff-2ndlast``: match the next-to-last comma-separated field in
+   ``X-Forwarded-For``, *after* Varnish has appended the client IP
+
+To briefly summarize the ``*.ip`` values:
+
+* ``remote.ip`` is always the address of the peer connection (the
+  component that sent the request to Varnish)
+
+* ``local.ip`` is the "Varnish side" of the connection (the IP at
+  which the listener received the request)
+
+* If the [PROXY protocol](/docs/varnish-pod-template.md) is in use:
+
+     * ``client.ip`` and ``server.ip`` are the addresses sent in the
+       PROXY header.
+
+* Otherwise:
+
+     * ``client.ip`` and ``server.ip`` are equal to ``remote.ip`` and
+       ``local.ip``, respectively.
+
+If ``req.http.$HEADER`` is specified for ``comparand``, the ACL is
+matched against the IP in the value of the header. If the value of the
+header is not an IP address, or if the header is not present in the
+request, then the match fails. This can be used for a setup in which a
+forwarding component sends a client IP in a header such as
+``X-Real-IP``.
+
+If ``xff-first`` is specified for ``comparand``, then the ACL is
+matched against the IP in the first comma-separated field of the
+``X-Forwarded-For`` request header. If the value of that field is not
+an IP address, the match fails. Varnish always appends the client IP
+to ``X-Forwarded-For``, and creates the header with that value if it
+is not present in the request as received. So if there is no
+``X-Forwarded-For`` when Varnish receives the request, then the first
+field is the client IP (and ``xff-first`` is the same as matching
+against ``client.ip``).
+
+If ``xff-2ndlast`` is specified for ``comparand``, then the ACL is
+matched against the next-to-last field in ``X-Forwarded-For`` *after*
+Varnish appends the client IP. In other words, it is matched against
+the last field in ``X-Forwarded-For`` as received by Varnish. If
+Varnish receives a request without ``X-Forwarded-For``, then there is
+no next-to-last field, and the match fails.
+
+``X-Forwarded-For`` may appear more than once in a request (as if they
+are separate headers). If either of ``xff-first`` or ``xff-2ndlast``
+is specified as the comparand for any ACL in the VarnishConfig, the
+values of ``X-Forwarded-For`` are collected into a single
+comma-separated header, in the order in which they appeared in the
+request.
+
+Thus if Varnish receives a request with this value of ``X-Forwarded-For``:
+
+```
+X-Forwarded-For: 192.0.2.47, 203.0.113.11
+```
+
+... then ``xff-first`` specifies a match against 192.0.2.47, and
+``xff-2ndlast`` specifies a match against 203.0.113.11.
+
+If ``conditions`` are specified for an ACL, they define restrictions
+for executing the match. Each element of ``conditions`` must specify
+these three fields (all required):
+
+* ``comparand`` (string): either ``req.url`` or ``req.http.$HEADER``,
+  where ``$HEADER`` is the name of a client request header.
+
+* ``regex``: a regular expression
+
+* ``match`` (boolean): whether the condition term succeeds if the
+  ``comparand`` does or does not match ``regex`` -- ``true`` for
+  match, ``false`` for no-match.
+
+The ACL match is executed only if all of the ``conditions`` succeed;
+in other words, the ``conditions`` are the boolean AND of all of the
+match terms.
+
+For example, these ``conditions`` specify that the match is executed
+when the URL begins with "/tea", and the Host header is exactly
+"cafe.example.com":
+
+```
+      conditions:
+      - comparand: req.url
+        match: true
+        regex: ^/tea(/|$)
+      - comparand: req.http.Host
+        match: yes
+        regex: ^cafe\.example\.com$
+```
+
+See the [``examples/`` folder``](/examples/cal) for working examples
+of ACL configurations.

@@ -17,3 +17,6 @@ requirements.
   ([docs](/docs/self-sharding.md))
 
 * [Basic and Proxy Authentication](/examples/authentication)
+
+* [Access control lists](/examples/acl) -- whitelisting or
+  blacklisting requests by IP address

@@ -1,0 +1,144 @@
+# Sample configurations for Access Control Lists.
+
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: VarnishConfig
+metadata:
+  name: acl-example-cfg
+spec:
+  # The services array is required and must have at least one element.
+  # Lists the Service names of Varnish services in the same namespace
+  # to which this config is to be applied.
+  services:
+    - varnish-ingress
+
+  # This config defines two whitelists and two blacklists.
+  # The order of the elements in acl is significant -- ACL matches are
+  # run in order, until the first set of conditions that leads to a
+  # failure status is matched, or all of them run without failing.
+  acl:
+
+    # This ACL defines the address ranges for private IPv4 networks:
+    # 10.0.0.0/24, 172.16.0.0/12 and 192.168.0.0/16
+    #
+    # comparand is the default: client.ip, as interpreted in VCL
+    # (either the client IP forwarded by the PROXY protocol, or
+    # the peer address of the connection if PROXY is not used).
+    #
+    # fail-status is the default (403 Forbidden).
+    #
+    # type is default (whitelist) -- the failure status is returned
+    # if client.ip does not match the ACL.
+    #
+    # The conditions field is not defined -- this ACL is matched for
+    # all client requests.
+    - name: private-ip4
+      addrs:
+      - addr: 10.0.0.0
+        mask-bits: 24
+      - addr: 172.16.0.0
+        mask-bits: 12
+      - addr: 192.168.0.0
+        mask-bits: 16
+
+    # This is the ACL shown as an example in vcl(7):
+    # https://varnish-cache.org/docs/6.1/reference/vcl.html#access-control-list-acl
+    # The ACL matches:
+    # - the IP resolved for "localhost" at VCL load time
+    # - 192.0.2.0/24
+    # - but it does *not* match the IP 192.0.2.23 (since the negate
+    #   field for that address is set to true).
+    #
+    # comparand is the client request header X-Real-IP. The header
+    # must contain an IP address, otherwise it will not match the ACL.
+    #
+    # fail-status is default 403.
+    #
+    # type is whitelist.
+    #
+    # The conditions specify that the ACL match is executed when:
+    # - the URL path begins with "/tea", and
+    # - the Host header is exactly equal to "cafe.example.com"
+    # (According to the Ingress rules of the cafe example, requests
+    # are routed to the Service tea-svc under these conditions).
+    - name: man-vcl-example
+      addrs:
+      - addr: localhost
+      - addr: 192.0.2.0
+        mask-bits: 24
+      - addr: 192.0.2.23
+        negate: true
+      comparand: req.http.X-Real-IP
+      type: whitelist
+      conditions:
+      - comparand: req.url
+        match: true
+        regex: ^/tea(/|$)
+      - comparand: req.http.Host
+        match: yes
+        regex: ^cafe\.example\.com$
+
+    # This ACL defines a blacklist:
+    # 192.0.20/24 and 198.51.100.0/24
+    #
+    # comparand xff-first means that the IP address to be matched
+    # is in the first comma-separated field in the X-Forwarded-For
+    # header. This field must contain an IP address, otherwise it
+    # will not match the ACL.
+    #
+    # fail-status is 404 Not Found (making it appear to non-matching
+    # clients that they used an invalid URL).
+    #
+    # type is blacklist -- the failure status is returned if the
+    # IP address (from X-Forwarded-For) matches the ACL.
+    #
+    # The conditions specify that the ACL match is executed when:
+    # - the URL path begins with "/coffee/black", and
+    # - the Host header is exactly equal to "cafe.example.com"
+    - name: xff-first-example
+      addrs:
+      - addr: 192.0.2.0
+        mask-bits: 24
+      - addr: 198.51.100.0
+        mask-bits: 24
+      comparand: xff-first
+      type: blacklist
+      fail-status: 404
+      conditions:
+      - comparand: req.url
+        match: true
+        regex: ^/coffee/black(/|$)
+      - comparand: req.http.Host
+        match: yes
+        regex: ^cafe\.example\.com$
+
+    # This ACL defines a blacklist for 203.0.113.0/24.
+    #
+    # comparand xff-2ndlast means that the IP address to be matched
+    # is in the next-to-last comma-separated field in the X-Forwarded-For
+    # header, *after* Varnish appends the client IP to X-Forwarded-For.
+    # In other words, it is the last field in X-Forwarded-For when
+    # Varnish receives the request. As with xff-first, the field must
+    # contain an IP address.
+    #
+    # fail-status is default 403.
+    #
+    # type is blacklist.
+    #
+    # The conditions specify that the ACL match is executed when:
+    # - the URL path begins with "/coffee", and
+    # - the Host header is exactly equal to "cafe.example.com"
+    # (According to the Ingress rules of the cafe example, requests
+    # are routed to the Service coffee-svc under these conditions).
+    - name: xff-2ndlast-example
+      addrs:
+      - addr: 203.0.113.0
+        mask-bits: 24
+      comparand: xff-2ndlast
+      type: blacklist
+      conditions:
+      - comparand: req.url
+        match: true
+        regex: ^/coffee(/|$)
+      - comparand: req.http.Host
+        match: yes
+        regex: ^cafe\.example\.com$
