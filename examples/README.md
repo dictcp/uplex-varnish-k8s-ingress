@@ -13,6 +13,8 @@ requirements.
 * [Customizing the Pod template](/examples/varnish_pod_template)
   for Varnish
 
+* [Custom VCL](/examples/custom-vcl)
+
 * [Self-sharding Varnish cluster](/examples/self-sharding)
   ([docs](/docs/self-sharding.md))
 
