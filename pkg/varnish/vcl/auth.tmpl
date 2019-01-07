@@ -3,11 +3,11 @@ import re2;
 
 sub vcl_init {
 {{- range $auth := .Auths}}
-	new vk8s_{{vclMangle .Realm}}_auth = re2.set(anchor=both);
+	new {{vclMangle .Realm}}_auth = re2.set(anchor=both);
 	{{- range $cred := .Credentials}}
-	vk8s_{{vclMangle $auth.Realm}}_auth.add("\s*Basic\s+\Q{{$cred}}\E\s*");
+	{{vclMangle $auth.Realm}}_auth.add("\s*Basic\s+\Q{{$cred}}\E\s*");
 	{{- end}}
-	vk8s_{{vclMangle .Realm}}_auth.compile();
+	{{vclMangle .Realm}}_auth.compile();
 {{end -}}
 }
 
@@ -21,9 +21,9 @@ sub vcl_recv {
 	    req.url ~ "{{.Condition.URLRegex}}" &&
 	    {{- end}}
 	    {{- if eq .Status 401}}
-	    !vk8s_{{vclMangle .Realm}}_auth.match(req.http.Authorization)
+	    !{{vclMangle .Realm}}_auth.match(req.http.Authorization)
 	    {{- else}}
-	    !vk8s_{{vclMangle .Realm}}_auth.match(req.http.Proxy-Authorization)
+	    !{{vclMangle .Realm}}_auth.match(req.http.Proxy-Authorization)
 	    {{- end}}
 	   ) {
 		{{- if .UTF8 }}

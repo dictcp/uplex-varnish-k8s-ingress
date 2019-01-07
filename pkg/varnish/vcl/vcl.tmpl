@@ -4,7 +4,7 @@ import std;
 import directors;
 import re2;
 
-backend notfound {
+backend vk8s_notfound {
 	# 192.0.2.0/24 reserved for docs & examples (RFC5737).
 	.host = "192.0.2.255";
 	.port = "80";
@@ -21,11 +21,11 @@ backend {{backendName $svc $addr.IP}} {
 
 sub vcl_init {
 {{- if .Rules}}
-	new hosts = re2.set(posix_syntax=true, literal=true, anchor=both);
+	new vk8s_hosts = re2.set(posix_syntax=true, literal=true, anchor=both);
 	{{- range $rule := .Rules}}
-	hosts.add("{{$rule.Host}}");
+	vk8s_hosts.add("{{$rule.Host}}");
 	{{- end}}
-	hosts.compile();
+	vk8s_hosts.compile();
 {{end}}
 
 {{- range $name, $svc := .AllServices}}
@@ -44,11 +44,11 @@ sub vcl_init {
 {{end -}}
 }
 
-sub set_backend {
-	set req.backend_hint = notfound;
+sub vk8s_set_backend {
+	set req.backend_hint = vk8s_notfound;
 {{- if .Rules}}
-	if (hosts.match(req.http.Host)) {
-		if (hosts.nmatches() != 1) {
+	if (vk8s_hosts.match(req.http.Host)) {
+		if (vk8s_hosts.nmatches() != 1) {
 			# Fail fast when the match was not unique.
 			return (fail);
 		}
@@ -56,7 +56,7 @@ sub set_backend {
 			#
 		}
 		{{- range $i, $rule := .Rules}}
-		elsif (hosts.which() == {{plusOne $i}}) {
+		elsif (vk8s_hosts.which() == {{plusOne $i}}) {
 			if ({{urlMatcher $rule}}.match(req.url)) {
 				set req.backend_hint = {{urlMatcher $rule}}.backend(select=FIRST);
 			}
@@ -65,7 +65,7 @@ sub set_backend {
 	}
 {{- end}}
 
-	if (req.backend_hint == notfound) {
+	if (req.backend_hint == vk8s_notfound) {
 {{- if ne .DefaultService.Name ""}}
 		set req.backend_hint = {{dirName .DefaultService}}.backend();
 {{- else}}
@@ -75,9 +75,9 @@ sub set_backend {
 }
 
 sub vcl_miss {
-	call set_backend;
+	call vk8s_set_backend;
 }
 
 sub vcl_pass {
-	call set_backend;
+	call vk8s_set_backend;
 }

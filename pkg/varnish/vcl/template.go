@@ -54,7 +54,7 @@ var fMap = template.FuncMap{
 		return urlMatcher(rule)
 	},
 	"aclName": func(name string) string {
-		return "vk8s_" + mangle(name) + "_acl"
+		return mangle(name) + "_acl"
 	},
 }
 
@@ -70,9 +70,7 @@ var (
 	shardTmpl   *template.Template
 	authTmpl    *template.Template
 	aclTmpl     *template.Template
-	symPattern  = regexp.MustCompile("^[[:alpha:]][[:word:]-]*$")
-	first       = regexp.MustCompile("[[:alpha:]]")
-	restIllegal = regexp.MustCompile("[^[:word:]-]+")
+	vclIllegal  = regexp.MustCompile("[^[:word:]-]+")
 )
 
 // InitTemplates initializes templates for VCL generation.
@@ -140,22 +138,17 @@ func (spec Spec) GetSrc() (string, error) {
 }
 
 func mangle(s string) string {
-	var mangled string
-	bytes := []byte(s)
-	if s == "" || symPattern.Match(bytes) {
+	if s == "" {
 		return s
 	}
-	mangled = string(bytes[0])
-	if !first.Match(bytes[0:1]) {
-		mangled = "V" + mangled
-	}
-	rest := restIllegal.ReplaceAllFunc(bytes[1:], replIllegal)
-	mangled = mangled + string(rest)
-	return mangled
+	prefixed := "vk8s_" + s
+	bytes := []byte(prefixed)
+	mangled := vclIllegal.ReplaceAllFunc(bytes, replIllegal)
+	return string(mangled)
 }
 
 func backendName(svc Service, addr string) string {
-	return mangle(svc.Name + "_" + addr)
+	return mangle(svc.Name + "_" + strings.Replace(addr, ".", "_", -1))
 }
 
 func directorName(svc Service) string {
@@ -163,7 +156,7 @@ func directorName(svc Service) string {
 }
 
 func urlMatcher(rule Rule) string {
-	return mangle(rule.Host + "_url")
+	return mangle(strings.Replace(rule.Host, ".", "_", -1) + "_url")
 }
 
 func aclMask(bits uint8) string {
