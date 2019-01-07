@@ -39,6 +39,9 @@ For further information about VCL see:
   chapter in Varnish Software's "Varnish Book" (written for Varnish
   4.0, but mostly still correct for version 6.1).
 
+See the [``examples/`` folder](/examples/custom-vcl) for a simple
+working example of custom VCL.
+
 ## Use At Your Own Risk
 
 The correctness of the Ingress implementation, viewed broadly,
