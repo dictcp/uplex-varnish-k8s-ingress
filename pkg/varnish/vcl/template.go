@@ -134,6 +134,9 @@ func (spec Spec) GetSrc() (string, error) {
 			return "", err
 		}
 	}
+	if spec.VCL != "" {
+		buf.WriteString(spec.VCL)
+	}
 	return buf.String(), nil
 }
 

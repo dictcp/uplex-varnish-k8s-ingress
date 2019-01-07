@@ -566,3 +566,42 @@ func TestAclTemplate(t *testing.T) {
 		}
 	}
 }
+
+var customVCLSpec = Spec{
+	DefaultService: Service{},
+	Rules: []Rule{{
+		Host: "cafe.example.com",
+		PathMap: map[string]Service{
+			"/tea":    teaSvc,
+			"/coffee": coffeeSvc,
+		},
+	}},
+	AllServices: map[string]Service{
+		"tea-svc":    teaSvc,
+		"coffee-svc": coffeeSvc,
+	},
+	VCL: `sub vcl_deliver {
+	set resp.http.Hello = "world";
+}`,
+}
+
+func TestCustomVCL(t *testing.T) {
+	gold := "custom_vcl.golden"
+
+	vcl, err := customVCLSpec.GetSrc()
+	if err != nil {
+		t.Fatal("GetSrc():", err)
+	}
+
+	ok, err := cmpGold([]byte(vcl), gold)
+	if err != nil {
+		t.Fatalf("Reading %s: %v", gold, err)
+	}
+	if !ok {
+		t.Errorf("Generated VCL for custom VCL does not match gold "+
+			"file: %s", gold)
+		if testing.Verbose() {
+			t.Log("Generated: ", vcl)
+		}
+	}
+}

@@ -51,6 +51,7 @@ type VarnishConfig struct {
 type VarnishConfigSpec struct {
 	Services     []string       `json:"services,omitempty"`
 	SelfSharding *SelfShardSpec `json:"self-sharding,omitempty"`
+	VCL          string         `json:"vcl,omitempty"`
 	Auth         []AuthSpec     `json:"auth,omitempty"`
 	ACLs         []ACLSpec      `json:"acl,omitempty"`
 }

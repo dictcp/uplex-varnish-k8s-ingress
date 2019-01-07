@@ -322,9 +322,11 @@ type Spec struct {
 	// Authentication, derived from the Auth section of a
 	// VarnishConfig.
 	Auths []Auth
+	// VCL is custom VCL, derived from VarnishConfig.Spec.VCL.
+	VCL string
 	// ACLs is a list of specifications for whitelisting or
 	// blacklisting IPs with access control lists, derived from
-	// VarnishConfig.ACLs.
+	// VarnishConfig.Spec.ACLs.
 	ACLs []ACL
 }
 
@@ -348,6 +350,7 @@ func (spec Spec) DeepHash() uint64 {
 		spec.AllServices[svc].hash(hash)
 	}
 	spec.ShardCluster.hash(hash)
+	hash.Write([]byte(spec.VCL))
 	for _, auth := range spec.Auths {
 		auth.hash(hash)
 	}
@@ -367,6 +370,7 @@ func (spec Spec) Canonical() Spec {
 		Rules:          make([]Rule, len(spec.Rules)),
 		AllServices:    make(map[string]Service, len(spec.AllServices)),
 		ShardCluster:   spec.ShardCluster,
+		VCL:            spec.VCL,
 		Auths:          make([]Auth, len(spec.Auths)),
 		ACLs:           make([]ACL, len(spec.ACLs)),
 	}

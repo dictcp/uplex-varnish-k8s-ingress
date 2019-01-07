@@ -439,6 +439,7 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 		if err = worker.configACL(&vclSpec, vcfg); err != nil {
 			return err
 		}
+		vclSpec.VCL = vcfg.Spec.VCL
 	} else {
 		worker.log.Infof("Found no VarnishConfigs for Varnish Service "+
 			"%s/%s", svc.Namespace, svc.Name)

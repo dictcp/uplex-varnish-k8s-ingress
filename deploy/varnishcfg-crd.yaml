@@ -151,6 +151,9 @@ spec:
                         value:
                           type: string
                           minLength: 1
+            vcl:
+              type: string
+              minLength: 1
 status:
   acceptedNames:
     kind: VarnishConfig
