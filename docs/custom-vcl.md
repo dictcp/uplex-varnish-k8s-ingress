@@ -81,7 +81,7 @@ VCL allows you to set
 [status codes >= 1000](https://varnish-cache.org/docs/6.1/reference/vcl.html#beresp) --
 these are truncated to 3-digit codes in a client response, so as to form
 a valid HTTP response. This is a way to control logic in VCL -- set a
-special response code for which specific behaviors are implemened (for
+special response code for which specific behaviors are implemented (for
 example in ``vcl_synth`` or ``vcl_deliver``). By avoiding codes in the
 reserved range, you avoid affecting the work of the generated code.
 
