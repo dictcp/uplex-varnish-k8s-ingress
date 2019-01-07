@@ -319,14 +319,15 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 			vcfg.Namespace, vcfg.Name)
 		return nil
 	}
-	spec.ACLs = make([]vcl.ACL, 0, len(vcfg.Spec.ACLs))
-	for _, acl := range vcfg.Spec.ACLs {
-		worker.log.Debugf("VarnishConfig %s/%s configuring VCL ACL "+
-			"from: %+v", vcfg.Namespace, vcfg.Name, acl)
+	spec.ACLs = make([]vcl.ACL, len(vcfg.Spec.ACLs))
+	for i, acl := range vcfg.Spec.ACLs {
+		worker.log.Infof("VarnishConfig %s/%s configuring ACL %s",
+			vcfg.Namespace, vcfg.Name, acl.Name)
+		worker.log.Debugf("ACL %s: %+v", acl.Name, acl)
 		vclACL := vcl.ACL{
 			Name:       acl.Name,
-			Addresses:  make([]vcl.ACLAddress, 0, len(acl.Addresses)),
-			Conditions: make([]vcl.MatchTerm, 0, len(acl.Conditions)),
+			Addresses:  make([]vcl.ACLAddress, len(acl.Addresses)),
+			Conditions: make([]vcl.MatchTerm, len(acl.Conditions)),
 		}
 		if acl.Comparand == "" {
 			vclACL.Comparand = defACLcomparand
@@ -341,7 +342,7 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 		} else {
 			vclACL.FailStatus = uint16(*acl.FailStatus)
 		}
-		for _, addr := range acl.Addresses {
+		for j, addr := range acl.Addresses {
 			vclAddr := vcl.ACLAddress{
 				Addr:   addr.Address,
 				Negate: addr.Negate,
@@ -351,19 +352,28 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 			} else {
 				vclAddr.MaskBits = uint8(*addr.MaskBits)
 			}
-			vclACL.Addresses = append(vclACL.Addresses, vclAddr)
+			vclACL.Addresses[j] = vclAddr
 		}
-		for _, cond := range acl.Conditions {
+		for j, cond := range acl.Conditions {
 			vclMatch := vcl.MatchTerm{
 				Comparand: cond.Comparand,
-				Regex:     cond.Regex,
-				Match:     cond.Match,
+				Value:     cond.Value,
 			}
-			vclACL.Conditions = append(vclACL.Conditions, vclMatch)
+			switch cond.Compare {
+			case vcr_v1alpha1.Equal:
+				vclMatch.Compare = vcl.Equal
+			case vcr_v1alpha1.NotEqual:
+				vclMatch.Compare = vcl.NotEqual
+			case vcr_v1alpha1.Match:
+				vclMatch.Compare = vcl.Match
+			case vcr_v1alpha1.NotMatch:
+				vclMatch.Compare = vcl.NotMatch
+			}
+			vclACL.Conditions[j] = vclMatch
 		}
 		worker.log.Debugf("VarnishConfig %s/%s add VCL ACL config: "+
 			"%+v", vcfg.Namespace, vcfg.Name, vclACL)
-		spec.ACLs = append(spec.ACLs, vclACL)
+		spec.ACLs[i] = vclACL
 	}
 	return nil
 }

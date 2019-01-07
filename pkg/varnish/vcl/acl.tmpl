@@ -16,7 +16,7 @@ sub vcl_recv {
 	{{- range .ACLs}}
 	if (
 	    {{- range $cond := .Conditions}}
-	    {{$cond.Comparand}} {{if not .Match}}!{{end}}~ "{{.Regex}}" &&
+	    {{$cond.Comparand}} {{cmpRelation .Compare}} "{{.Value}}" &&
 	    {{- end}}
 	    {{aclCmp .Comparand}} {{if .Whitelist}}!{{end}}~ {{aclName .Name}}
 	   ) {

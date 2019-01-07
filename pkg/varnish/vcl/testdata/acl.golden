@@ -28,13 +28,14 @@ acl vk8s_local_acl {
 sub vcl_recv {
         std.collect(req.http.X-Forwarded-For);
 	if (
-	    req.http.Host ~ "^cafe\.example\.com$" &&
+	    req.http.Host == "cafe.example.com" &&
 	    req.url ~ "^/coffee(/|$)" &&
 	    client.ip !~ vk8s_man_vcl_example_acl
 	   ) {
 		return(synth(403));
 	}
 	if (
+	    req.http.Host != "cafe.example.com" &&
 	    req.url !~ "^/tea(/|$)" &&
 	    server.ip ~ vk8s_wikipedia_example_acl
 	   ) {

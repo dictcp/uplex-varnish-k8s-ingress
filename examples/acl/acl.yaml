@@ -71,11 +71,10 @@ spec:
       type: whitelist
       conditions:
       - comparand: req.url
-        match: true
-        regex: ^/tea(/|$)
+        compare: match
+        value: ^/tea(/|$)
       - comparand: req.http.Host
-        match: yes
-        regex: ^cafe\.example\.com$
+        value: cafe.example.com
 
     # This ACL defines a blacklist:
     # 192.0.20/24 and 198.51.100.0/24
@@ -105,11 +104,11 @@ spec:
       fail-status: 404
       conditions:
       - comparand: req.url
-        match: true
-        regex: ^/coffee/black(/|$)
+        compare: match
+        value: ^/coffee/black(/|$)
       - comparand: req.http.Host
-        match: yes
-        regex: ^cafe\.example\.com$
+        compare: equal
+        value: cafe.example.com
 
     # This ACL defines a blacklist for 203.0.113.0/24.
     #
@@ -137,8 +136,7 @@ spec:
       type: blacklist
       conditions:
       - comparand: req.url
-        match: true
-        regex: ^/coffee(/|$)
+        compare: match
+        value: ^/coffee(/|$)
       - comparand: req.http.Host
-        match: yes
-        regex: ^cafe\.example\.com$
+        value: cafe.example.com

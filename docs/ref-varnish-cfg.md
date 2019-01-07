@@ -330,8 +330,8 @@ When ``type`` is ``whitelist``, the failure response is sent when an
 IP does not match the ACL. For ``blacklist``, the failure response is
 invoked for an IP that does match the ACL.
 
-``comparand`` specifies the IP value against which the ACL is matched,
-and can have one of these values:
+``comparand`` (the "thing to be compared") specifies the IP value
+against which the ACL is matched, and can have one of these values:
 
 * ``client.ip``: interpreted as in
   [VCL](https://varnish-cache.org/docs/6.1/reference/vcl.html#local-server-remote-and-client)
@@ -411,16 +411,34 @@ X-Forwarded-For: 192.0.2.47, 203.0.113.11
 
 If ``conditions`` are specified for an ACL, they define restrictions
 for executing the match. Each element of ``conditions`` must specify
-these three fields (all required):
+these two required fields:
 
 * ``comparand`` (string): either ``req.url`` or ``req.http.$HEADER``,
   where ``$HEADER`` is the name of a client request header.
 
-* ``regex``: a regular expression
+* ``value`` (string): the value against which the ``comparand``
+  is compared
 
-* ``match`` (boolean): whether the condition term succeeds if the
-  ``comparand`` does or does not match ``regex`` -- ``true`` for
-  match, ``false`` for no-match.
+``conditions`` may also have this optional field:
+
+* ``compare``: one of the following (default ``equal``):
+
+    * ``equal`` for string equality
+
+    * ``not-equal`` for string inequality
+
+    * ``match`` for regex match
+
+    * ``not-match`` for regex non-match
+
+If ``compare`` is ``equal`` or ``not-equal``, then ``value`` is
+interpreted as a fixed string, and ``comparand`` is tested for
+(in)equality with ``value``. Otherwise, ``value`` is interpreted as a
+regular expression, and the ``comparand`` is tested for
+(non-)match. Regexen are implemented as
+[VCL regular expressions](https://varnish-cache.org/docs/6.1/reference/vcl.html#regular-expressions),
+and hence have the syntax and semantics of
+[PCRE](https://www.pcre.org/original/doc/html/).
 
 The ACL match is executed only if all of the ``conditions`` succeed;
 in other words, the ``conditions`` are the boolean AND of all of the
@@ -433,11 +451,10 @@ when the URL begins with "/tea", and the Host header is exactly
 ```
       conditions:
       - comparand: req.url
-        match: true
-        regex: ^/tea(/|$)
+        compare: match
+        value: ^/tea(/|$)
       - comparand: req.http.Host
-        match: yes
-        regex: ^cafe\.example\.com$
+        value: cafe.example.com
 ```
 
 See the [``examples/`` folder](/examples/acl) for working examples

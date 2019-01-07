@@ -242,20 +242,33 @@ func (a byACLAddr) Len() int           { return len(a) }
 func (a byACLAddr) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byACLAddr) Less(i, j int) bool { return a[i].Addr < a[j].Addr }
 
+// CompareType classifies comparisons for MatchTerm.
+type CompareType uint8
+
+const (
+	// Equal means compare strings for equality (==).
+	Equal CompareType = iota
+	// NotEqual means compare with !=.
+	NotEqual
+	// Match means compare for regex match (~) -- the MatchTerm
+	// Value is a regular expression.
+	Match
+	// NotMatch means compare with !~.
+	NotMatch
+)
+
 // MatchTerm is a term describing the comparison of a VCL object with
 // a pattern.
 type MatchTerm struct {
 	Comparand string
-	Regex     string
-	Match     bool
+	Value     string
+	Compare   CompareType
 }
 
 func (match MatchTerm) hash(hash hash.Hash) {
 	hash.Write([]byte(match.Comparand))
-	hash.Write([]byte(match.Regex))
-	if match.Match {
-		hash.Write([]byte("Match"))
-	}
+	hash.Write([]byte(match.Value))
+	hash.Write([]byte{byte(match.Compare)})
 }
 
 // interface for sorting []MatchTerm
@@ -397,11 +410,12 @@ func (spec Spec) Canonical() Spec {
 }
 
 var fMap = template.FuncMap{
-	"plusOne":   func(i int) int { return i + 1 },
-	"vclMangle": func(s string) string { return mangle(s) },
-	"aclMask":   func(bits uint8) string { return aclMask(bits) },
-	"aclCmp":    func(comparand string) string { return aclCmp(comparand) },
-	"hasXFF":    func(acls []ACL) bool { return hasXFF(acls) },
+	"plusOne":     func(i int) int { return i + 1 },
+	"vclMangle":   func(s string) string { return mangle(s) },
+	"aclMask":     func(bits uint8) string { return aclMask(bits) },
+	"aclCmp":      func(comparand string) string { return aclCmp(comparand) },
+	"hasXFF":      func(acls []ACL) bool { return hasXFF(acls) },
+	"cmpRelation": func(cmp CompareType) string { return cmpRelation(cmp) },
 	"backendName": func(svc Service, addr string) string {
 		return backendName(svc, addr)
 	},
@@ -557,4 +571,19 @@ func hasXFF(acls []ACL) bool {
 		}
 	}
 	return false
+}
+
+func cmpRelation(cmp CompareType) string {
+	switch cmp {
+	case Equal:
+		return "=="
+	case NotEqual:
+		return "!="
+	case Match:
+		return "~"
+	case NotMatch:
+		return "!~"
+	default:
+		return "__INVALID_COMPARISON_TYPE__"
+	}
 }

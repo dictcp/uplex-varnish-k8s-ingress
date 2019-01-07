@@ -128,7 +128,7 @@ spec:
                     maximum: 599
                   comparand:
                     type: string
-                    pattern: "^((client|server|local|remote)\\.ip|xff-(first|2ndlast)|req\\.http\\.[a-zA-Z0-9!#$%&'*+-.^_`|~]+)$"
+                    pattern: "^((client|server|local|remote)\\.ip|xff-(first|2ndlast)|req\\.http\\.[a-zA-Z0-9!#$%&'*+.^_`|~-]+)$"
                   conditions:
                     type: array
                     minItems: 1
@@ -136,17 +136,21 @@ spec:
                       type: object
                       required:
                         - comparand
-                        - regex
-                        - match
+                        - value
                       properties:
                         comparand:
                           type: string
-                          pattern: "^req\\.(url|http\\.[a-zA-Z0-9!#$%&'*+-.^_`|~]+)$"
-                        regex:
+                          pattern: "^req\\.(url|http\\.[a-zA-Z0-9!#$%&'*+.^_`|~-]+)$"
+                        compare:
+                          enum:
+                          - equal
+                          - not-equal
+                          - match
+                          - not-match
+                          type: string
+                        value:
                           type: string
                           minLength: 1
-                        match:
-                          type: boolean
 status:
   acceptedNames:
     kind: VarnishConfig

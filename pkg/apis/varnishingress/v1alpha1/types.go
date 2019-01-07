@@ -119,12 +119,12 @@ type ACLAddress struct {
 	Negate   bool   `json:"negate,omitempty"`
 }
 
-// Condition represents a term in a boolean expression -- match or
-// non-match against a VCL object.
+// Condition represents a term in a boolean expression -- test the
+// Comparand against Value for equality or regex match.
 type Condition struct {
-	Comparand string `json:"comparand,omitempty"`
-	Regex     string `json:"regex,omitempty"`
-	Match     bool   `json:"match,omitempty"`
+	Comparand string      `json:"comparand,omitempty"`
+	Compare   CompareType `json:"compare,omitempty"`
+	Value     string      `json:"value,omitempty"`
 }
 
 // ACLType classifies an ACL.
@@ -137,6 +137,20 @@ const (
 	// Blacklist means that the failure status is returned when an
 	// IP address does match an ACL.
 	Blacklist = "blacklist"
+)
+
+// CompareType classifies a string comparison.
+type CompareType string
+
+const (
+	// Equal means compare strings with ==.
+	Equal CompareType = "equal"
+	// NotEqual means compare with !=.
+	NotEqual = "not-equal"
+	// Match means compare with ~ (the Value is a regex).
+	Match = "match"
+	// NotMatch means compare with !~.
+	NotMatch = "not-match"
 )
 
 // VarnishConfigStatus is the status for a VarnishConfig resource

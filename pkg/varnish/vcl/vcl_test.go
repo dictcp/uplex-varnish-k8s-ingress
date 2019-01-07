@@ -425,13 +425,13 @@ var acls = Spec{
 			Conditions: []MatchTerm{
 				MatchTerm{
 					Comparand: "req.http.Host",
-					Match:     true,
-					Regex:     `^cafe\.example\.com$`,
+					Compare:   Equal,
+					Value:     "cafe.example.com",
 				},
 				MatchTerm{
 					Comparand: "req.url",
-					Match:     true,
-					Regex:     `^/coffee(/|$)`,
+					Compare:   Match,
+					Value:     `^/coffee(/|$)`,
 				},
 			},
 		},
@@ -459,9 +459,14 @@ var acls = Spec{
 			},
 			Conditions: []MatchTerm{
 				MatchTerm{
+					Comparand: "req.http.Host",
+					Compare:   NotEqual,
+					Value:     "cafe.example.com",
+				},
+				MatchTerm{
 					Comparand: "req.url",
-					Match:     false,
-					Regex:     `^/tea(/|$)`,
+					Compare:   NotMatch,
+					Value:     `^/tea(/|$)`,
 				},
 			},
 		},

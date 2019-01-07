@@ -74,11 +74,10 @@ The next example re-creates the ACL shown as an example in
       type: whitelist
       conditions:
       - comparand: req.url
-        match: true
-        regex: ^/tea(/|$)
+        compare: match
+        value: ^/tea(/|$)
       - comparand: req.http.Host
-        match: yes
-        regex: ^cafe\.example\.com$
+        value: cafe.example.com
 ```
 
 Addresses that match the ACL are:
@@ -109,6 +108,9 @@ The ``conditions`` specify that the ACL match is executed when:
 
 * the URL path begins with "/tea"
 * the Host header is exactly "cafe.example.com"
+    * The ``compare`` field is left out of the condition for
+      ``req.http.Host``, so it defaults to the value ``equal``,
+      meaning compare for string equality.
 
 According to the Ingress in the ["cafe" example](/examples/hello),
 requests are routed to the Service ``tea-svc`` under these
@@ -175,11 +177,11 @@ The next example defines a blacklist for the ranges 192.0.20/24 and
       fail-status: 404
       conditions:
       - comparand: req.url
-        match: true
-        regex: ^/coffee/black(/|$)
+        compare: match
+        value: ^/coffee/black(/|$)
       - comparand: req.http.Host
-        match: yes
-        regex: ^cafe\.example\.com$
+        compare: equal
+        value: cafe.example.com
 ```
 
 Type ``blacklist`` means that the failure status is returned for IPs
@@ -271,11 +273,10 @@ The final example defines a blacklist for the range 203.0.113.0/24:
       type: blacklist
       conditions:
       - comparand: req.url
-        match: true
-        regex: ^/coffee(/|$)
+        compare: match
+        value: ^/coffee(/|$)
       - comparand: req.http.Host
-        match: yes
-        regex: ^cafe\.example\.com$
+        value: cafe.example.com
 ```
 
 The ``comparand`` is ``xff-2ndlast``, which means that the ACL is
