@@ -333,7 +333,10 @@ type Spec struct {
 	// Authentication, derived from the Auth section of a
 	// VarnishConfig.
 	Auths []Auth
-	ACLs  []ACL
+	// ACLs is a list of specifications for whitelisting or
+	// blacklisting IPs with access control lists, derived from
+	// VarnishConfig.ACLs.
+	ACLs []ACL
 }
 
 // DeepHash computes a 64-bit hash value from a Spec such that if two
