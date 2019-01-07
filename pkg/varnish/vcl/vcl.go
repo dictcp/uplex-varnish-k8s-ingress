@@ -533,7 +533,7 @@ func aclMask(bits uint8) string {
 
 const (
 	xffFirst   = `regsub(req.http.X-Forwarded-For,"^([^,\s]+).*","\1")`
-	xff2ndLast = `regsub(req.http.X-Forwarded-For,"^.*?([\d.]+)\s*,[^,]*$","\1")`
+	xff2ndLast = `regsub(req.http.X-Forwarded-For,"^.*?([[:xdigit:]:.]+)\s*,[^,]*$","\1")`
 )
 
 func aclCmp(comparand string) string {

@@ -51,7 +51,7 @@ sub vcl_recv {
 		return(synth(403));
 	}
 	if (
-	    std.ip(regsub(req.http.X-Forwarded-For,"^.*?([\d.]+)\s*,[^,]*$","\1"), "0.0.0.0") !~ vk8s_local_acl
+	    std.ip(regsub(req.http.X-Forwarded-For,"^.*?([[:xdigit:]:.]+)\s*,[^,]*$","\1"), "0.0.0.0") !~ vk8s_local_acl
 	   ) {
 		return(synth(403));
 	}
