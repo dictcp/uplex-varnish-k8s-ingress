@@ -23,9 +23,6 @@ limitations, expected to be removed over time, including:
 * Only one Ingress definition in a namespace is valid at a time. If
   more than one definition is added to the namespace, then the most
   recent definition becomes valid.
-* A variety of elements in the implementation are hard-wired, as
-  detailed in the documentation. These are expected to become configurable
-  in further development.
 
 Other features are subject to change on short notice. Testing and
 feedback are nevertheless welcome, and very valuable at this early

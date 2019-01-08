@@ -65,17 +65,10 @@ Varnish runs with two listeners:
       after it has loaded the configuration for an Ingress at the
       instance. When it is not ready, it responds with status 503.
 
-**TO DO**: The listeners are currently hard-wired at ports 80 and
-8080, respectively.  It is presently not possible to specify the PROXY
-protocol for a listener. The readiness check is hard-wired at the URL
-path ``/ready``.
-
 Another listener is opened to receive administrative commands (see
 [``varnish-cli(7)``](https://varnish-cache.org/docs/6.0/reference/varnish-cli.html));
 this connection will be used by the controller to manage the Varnish
 instance.
-
-**TO DO**: The admin port is currently hard-wired as port 6081.
 
 Use of the administrative interface requires authorization based on a
 secret that must be shared by the Varnish instances and the
@@ -83,9 +76,6 @@ controller. This must be deployed as a k8s Secret, whose contents are
 in a file mounted to a path on each Varnish instance, and are obtained
 by the controller from the cluster API. The configurations in the
 [``deploy/``](/deploy) folder show how this is done.
-
-**TO DO**: The path of the secret file on the Varnish instance is
-currently hard-wired as ``/var/run/varnish/_.secret``.
 
 The Varnish instance is configured to start with a start script that
 does the following:
