@@ -283,6 +283,3 @@ For the Ingress implementation, a director is always configured,
 round-robin by default. So if the default is sufficient for your
 requirements, you can just leave out ``spec.director`` from the
 BackendConfig.
-
-See the [docs](/docs/custom-vcl.md) for conventions and restrictions
-that apply to custom VCL, and for links to more information about VCL.
