@@ -1,0 +1,86 @@
+# Sample backend configurations
+
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: BackendConfig
+metadata:
+  name: tea-svc-cfg
+spec:
+  # The services array is required and must have at least one element.
+  # Lists the names of Services that act as Backends for an Ingress in
+  # the same namespace, and are configured as backends for a Varnish
+  # Service that implements the Ingress. This config is to be applied
+  # to the Varnish backends corresponding to the Services named in the
+  # array.
+  services:
+    - tea-svc
+
+  # For requests routed to tea-svc:
+  # - The Host header is set to cafe.example.com if it is missing from
+  #   the request.
+  # - The connect timeout (for opening new connections to an Endpoint)
+  #   is one second.
+  # - The first byte timeout (until the first byte of a backend response
+  #   header is received) is two seconds.
+  # - The between bytes timeout (while a response is being received)
+  #   is one second.
+  # - No more than 200 connections to an Endpoint may be opened.
+  host-header: cafe.example.com
+  connect-timeout: 1s
+  first-byte-timeout: 2s
+  between-bytes-timeout: 1s
+  max-connections: 200
+  probe:
+    # Health probe requests for Endpoints of tea-svc:
+    # - Request URL path is /tea/healthz
+    # - Health probes are good when the response code is 200.
+    # - Five second timeout to receive responses.
+    # - Probes are sent every five seconds.
+    # - Two of three probes must be good for the Endpoint to count as
+    #   healthy.
+    # - At startup, one probe is implicitly assumed to be good.
+    url: /tea/healthz
+    expected-response: 200
+    timeout: 5s
+    interval: 5s
+    initial: 1
+    window: 3
+    threshold: 2
+  director:
+    # Use random load balancing of Endpoints.
+    type: random
+---
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: BackendConfig
+metadata:
+  name: coffee-svc-cfg
+spec:
+  services:
+    - coffee-svc
+
+  # For requests routed to coffee-svc:
+  # - The first byte timeout is three seconds.
+  # - The between bytes timeout is two seconds.
+  first-byte-timeout: 3s
+  between-bytes-timeout: 2s
+  probe:
+    # Health probe for coffee-svc:
+    # - Requests are send as shown in the request array.
+    # - Timeout three seconds.
+    # - Three of four good probes are required for the Endpoint to
+    #   count as healthy.
+    request:
+    - GET /coffee/healthz HTTP/1.1
+    - "Host: cafe.example.com"
+    - "Connection: close"
+    timeout: 3s
+    interval: 3s
+    window: 4
+    threshold: 3
+  director:
+    # Shard requests to Endpoints by URL path.
+    # - 50% of requests are sent to the "next" Endpoint to which they
+    #   would be sharded if the "first" Endpoint were to be removed.
+    # - Requests for newly added Endpoints ramp up over five minutes.
+    type: shard
+    warmup: 50
+    rampup: 5m

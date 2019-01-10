@@ -5,6 +5,7 @@ The docs in this folder cover these topics:
 * Technical references: authoritative documentation for these subjects:
 
   * [``VarnishConfig`` Custom Resource](ref-varnish-cfg.md)
+  * [``BackendConfig`` Custom Resource](ref-backend-cfg.md)
   * [controller command-line options](ref-cli-options.md)
   * [customizing the Pod template](varnish-pod-template.md) for Varnish
 

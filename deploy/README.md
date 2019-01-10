@@ -45,9 +45,21 @@ The project defines a
 [Custom Resource](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
 ``VarnishConfig`` to specify special configurations and features of
 Varnish running as an Ingress (beyond the standard Ingress
-specification):
+specification, see the [docs](/docs/ref-varnish-cfg.md) for details):
+
 ```
 $ kubectl apply -f varnishcfg-crd.yaml
+```
+
+### BackendConfig Custom Resource definition
+
+The project also defines the Custom Resource ``BackendConfig`` to
+configure properties of Services that are implemented as Varnish
+backends, such as timeouts, health probes and load-balancing (see
+the [docs](/docs/ref-backend-cfg.md)):
+
+```
+$ kubectl apply -f backendcfg-crd.yaml
 ```
 
 ### Deploy the controller

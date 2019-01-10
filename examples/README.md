@@ -22,3 +22,8 @@ requirements.
 
 * [Access control lists](/examples/acl) -- whitelisting or
   blacklisting requests by IP address
+
+* The [BackendConfig](/examples/backend-config) Custom Resource, to
+  configure properties such as timeouts, health probes and
+  load-balancing for Services to which requests are routed according
+  to an Ingress.
