@@ -37,12 +37,17 @@ import (
 
 type IngressV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	BackendConfigsGetter
 	VarnishConfigsGetter
 }
 
 // IngressV1alpha1Client is used to interact with features provided by the ingress.varnish-cache.org group.
 type IngressV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *IngressV1alpha1Client) BackendConfigs(namespace string) BackendConfigInterface {
+	return newBackendConfigs(c, namespace)
 }
 
 func (c *IngressV1alpha1Client) VarnishConfigs(namespace string) VarnishConfigInterface {

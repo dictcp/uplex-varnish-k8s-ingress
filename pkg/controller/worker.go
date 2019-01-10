@@ -72,76 +72,53 @@ type NamespaceWorker struct {
 	endp        core_v1_listers.EndpointsNamespaceLister
 	secr        core_v1_listers.SecretNamespaceLister
 	vcfg        vcr_listers.VarnishConfigNamespaceLister
+	bcfg        vcr_listers.BackendConfigNamespaceLister
 	client      kubernetes.Interface
 	recorder    record.EventRecorder
+}
+
+func (worker *NamespaceWorker) event(obj interface{}, evtType, reason,
+	msgFmt string, args ...interface{}) {
+
+	eventObj := obj
+	if syncObj, ok := obj.(*SyncObj); ok {
+		eventObj = syncObj.Obj
+	}
+	switch eventObj.(type) {
+	case *extensions.Ingress:
+		ing, _ := eventObj.(*extensions.Ingress)
+		worker.recorder.Eventf(ing, evtType, reason, msgFmt, args...)
+	case *api_v1.Service:
+		svc, _ := eventObj.(*api_v1.Service)
+		worker.recorder.Eventf(svc, evtType, reason, msgFmt, args...)
+	case *api_v1.Endpoints:
+		endp, _ := eventObj.(*api_v1.Endpoints)
+		worker.recorder.Eventf(endp, evtType, reason, msgFmt, args...)
+	case *api_v1.Secret:
+		secr, _ := eventObj.(*api_v1.Secret)
+		worker.recorder.Eventf(secr, evtType, reason, msgFmt, args...)
+	case *ving_v1alpha1.VarnishConfig:
+		vcfg, _ := eventObj.(*ving_v1alpha1.VarnishConfig)
+		worker.recorder.Eventf(vcfg, evtType, reason, msgFmt, args...)
+	case *ving_v1alpha1.BackendConfig:
+		bcfg, _ := eventObj.(*ving_v1alpha1.BackendConfig)
+		worker.recorder.Eventf(bcfg, evtType, reason, msgFmt, args...)
+	default:
+		worker.log.Warnf("Unhandled type %T, no event generated",
+			eventObj)
+	}
 }
 
 func (worker *NamespaceWorker) infoEvent(obj interface{}, reason, msgFmt string,
 	args ...interface{}) {
 
-	eventObj := obj
-	if syncObj, ok := obj.(*SyncObj); ok {
-		eventObj = syncObj.Obj
-	}
-	switch eventObj.(type) {
-	case *extensions.Ingress:
-		ing, _ := eventObj.(*extensions.Ingress)
-		worker.recorder.Eventf(ing, api_v1.EventTypeNormal, reason,
-			msgFmt, args...)
-	case *api_v1.Service:
-		svc, _ := eventObj.(*api_v1.Service)
-		worker.recorder.Eventf(svc, api_v1.EventTypeNormal, reason,
-			msgFmt, args...)
-	case *api_v1.Endpoints:
-		endp, _ := eventObj.(*api_v1.Endpoints)
-		worker.recorder.Eventf(endp, api_v1.EventTypeNormal, reason,
-			msgFmt, args...)
-	case *api_v1.Secret:
-		secr, _ := eventObj.(*api_v1.Secret)
-		worker.recorder.Eventf(secr, api_v1.EventTypeNormal, reason,
-			msgFmt, args...)
-	case *ving_v1alpha1.VarnishConfig:
-		vcfg, _ := eventObj.(*ving_v1alpha1.VarnishConfig)
-		worker.recorder.Eventf(vcfg, api_v1.EventTypeNormal, reason,
-			msgFmt, args...)
-	default:
-		worker.log.Warnf("Unhandled type %T, no event generated",
-			eventObj)
-	}
+	worker.event(obj, api_v1.EventTypeNormal, reason, msgFmt, args...)
 }
 
 func (worker *NamespaceWorker) warnEvent(obj interface{}, reason, msgFmt string,
 	args ...interface{}) {
 
-	eventObj := obj
-	if syncObj, ok := obj.(*SyncObj); ok {
-		eventObj = syncObj.Obj
-	}
-	switch eventObj.(type) {
-	case *extensions.Ingress:
-		ing, _ := eventObj.(*extensions.Ingress)
-		worker.recorder.Eventf(ing, api_v1.EventTypeWarning, reason,
-			msgFmt, args...)
-	case *api_v1.Service:
-		svc, _ := eventObj.(*api_v1.Service)
-		worker.recorder.Eventf(svc, api_v1.EventTypeWarning, reason,
-			msgFmt, args...)
-	case *api_v1.Endpoints:
-		endp, _ := eventObj.(*api_v1.Endpoints)
-		worker.recorder.Eventf(endp, api_v1.EventTypeWarning, reason,
-			msgFmt, args...)
-	case *api_v1.Secret:
-		secr, _ := eventObj.(*api_v1.Secret)
-		worker.recorder.Eventf(secr, api_v1.EventTypeWarning, reason,
-			msgFmt, args...)
-	case *ving_v1alpha1.VarnishConfig:
-		vcfg, _ := eventObj.(*ving_v1alpha1.VarnishConfig)
-		worker.recorder.Eventf(vcfg, api_v1.EventTypeWarning, reason,
-			msgFmt, args...)
-	default:
-		worker.log.Warnf("Unhandled type %T, no event generated",
-			eventObj)
-	}
+	worker.event(obj, api_v1.EventTypeWarning, reason, msgFmt, args...)
 }
 
 func (worker *NamespaceWorker) syncSuccess(obj interface{}, msgFmt string,
@@ -183,6 +160,8 @@ func (worker *NamespaceWorker) dispatch(obj interface{}) error {
 			return worker.addSecret(key)
 		case *ving_v1alpha1.VarnishConfig:
 			return worker.addVcfg(key)
+		case *ving_v1alpha1.BackendConfig:
+			return worker.addBcfg(key)
 		default:
 			worker.syncFailure(syncObj.Obj,
 				"Unhandled object type: %T", syncObj.Obj)
@@ -200,6 +179,8 @@ func (worker *NamespaceWorker) dispatch(obj interface{}) error {
 			return worker.updateSecret(key)
 		case *ving_v1alpha1.VarnishConfig:
 			return worker.updateVcfg(key)
+		case *ving_v1alpha1.BackendConfig:
+			return worker.updateBcfg(key)
 		default:
 			worker.syncFailure(syncObj.Obj,
 				"Unhandled object type: %T", syncObj.Obj)
@@ -222,6 +203,8 @@ func (worker *NamespaceWorker) dispatch(obj interface{}) error {
 			return worker.deleteSecret(deletedObj)
 		case *ving_v1alpha1.VarnishConfig:
 			return worker.deleteVcfg(deletedObj)
+		case *ving_v1alpha1.BackendConfig:
+			return worker.deleteBcfg(deletedObj)
 		default:
 			worker.syncFailure(deletedObj,
 				"Unhandled object type: %T", deletedObj)
@@ -355,6 +338,7 @@ func (qs *NamespaceQueues) next() {
 			endp:        qs.listers.endp.Endpoints(ns),
 			secr:        qs.listers.secr.Secrets(ns),
 			vcfg:        qs.listers.vcfg.VarnishConfigs(ns),
+			bcfg:        qs.listers.bcfg.BackendConfigs(ns),
 			client:      qs.client,
 			recorder:    qs.recorder,
 		}

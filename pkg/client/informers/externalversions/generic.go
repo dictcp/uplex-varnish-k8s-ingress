@@ -65,6 +65,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=ingress.varnish-cache.org, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("backendconfigs"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Ingress().V1alpha1().BackendConfigs().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("varnishconfigs"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Ingress().V1alpha1().VarnishConfigs().Informer()}, nil
 

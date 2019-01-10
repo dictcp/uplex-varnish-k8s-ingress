@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	vcr_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
 	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 )
 
@@ -162,4 +163,20 @@ func (worker *NamespaceWorker) getTargetPort(svcPort *api_v1.ServicePort,
 	}
 
 	return portNum, nil
+}
+
+// XXX a validation webhook should do this.
+// Assume that validation for the CustomResource has already checked
+// the Timeout, Interval and Initial fields, and that Window and
+// Threshold have been checked for permitted ranges.
+func validateProbe(probe *vcr_v1alpha1.ProbeSpec) error {
+	if probe == nil {
+		return nil
+	}
+	if probe.Window != nil && probe.Threshold != nil &&
+		*probe.Threshold > *probe.Window {
+		return fmt.Errorf("Probe Threshold (%d) may not be greater "+
+			"than Window (%d)", probe.Threshold, probe.Window)
+	}
+	return nil
 }

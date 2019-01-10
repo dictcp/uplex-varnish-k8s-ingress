@@ -44,6 +44,7 @@ var fMap = template.FuncMap{
 	"aclCmp":      func(comparand string) string { return aclCmp(comparand) },
 	"hasXFF":      func(acls []ACL) bool { return hasXFF(acls) },
 	"cmpRelation": func(cmp CompareType) string { return cmpRelation(cmp) },
+	"dirType":     func(svc Service) string { return dirType(svc) },
 	"backendName": func(svc Service, addr string) string {
 		return backendName(svc, addr)
 	},
@@ -210,4 +211,11 @@ func cmpRelation(cmp CompareType) string {
 	default:
 		return "__INVALID_COMPARISON_TYPE__"
 	}
+}
+
+func dirType(svc Service) string {
+	if svc.Director == nil {
+		return RoundRobin.String()
+	}
+	return svc.Director.Type.String()
 }

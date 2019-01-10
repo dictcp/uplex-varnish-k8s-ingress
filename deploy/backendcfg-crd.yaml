@@ -1,0 +1,112 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: backendconfigs.ingress.varnish-cache.org
+spec:
+  group: ingress.varnish-cache.org
+  names:
+    kind: BackendConfig
+    listKind: BackendConfigList
+    plural: backendconfigs
+    singular: backendconfig
+    shortNames:
+    - becfg
+  scope: Namespaced
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+  validation:
+    openAPIV3Schema:
+      required:
+      - spec
+      properties:
+        spec:
+          required:
+          - services
+          properties:
+            services:
+              type: array
+              minItems: 1
+              items:
+                type: string
+                minLength: 1
+            host-header:
+              type: string
+              minLength: 1
+            connect-timeout:
+              type: string
+              pattern: '^\d+(\.\d+)?(ms|[smhdwy])$'
+            first-byte-timeout:
+              type: string
+              pattern: '^\d+(\.\d+)?(ms|[smhdwy])$'
+            between-bytes-timeout:
+              type: string
+              pattern: '^\d+(\.\d+)?(ms|[smhdwy])$'
+            proxy-header:
+              type: integer
+              minimum: 1
+              maximum: 2
+            max-connections:
+              type: integer
+              minimum: 1
+            probe:
+              type: object
+              properties:
+                url:
+                  type: string
+                  pattern: ^/
+                request:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                expected-response:
+                  type: integer
+                  minimum: 100
+                  maximum: 599
+                timeout:
+                  type: string
+                  pattern: '^\d+(\.\d+)?(ms|[smhdwy])$'
+                interval:
+                  type: string
+                  pattern: '^\d+(\.\d+)?(ms|[smhdwy])$'
+                initial:
+                  type: integer
+                  minimum: 0
+                window:
+                  type: integer
+                  minimum: 0
+                  maximum: 64
+                threshold:
+                  type: integer
+                  minimum: 0
+                  maximum: 64
+            director:
+              type: object
+              properties:
+                type:
+                  enum:
+                    - round-robin
+                    - random
+                    - shard
+                  type: string
+                warmup:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                rampup:
+                  type: string
+                  pattern: '^\d+(\.\d+)?(ms|[smhdwy])$'
+status:
+  acceptedNames:
+    kind: BackendConfig
+    listKind: BackendConfigList
+    plural: backendconfigs
+    singular: backendconfig
+    shortNames:
+    - becfg
+  storedVersions:
+  - v1alphav1
+  conditions: []

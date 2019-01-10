@@ -65,6 +65,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&VarnishConfig{},
 		&VarnishConfigList{},
+		&BackendConfig{},
+		&BackendConfigList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

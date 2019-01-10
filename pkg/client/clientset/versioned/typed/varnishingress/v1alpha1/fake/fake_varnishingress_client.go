@@ -38,6 +38,10 @@ type FakeIngressV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeIngressV1alpha1) BackendConfigs(namespace string) v1alpha1.BackendConfigInterface {
+	return &FakeBackendConfigs{c, namespace}
+}
+
 func (c *FakeIngressV1alpha1) VarnishConfigs(namespace string) v1alpha1.VarnishConfigInterface {
 	return &FakeVarnishConfigs{c, namespace}
 }

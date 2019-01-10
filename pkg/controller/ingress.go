@@ -38,6 +38,7 @@ import (
 	vcr_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
 	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -113,6 +114,89 @@ func (worker *NamespaceWorker) ingBackend2Addrs(
 	return endpsTargetPort2Addrs(svc, endps, targetPort)
 }
 
+func getVCLProbe(probe *vcr_v1alpha1.ProbeSpec) *vcl.Probe {
+	if probe == nil {
+		return nil
+	}
+	vclProbe := &vcl.Probe{
+		URL:      probe.URL,
+		Request:  make([]string, len(probe.Request)),
+		Timeout:  probe.Timeout,
+		Interval: probe.Interval,
+	}
+	for i, r := range probe.Request {
+		vclProbe.Request[i] = r
+	}
+	if probe.ExpResponse != nil {
+		vclProbe.ExpResponse = uint16(*probe.ExpResponse)
+	}
+	if probe.Initial != nil {
+		vclProbe.Initial = strconv.Itoa((int(*probe.Window)))
+	}
+	if probe.Window != nil {
+		vclProbe.Window = strconv.Itoa((int(*probe.Window)))
+	}
+	if probe.Threshold != nil {
+		vclProbe.Threshold = strconv.Itoa((int(*probe.Threshold)))
+	}
+	return vclProbe
+}
+
+func (worker *NamespaceWorker) getVCLSvc(svcName string,
+	addrs []vcl.Address) (vcl.Service, error) {
+
+	vclSvc := vcl.Service{
+		Name:      svcName,
+		Addresses: addrs,
+	}
+	bcfgs, err := worker.bcfg.List(labels.Everything())
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return vclSvc, nil
+		}
+		return vclSvc, err
+	}
+	var bcfg *vcr_v1alpha1.BackendConfig
+BCfgs:
+	for _, b := range bcfgs {
+		// XXX report error if > 1 BackendConfig for the Service
+		for _, svc := range b.Spec.Services {
+			if svc == svcName {
+				bcfg = b
+				break BCfgs
+			}
+		}
+	}
+	if bcfg == nil {
+		return vclSvc, nil
+	}
+	if bcfg.Spec.Director != nil {
+		vclSvc.Director = &vcl.Director{
+			Type: vcl.GetDirectorType(
+				string(bcfg.Spec.Director.Type)),
+			Rampup: bcfg.Spec.Director.Rampup,
+		}
+		if bcfg.Spec.Director.Warmup != nil {
+			vclSvc.Director.Warmup =
+				float64(*bcfg.Spec.Director.Warmup) / 100.0
+		}
+	}
+	// XXX if bcfg.Spec.Probe == nil, look for a HTTP readiness check
+	// in the ContainerSpec.
+	vclSvc.Probe = getVCLProbe(bcfg.Spec.Probe)
+	vclSvc.HostHeader = bcfg.Spec.HostHeader
+	vclSvc.ConnectTimeout = bcfg.Spec.ConnectTimeout
+	vclSvc.FirstByteTimeout = bcfg.Spec.FirstByteTimeout
+	vclSvc.BetweenBytesTimeout = bcfg.Spec.BetweenBytesTimeout
+	if bcfg.Spec.MaxConnections != nil {
+		vclSvc.MaxConnections = uint32(*bcfg.Spec.MaxConnections)
+	}
+	if bcfg.Spec.ProxyHeader != nil {
+		vclSvc.ProxyHeader = uint8(*bcfg.Spec.ProxyHeader)
+	}
+	return vclSvc, nil
+}
+
 func (worker *NamespaceWorker) ing2VCLSpec(
 	ing *extensions.Ingress) (vcl.Spec, error) {
 
@@ -128,9 +212,9 @@ func (worker *NamespaceWorker) ing2VCLSpec(
 		if err != nil {
 			return vclSpec, err
 		}
-		vclSvc := vcl.Service{
-			Name:      backend.ServiceName,
-			Addresses: addrs,
+		vclSvc, err := worker.getVCLSvc(backend.ServiceName, addrs)
+		if err != nil {
+			return vclSpec, err
 		}
 		vclSpec.DefaultService = vclSvc
 		vclSpec.AllServices[backend.ServiceName] = vclSvc
@@ -151,9 +235,10 @@ func (worker *NamespaceWorker) ing2VCLSpec(
 			if err != nil {
 				return vclSpec, err
 			}
-			vclSvc := vcl.Service{
-				Name:      path.Backend.ServiceName,
-				Addresses: addrs,
+			vclSvc, err := worker.getVCLSvc(
+				path.Backend.ServiceName, addrs)
+			if err != nil {
+				return vclSpec, nil
 			}
 			vclRule.PathMap[path.Path] = vclSvc
 			vclSpec.AllServices[path.Backend.ServiceName] = vclSvc
@@ -228,24 +313,8 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 		"%s/%s: %+v", svc.Namespace, svc.Name, spec.ShardCluster.Nodes)
 
 	cfgSpec := vcfg.Spec.SelfSharding
-	if cfgSpec.Probe.Timeout != "" {
-		spec.ShardCluster.Probe.Timeout = cfgSpec.Probe.Timeout
-	}
-	if cfgSpec.Probe.Interval != "" {
-		spec.ShardCluster.Probe.Interval = cfgSpec.Probe.Interval
-	}
-	if cfgSpec.Probe.Initial != nil {
-		spec.ShardCluster.Probe.Initial =
-			strconv.Itoa((int(*cfgSpec.Probe.Initial)))
-	}
-	if cfgSpec.Probe.Window != nil {
-		spec.ShardCluster.Probe.Window =
-			strconv.Itoa((int(*cfgSpec.Probe.Window)))
-	}
-	if cfgSpec.Probe.Threshold != nil {
-		spec.ShardCluster.Probe.Threshold =
-			strconv.Itoa((int(*cfgSpec.Probe.Threshold)))
-	}
+	probe := getVCLProbe(&cfgSpec.Probe)
+	spec.ShardCluster.Probe = *probe
 	if cfgSpec.Max2ndTTL != "" {
 		spec.ShardCluster.MaxSecondaryTTL = cfgSpec.Max2ndTTL
 	}

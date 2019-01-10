@@ -63,6 +63,7 @@ type infrmrs struct {
 	endp cache.SharedIndexInformer
 	secr cache.SharedIndexInformer
 	vcfg cache.SharedIndexInformer
+	bcfg cache.SharedIndexInformer
 }
 
 // SyncType classifies the sync event, passed through to workers.
@@ -95,6 +96,7 @@ type Listers struct {
 	endp core_v1_listers.EndpointsLister
 	secr core_v1_listers.SecretLister
 	vcfg vcr_listers.VarnishConfigLister
+	bcfg vcr_listers.BackendConfigLister
 }
 
 // IngressController watches Kubernetes API and reconfigures Varnish
@@ -158,6 +160,8 @@ func NewIngressController(
 		secr: infFactory.Core().V1().Secrets().Informer(),
 		vcfg: vcrInfFactory.Ingress().V1alpha1().VarnishConfigs().
 			Informer(),
+		bcfg: vcrInfFactory.Ingress().V1alpha1().BackendConfigs().
+			Informer(),
 	}
 
 	evtFuncs := cache.ResourceEventHandlerFuncs{
@@ -171,6 +175,7 @@ func NewIngressController(
 	ingc.informers.endp.AddEventHandler(evtFuncs)
 	ingc.informers.secr.AddEventHandler(evtFuncs)
 	ingc.informers.vcfg.AddEventHandler(evtFuncs)
+	ingc.informers.bcfg.AddEventHandler(evtFuncs)
 
 	ingc.listers = &Listers{
 		ing:  infFactory.Extensions().V1beta1().Ingresses().Lister(),
@@ -178,6 +183,8 @@ func NewIngressController(
 		endp: infFactory.Core().V1().Endpoints().Lister(),
 		secr: infFactory.Core().V1().Secrets().Lister(),
 		vcfg: vcrInfFactory.Ingress().V1alpha1().VarnishConfigs().
+			Lister(),
+		bcfg: vcrInfFactory.Ingress().V1alpha1().BackendConfigs().
 			Lister(),
 	}
 
@@ -276,6 +283,7 @@ func (ingc *IngressController) Run(readyFile string) {
 	go ingc.informers.endp.Run(ingc.stopCh)
 	go ingc.informers.secr.Run(ingc.stopCh)
 	go ingc.informers.vcfg.Run(ingc.stopCh)
+	go ingc.informers.bcfg.Run(ingc.stopCh)
 
 	ingc.log.Info("Controller ready")
 	if readyFile != "" {
@@ -301,7 +309,8 @@ func (ingc *IngressController) Run(readyFile string) {
 		ingc.informers.svc.HasSynced,
 		ingc.informers.endp.HasSynced,
 		ingc.informers.secr.HasSynced,
-		ingc.informers.vcfg.HasSynced); !ok {
+		ingc.informers.vcfg.HasSynced,
+		ingc.informers.bcfg.HasSynced); !ok {
 
 		err := fmt.Errorf("Failed waiting for caches to sync")
 		utilruntime.HandleError(err)

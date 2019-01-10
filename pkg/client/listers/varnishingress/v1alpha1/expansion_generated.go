@@ -30,6 +30,14 @@
 
 package v1alpha1
 
+// BackendConfigListerExpansion allows custom methods to be added to
+// BackendConfigLister.
+type BackendConfigListerExpansion interface{}
+
+// BackendConfigNamespaceListerExpansion allows custom methods to be added to
+// BackendConfigNamespaceLister.
+type BackendConfigNamespaceListerExpansion interface{}
+
 // VarnishConfigListerExpansion allows custom methods to be added to
 // VarnishConfigLister.
 type VarnishConfigListerExpansion interface{}

@@ -1,0 +1,180 @@
+vcl 4.0;
+
+import std;
+import directors;
+import re2;
+
+backend vk8s_notfound {
+	# 192.0.2.0/24 reserved for docs & examples (RFC5737).
+	.host = "192.0.2.255";
+	.port = "80";
+}
+
+probe vk8s_coffee-svc_probe {
+	.request =
+		"GET /healthz HTTP/1.1"
+		"Host: coffee.svc.org"
+		"Connection: close"
+		;
+	.timeout = 4s;
+	.interval = 4s;
+	.initial = 1;
+	.window = 7;
+	.threshold = 2;
+}
+
+probe vk8s_milk-svc_probe {
+	.timeout = 5s;
+	.interval = 5s;
+	.window = 3;
+	.threshold = 2;
+}
+
+probe vk8s_tea-svc_probe {
+	.url = "/healthz";
+	.expected_response = 204;
+	.timeout = 5s;
+	.interval = 5s;
+	.initial = 2;
+	.window = 8;
+	.threshold = 3;
+}
+
+backend vk8s_coffee-svc_192_0_2_4 {
+	.host = "192.0.2.4";
+	.port = "80";
+	.host_header = "coffee.svc.org";
+	.connect_timeout = 3s;
+	.first_byte_timeout = 2s;
+	.between_bytes_timeout = 1s;
+	.proxy_header = 2;
+	.probe = vk8s_coffee-svc_probe;
+}
+backend vk8s_coffee-svc_192_0_2_5 {
+	.host = "192.0.2.5";
+	.port = "80";
+	.host_header = "coffee.svc.org";
+	.connect_timeout = 3s;
+	.first_byte_timeout = 2s;
+	.between_bytes_timeout = 1s;
+	.proxy_header = 2;
+	.probe = vk8s_coffee-svc_probe;
+}
+backend vk8s_milk-svc_192_0_2_6 {
+	.host = "192.0.2.6";
+	.port = "80";
+	.host_header = "milk.svc.org";
+	.first_byte_timeout = 3s;
+	.probe = vk8s_milk-svc_probe;
+}
+backend vk8s_milk-svc_192_0_2_7 {
+	.host = "192.0.2.7";
+	.port = "80";
+	.host_header = "milk.svc.org";
+	.first_byte_timeout = 3s;
+	.probe = vk8s_milk-svc_probe;
+}
+backend vk8s_tea-svc_192_0_2_1 {
+	.host = "192.0.2.1";
+	.port = "80";
+	.host_header = "tea.svc.org";
+	.connect_timeout = 1s;
+	.first_byte_timeout = 2s;
+	.between_bytes_timeout = 2s;
+	.proxy_header = 1;
+	.max_connections = 200;
+	.probe = vk8s_tea-svc_probe;
+}
+backend vk8s_tea-svc_192_0_2_2 {
+	.host = "192.0.2.2";
+	.port = "80";
+	.host_header = "tea.svc.org";
+	.connect_timeout = 1s;
+	.first_byte_timeout = 2s;
+	.between_bytes_timeout = 2s;
+	.proxy_header = 1;
+	.max_connections = 200;
+	.probe = vk8s_tea-svc_probe;
+}
+backend vk8s_tea-svc_192_0_2_3 {
+	.host = "192.0.2.3";
+	.port = "80";
+	.host_header = "tea.svc.org";
+	.connect_timeout = 1s;
+	.first_byte_timeout = 2s;
+	.between_bytes_timeout = 2s;
+	.proxy_header = 1;
+	.max_connections = 200;
+	.probe = vk8s_tea-svc_probe;
+}
+
+
+sub vcl_init {
+	new vk8s_hosts = re2.set(posix_syntax=true, literal=true, anchor=both);
+	vk8s_hosts.add("cafe.example.com");
+	vk8s_hosts.compile();
+
+	new vk8s_coffee-svc_director = directors.random();
+	vk8s_coffee-svc_director.add_backend(vk8s_coffee-svc_192_0_2_4
+		, 1.0
+		);
+	vk8s_coffee-svc_director.add_backend(vk8s_coffee-svc_192_0_2_5
+		, 1.0
+		);
+
+	new vk8s_milk-svc_director = directors.round_robin();
+	vk8s_milk-svc_director.add_backend(vk8s_milk-svc_192_0_2_6
+		);
+	vk8s_milk-svc_director.add_backend(vk8s_milk-svc_192_0_2_7
+		);
+
+	new vk8s_tea-svc_director = directors.shard();
+	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_1
+		);
+	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_2
+		);
+	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_3
+		);
+	vk8s_tea-svc_director.set_warmup(0.5);
+	vk8s_tea-svc_director.set_rampup(5m);
+	vk8s_tea-svc_director.reconfigure();
+
+	new vk8s_cafe_example_com_url = re2.set(posix_syntax=true, anchor=start);
+	vk8s_cafe_example_com_url.add("/coffee",
+				backend=vk8s_coffee-svc_director.backend());
+	vk8s_cafe_example_com_url.add("/milk",
+				backend=vk8s_milk-svc_director.backend());
+	vk8s_cafe_example_com_url.add("/tea",
+				backend=vk8s_tea-svc_director.backend());
+	vk8s_cafe_example_com_url.compile();
+}
+
+sub vk8s_set_backend {
+	set req.backend_hint = vk8s_notfound;
+	if (vk8s_hosts.match(req.http.Host)) {
+		if (vk8s_hosts.nmatches() != 1) {
+			# Fail fast when the match was not unique.
+			return (fail);
+		}
+		if (0 != 0) {
+			#
+		}
+		elsif (vk8s_hosts.which() == 1) {
+			if (vk8s_cafe_example_com_url.match(req.url)) {
+				set req.backend_hint = vk8s_cafe_example_com_url.backend(select=FIRST);
+			}
+		}
+	}
+
+	if (req.backend_hint == vk8s_notfound) {
+		return (synth(404));
+	}
+}
+
+sub vcl_miss {
+	call vk8s_set_backend;
+}
+
+sub vcl_pass {
+	call vk8s_set_backend;
+}

@@ -66,11 +66,14 @@ type SelfShardSpec struct {
 // ProbeSpec specifies health probes in use for self-sharding.
 // see: https://code.uplex.de/uplex-varnish/k8s-ingress/blob/master/docs/self-sharding.md
 type ProbeSpec struct {
-	Timeout   string `json:"timeout,omitempty"`
-	Interval  string `json:"interval,omitempty"`
-	Initial   *int32 `json:"initial,omitempty"`
-	Window    *int32 `json:"window,omitempty"`
-	Threshold *int32 `json:"threshold,omitempty"`
+	URL         string   `json:"url,omitempty"`
+	Request     []string `json:"request,omitempty"`
+	ExpResponse *int32   `json:"expected-response,omitempty"`
+	Timeout     string   `json:"timeout,omitempty"`
+	Interval    string   `json:"interval,omitempty"`
+	Initial     *int32   `json:"initial,omitempty"`
+	Window      *int32   `json:"window,omitempty"`
+	Threshold   *int32   `json:"threshold,omitempty"`
 }
 
 // AuthSpec specifies authentication (basic or proxy).
@@ -167,4 +170,63 @@ type VarnishConfigList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []VarnishConfig `json:"items"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// BackendConfig is the client API for the BackendConfig Custom
+// Resource, which specifies properties of an Ingress/Varnish backend,
+// realized as a k8s Service.
+type BackendConfig struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec BackendConfigSpec `json:"spec"`
+	//        Status BackendConfigStatus `json:"status"`
+}
+
+// BackendConfigSpec corresponds to the spec section of a
+// BackendConfig Custom Resource.
+type BackendConfigSpec struct {
+	Services            []string      `json:"services,omitempty"`
+	Probe               *ProbeSpec    `json:"probe,omitempty"`
+	Director            *DirectorSpec `json:"director,omitempty"`
+	HostHeader          string        `json:"host-header,omitempty"`
+	ConnectTimeout      string        `json:"connect-timeout,omitempty"`
+	FirstByteTimeout    string        `json:"first-byte-timeout,omitempty"`
+	BetweenBytesTimeout string        `json:"between-bytes-timeout,omitempty"`
+	MaxConnections      *int32        `json:"max-connections,omitempty"`
+	ProxyHeader         *int32        `json:"proxy-header,omitempty"`
+}
+
+// DirectorType specfies the class of director to be used, see:
+// https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html
+type DirectorType string
+
+const (
+	// RoundRobin director
+	RoundRobin DirectorType = "round-robin"
+	// Random director
+	Random = "random"
+	// Shard director
+	Shard = "shard"
+)
+
+// DirectorSpec corresponds to spec.director in a BackendConfig, and
+// allows for a choice of directors, and some parameters.
+type DirectorSpec struct {
+	Type   DirectorType `json:"type,omitempty"`
+	Warmup *int32       `json:"warmup,omitempty"`
+	Rampup string       `json:"rampup,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// BackendConfigList is a list of BackendConfig Custom Resources.
+type BackendConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []BackendConfig `json:"items"`
 }

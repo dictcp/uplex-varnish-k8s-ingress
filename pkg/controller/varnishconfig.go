@@ -40,22 +40,6 @@ import (
 	extensions "k8s.io/api/extensions/v1beta1"
 )
 
-// XXX a validation webhook should do this.
-// Assume that validation for the CustomResource has already checked
-// the Timeout, Interval and Initial fields, and that Window and
-// Threshold have been checked for permitted ranges.
-func validateSharding(spec *vcr_v1alpha1.SelfShardSpec) error {
-	if spec == nil {
-		return nil
-	}
-	if spec.Probe.Window != nil && spec.Probe.Threshold != nil &&
-		*spec.Probe.Threshold > *spec.Probe.Window {
-		return fmt.Errorf("Threshold (%d) may not be greater than "+
-			"Window (%d)", spec.Probe.Threshold, spec.Probe.Window)
-	}
-	return nil
-}
-
 // Don't return error (requeuing the vcfg) if either of Ingresses or
 // Services are not found -- they will sync as needed when and if they
 // are discovered.
@@ -129,9 +113,12 @@ func (worker *NamespaceWorker) syncVcfg(key string) error {
 		return nil
 	}
 
-	if err = validateSharding(vcfg.Spec.SelfSharding); err != nil {
-		return fmt.Errorf("VarnishConfig %s/%s invalid sharding "+
-			"spec: %v", vcfg.Namespace, vcfg.Name, err)
+	if vcfg.Spec.SelfSharding != nil {
+		if err = validateProbe(&vcfg.Spec.SelfSharding.Probe); err != nil {
+			return fmt.Errorf("VarnishConfig %s/%s invalid "+
+				"sharding spec: %v", vcfg.Namespace, vcfg.Name,
+				err)
+		}
 	}
 
 	return worker.enqueueIngsForVcfg(vcfg)

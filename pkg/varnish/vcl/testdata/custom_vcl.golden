@@ -38,13 +38,18 @@ sub vcl_init {
 	vk8s_hosts.compile();
 
 	new vk8s_coffee-svc_director = directors.round_robin();
-	vk8s_coffee-svc_director.add_backend(vk8s_coffee-svc_192_0_2_4);
-	vk8s_coffee-svc_director.add_backend(vk8s_coffee-svc_192_0_2_5);
+	vk8s_coffee-svc_director.add_backend(vk8s_coffee-svc_192_0_2_4
+		);
+	vk8s_coffee-svc_director.add_backend(vk8s_coffee-svc_192_0_2_5
+		);
 
 	new vk8s_tea-svc_director = directors.round_robin();
-	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_1);
-	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_2);
-	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_3);
+	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_1
+		);
+	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_2
+		);
+	vk8s_tea-svc_director.add_backend(vk8s_tea-svc_192_0_2_3
+		);
 
 	new vk8s_cafe_example_com_url = re2.set(posix_syntax=true, anchor=start);
 	vk8s_cafe_example_com_url.add("/coffee",

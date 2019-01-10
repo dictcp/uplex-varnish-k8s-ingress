@@ -32,8 +32,15 @@ import (
 	"encoding/binary"
 	"hash"
 	"hash/fnv"
+	"math"
 	"sort"
 )
+
+func hashUint16(u16 uint16, hash hash.Hash) {
+	bytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(bytes, u16)
+	hash.Write(bytes)
+}
 
 // Address represents an endpoint for either a backend instance
 // (Endpoint of a Service to which requests are routed) or a Varnish
@@ -62,12 +69,78 @@ func (a byIPPort) Less(i, j int) bool {
 	return a[i].Port < a[j].Port
 }
 
+// DirectorType corresponds to a class of director, see:
+// https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html
+type DirectorType uint8
+
+const (
+	// RoundRobin director
+	RoundRobin DirectorType = iota
+	// Random director
+	Random
+	// Shard director
+	Shard
+)
+
+func (dirType DirectorType) String() string {
+	switch dirType {
+	case RoundRobin:
+		return "round_robin"
+	case Random:
+		return "random"
+	case Shard:
+		return "shard"
+	default:
+		return "__INVALID_DIRECTOR_TYPE__"
+	}
+}
+
+// GetDirectorType returns a DirectorType constant for the string
+// (enum value) used in YAML.
+func GetDirectorType(dirStr string) DirectorType {
+	switch dirStr {
+	case "round-robin":
+		return RoundRobin
+	case "random":
+		return Random
+	case "shard":
+		return Shard
+	default:
+		return DirectorType(255)
+	}
+}
+
+// Director is derived from spec.director in a BackendConfig, and allows
+// for some choice of the director, and sets some parameters.
+type Director struct {
+	Rampup string
+	Warmup float64
+	Type   DirectorType
+}
+
+func (dir Director) hash(hash hash.Hash) {
+	hash.Write([]byte(dir.Rampup))
+	w64 := math.Float64bits(dir.Warmup)
+	wBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(wBytes, w64)
+	hash.Write(wBytes)
+	hash.Write([]byte{byte(dir.Type)})
+}
+
 // Service represents either a backend Service (Endpoints to which
 // requests are routed) or a Varnish Service (with addresses for the
 // admin ports).
 type Service struct {
-	Name      string
-	Addresses []Address
+	Name                string
+	Addresses           []Address
+	Probe               *Probe
+	Director            *Director
+	HostHeader          string
+	ConnectTimeout      string
+	FirstByteTimeout    string
+	BetweenBytesTimeout string
+	MaxConnections      uint32
+	ProxyHeader         uint8
 }
 
 func (svc Service) hash(hash hash.Hash) {
@@ -75,6 +148,20 @@ func (svc Service) hash(hash hash.Hash) {
 	for _, addr := range svc.Addresses {
 		addr.hash(hash)
 	}
+	if svc.Probe != nil {
+		svc.Probe.hash(hash)
+	}
+	if svc.Director != nil {
+		svc.Director.hash(hash)
+	}
+	hash.Write([]byte(svc.HostHeader))
+	hash.Write([]byte(svc.ConnectTimeout))
+	hash.Write([]byte(svc.FirstByteTimeout))
+	hash.Write([]byte(svc.BetweenBytesTimeout))
+	hash.Write([]byte{byte(svc.ProxyHeader)})
+	maxConnBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(maxConnBytes, svc.MaxConnections)
+	hash.Write(maxConnBytes)
 }
 
 // interface for sorting []Service
@@ -114,16 +201,24 @@ func (a byHost) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byHost) Less(i, j int) bool { return a[i].Host < a[j].Host }
 
 // Probe represents the configuration of health probes derived from
-// the VarnishConfig Custom Resource.
+// a VarnishConfig or BackendConfig Custom Resource.
 type Probe struct {
-	Timeout   string
-	Interval  string
-	Initial   string
-	Window    string
-	Threshold string
+	URL         string
+	Request     []string
+	ExpResponse uint16
+	Timeout     string
+	Interval    string
+	Initial     string
+	Window      string
+	Threshold   string
 }
 
 func (probe Probe) hash(hash hash.Hash) {
+	hash.Write([]byte(probe.URL))
+	for _, r := range probe.Request {
+		hash.Write([]byte(r))
+	}
+	hashUint16(probe.ExpResponse, hash)
 	hash.Write([]byte(probe.Timeout))
 	hash.Write([]byte(probe.Interval))
 	hash.Write([]byte(probe.Initial))

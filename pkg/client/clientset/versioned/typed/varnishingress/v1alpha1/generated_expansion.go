@@ -28,4 +28,6 @@
 
 package v1alpha1
 
+type BackendConfigExpansion interface{}
+
 type VarnishConfigExpansion interface{}

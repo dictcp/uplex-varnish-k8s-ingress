@@ -605,3 +605,138 @@ func TestCustomVCL(t *testing.T) {
 		}
 	}
 }
+
+var teaSvcProbeDir = Service{
+	Name: "tea-svc",
+	Addresses: []Address{
+		{
+			IP:   "192.0.2.1",
+			Port: 80,
+		},
+		{
+			IP:   "192.0.2.2",
+			Port: 80,
+		},
+		{
+			IP:   "192.0.2.3",
+			Port: 80,
+		},
+	},
+	HostHeader:          "tea.svc.org",
+	ConnectTimeout:      "1s",
+	FirstByteTimeout:    "2s",
+	BetweenBytesTimeout: "2s",
+	MaxConnections:      200,
+	ProxyHeader:         1,
+	Probe: &Probe{
+		URL:         "/healthz",
+		ExpResponse: 204,
+		Timeout:     "5s",
+		Interval:    "5s",
+		Initial:     "2",
+		Window:      "8",
+		Threshold:   "3",
+	},
+	Director: &Director{
+		Type:   Shard,
+		Rampup: "5m",
+		Warmup: 0.5,
+	},
+}
+
+var coffeeSvcProbeDir = Service{
+	Name: "coffee-svc",
+	Addresses: []Address{
+		{
+			IP:   "192.0.2.4",
+			Port: 80,
+		},
+		{
+			IP:   "192.0.2.5",
+			Port: 80,
+		},
+	},
+	HostHeader:          "coffee.svc.org",
+	ConnectTimeout:      "3s",
+	FirstByteTimeout:    "2s",
+	BetweenBytesTimeout: "1s",
+	ProxyHeader:         2,
+	Probe: &Probe{
+		Request: []string{
+			"GET /healthz HTTP/1.1",
+			"Host: coffee.svc.org",
+			"Connection: close",
+		},
+		Timeout:   "4s",
+		Interval:  "4s",
+		Initial:   "1",
+		Window:    "7",
+		Threshold: "2",
+	},
+	Director: &Director{
+		Type: Random,
+	},
+}
+
+var milkSvcProbeDir = Service{
+	Name: "milk-svc",
+	Addresses: []Address{
+		{
+			IP:   "192.0.2.6",
+			Port: 80,
+		},
+		{
+			IP:   "192.0.2.7",
+			Port: 80,
+		},
+	},
+	HostHeader:       "milk.svc.org",
+	FirstByteTimeout: "3s",
+	Probe: &Probe{
+		Timeout:   "5s",
+		Interval:  "5s",
+		Window:    "3",
+		Threshold: "2",
+	},
+	Director: &Director{
+		Type: RoundRobin,
+	},
+}
+
+var cafeProbeDir = Spec{
+	DefaultService: Service{},
+	Rules: []Rule{{
+		Host: "cafe.example.com",
+		PathMap: map[string]Service{
+			"/tea":    teaSvcProbeDir,
+			"/coffee": coffeeSvcProbeDir,
+			"/milk":   milkSvcProbeDir,
+		},
+	}},
+	AllServices: map[string]Service{
+		"tea-svc":    teaSvcProbeDir,
+		"coffee-svc": coffeeSvcProbeDir,
+		"milk-svc":   milkSvcProbeDir,
+	},
+}
+
+func TestBackendConfig(t *testing.T) {
+	var buf bytes.Buffer
+	gold := "backendcfg.golden"
+
+	if err := ingressTmpl.Execute(&buf, cafeProbeDir); err != nil {
+		t.Fatal("Execute():", err)
+	}
+
+	ok, err := cmpGold(buf.Bytes(), gold)
+	if err != nil {
+		t.Fatalf("Reading %s: %v", gold, err)
+	}
+	if !ok {
+		t.Errorf("Generated VCL for BackendConfig does not match gold "+
+			"file: %s", gold)
+		if testing.Verbose() {
+			t.Logf("Generated: %s", buf.String())
+		}
+	}
+}

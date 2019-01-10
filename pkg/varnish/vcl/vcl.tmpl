@@ -10,11 +10,70 @@ backend vk8s_notfound {
 	.port = "80";
 }
 
+{{- range $name, $svc := .AllServices}}
+{{- if $svc.Probe}}
+{{with $svc.Probe}}
+probe {{vclMangle $name}}_probe {
+{{- if ne .URL ""}}
+	.url = "{{.URL}}";
+{{- else if .Request}}
+	.request =
+{{- range $reqLine := .Request}}
+		"{{$reqLine}}"
+{{- end}}
+		;
+{{- end}}
+{{- if .ExpResponse}}
+	.expected_response = {{.ExpResponse}};
+{{- end}}
+{{- if .Timeout}}
+	.timeout = {{.Timeout}};
+{{- end}}
+{{- if .Interval}}
+	.interval = {{.Interval}};
+{{- end}}
+{{- if .Initial}}
+	.initial = {{.Initial}};
+{{- end}}
+{{- if .Window}}
+	.window = {{.Window}};
+{{- end}}
+{{- if .Threshold}}
+	.threshold = {{.Threshold}};
+{{- end}}
+}
+{{- end}}
+{{- end}}
+{{- end}}
+
 {{range $name, $svc := .AllServices -}}
 {{range $addr := $svc.Addresses -}}
 backend {{backendName $svc $addr.IP}} {
 	.host = "{{$addr.IP}}";
 	.port = "{{$addr.Port}}";
+{{- with $svc}}
+{{- if .HostHeader}}
+	.host_header = "{{.HostHeader}}";
+{{- end}}
+{{- if .ConnectTimeout}}
+	.connect_timeout = {{.ConnectTimeout}};
+{{- end}}
+{{- if .FirstByteTimeout}}
+	.first_byte_timeout = {{.FirstByteTimeout}};
+{{- end}}
+{{- if .BetweenBytesTimeout}}
+	.between_bytes_timeout = {{.BetweenBytesTimeout}};
+{{- end}}
+{{- if .ProxyHeader}}
+	.proxy_header = {{.ProxyHeader}};
+{{- end}}
+{{- if .MaxConnections}}
+	.max_connections = {{.MaxConnections}};
+{{- end}}
+{{- if .Probe}}
+	.probe = {{vclMangle $name}}_probe;
+{{- end}}
+{{- end}}
 }
 {{end -}}
 {{end}}
@@ -29,9 +88,23 @@ sub vcl_init {
 {{end}}
 
 {{- range $name, $svc := .AllServices}}
-	new {{dirName $svc}} = directors.round_robin();
+	{{- $dirType := dirType $svc}}
+	new {{dirName $svc}} = directors.{{$dirType}}();
 	{{- range $addr := $svc.Addresses}}
-	{{dirName $svc}}.add_backend({{backendName $svc $addr.IP}});
+	{{dirName $svc}}.add_backend({{backendName $svc $addr.IP}}
+		{{- if eq $dirType "random"}}
+		, 1.0
+		{{- end}}
+		);
+	{{- end}}
+	{{- if eq $dirType "shard"}}
+	{{- if $svc.Director.Warmup}}
+	{{dirName $svc}}.set_warmup({{$svc.Director.Warmup}});
+	{{- end}}
+	{{- if $svc.Director.Rampup}}
+	{{dirName $svc}}.set_rampup({{$svc.Director.Rampup}});
+	{{- end}}
+	{{dirName $svc}}.reconfigure();
 	{{- end}}
 {{end}}
 {{- range $rule := .Rules}}
@@ -66,7 +139,7 @@ sub vk8s_set_backend {
 {{- end}}
 
 	if (req.backend_hint == vk8s_notfound) {
-{{- if ne .DefaultService.Name ""}}
+{{- if .DefaultService.Name}}
 		set req.backend_hint = {{dirName .DefaultService}}.backend();
 {{- else}}
 		return (synth(404));
