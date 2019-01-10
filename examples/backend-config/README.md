@@ -10,6 +10,12 @@ according to the Host header and/or URL path. See the
 The example applies to the Services defined in the
 ["cafe" example](/examples/hello) -- the ``coffee-svc`` and ``tea-svc``.
 
+Apply the configurations with:
+
+```
+$ kubectl apply -f backend-cfg.yaml
+```
+
 First consider the BackendConfig for ``tea-svc``:
 
 ```
