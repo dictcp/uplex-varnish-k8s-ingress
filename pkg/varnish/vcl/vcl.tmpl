@@ -13,7 +13,7 @@ backend vk8s_notfound {
 {{- range $name, $svc := .AllServices}}
 {{- if $svc.Probe}}
 {{with $svc.Probe}}
-probe {{vclMangle $name}}_probe {
+probe {{probeName $name}} {
 {{- if ne .URL ""}}
 	.url = "{{.URL}}";
 {{- else if .Request}}
@@ -71,7 +71,7 @@ backend {{backendName $svc $addr.IP}} {
 	.max_connections = {{.MaxConnections}};
 {{- end}}
 {{- if .Probe}}
-	.probe = {{vclMangle $name}}_probe;
+	.probe = {{probeName $name}};
 {{- end}}
 {{- end}}
 }

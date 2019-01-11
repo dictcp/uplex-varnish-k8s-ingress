@@ -31,6 +31,8 @@ package vcl
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
+	"math/big"
 	"path"
 	"regexp"
 	"strings"
@@ -55,7 +57,13 @@ var fMap = template.FuncMap{
 		return urlMatcher(rule)
 	},
 	"aclName": func(name string) string {
-		return mangle(name) + "_acl"
+		return mangle(name + "_acl")
+	},
+	"probeName": func(name string) string {
+		return mangle(name + "_probe")
+	},
+	"credsMatcher": func(realm string) string {
+		return mangle(realm + "_auth")
 	},
 }
 
@@ -64,6 +72,11 @@ const (
 	shardTmplSrc = "self-shard.tmpl"
 	authTmplSrc  = "auth.tmpl"
 	aclTmplSrc   = "acl.tmpl"
+
+	// maxSymLen is a workaround for Varnish issue #2880
+	// https://github.com/varnishcache/varnish-cache/issues/2880
+	// Will be unnecssary as of the March 2019 release
+	maxSymLen = 50
 )
 
 var (
@@ -141,6 +154,19 @@ func (spec Spec) GetSrc() (string, error) {
 	return buf.String(), nil
 }
 
+func bound(s string, l int) string {
+	if len(s) <= l {
+		return s
+	}
+	b := []byte(s)
+	h := fnv.New32a()
+	h.Write(b)
+	i := big.NewInt(int64(h.Sum32()))
+	b[l-7] = byte('_')
+	copy(b[l-6:l], []byte(i.Text(62)))
+	return string(b[0:l])
+}
+
 func mangle(s string) string {
 	if s == "" {
 		return s
@@ -148,7 +174,7 @@ func mangle(s string) string {
 	prefixed := "vk8s_" + s
 	bytes := []byte(prefixed)
 	mangled := vclIllegal.ReplaceAllFunc(bytes, replIllegal)
-	return string(mangled)
+	return bound(string(mangled), maxSymLen)
 }
 
 func backendName(svc Service, addr string) string {
