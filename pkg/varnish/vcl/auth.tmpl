@@ -5,7 +5,7 @@ sub vcl_init {
 {{- range $auth := .Auths}}
 	new {{credsMatcher .Realm}} = re2.set(anchor=both);
 	{{- range $cred := .Credentials}}
-	{{credsMatcher $auth.Realm}}.add("\s*Basic\s+\Q{{$cred}}\E\s*");
+	{{credsMatcher $auth.Realm}}.add("Basic\s+\Q{{$cred}}\E\s*");
 	{{- end}}
 	{{credsMatcher .Realm}}.compile();
 {{end -}}

@@ -3,28 +3,28 @@ import re2;
 
 sub vcl_init {
 	new vk8s_foo_auth = re2.set(anchor=both);
-	vk8s_foo_auth.add("\s*Basic\s+\QQWxhZGRpbjpvcGVuIHNlc2FtZQ==\E\s*");
-	vk8s_foo_auth.add("\s*Basic\s+\QQWxhZGRpbjpPcGVuU2VzYW1l\E\s*");
+	vk8s_foo_auth.add("Basic\s+\QQWxhZGRpbjpvcGVuIHNlc2FtZQ==\E\s*");
+	vk8s_foo_auth.add("Basic\s+\QQWxhZGRpbjpPcGVuU2VzYW1l\E\s*");
 	vk8s_foo_auth.compile();
 
 	new vk8s_bar_auth = re2.set(anchor=both);
-	vk8s_bar_auth.add("\s*Basic\s+\QZm9vOmJhcg==\E\s*");
-	vk8s_bar_auth.add("\s*Basic\s+\QYmF6OnF1dXg=\E\s*");
+	vk8s_bar_auth.add("Basic\s+\QZm9vOmJhcg==\E\s*");
+	vk8s_bar_auth.add("Basic\s+\QYmF6OnF1dXg=\E\s*");
 	vk8s_bar_auth.compile();
 
 	new vk8s_baz_auth = re2.set(anchor=both);
-	vk8s_baz_auth.add("\s*Basic\s+\QdXNlcjpwYXNzd29yZDE=\E\s*");
-	vk8s_baz_auth.add("\s*Basic\s+\QbmFtZTpzZWNyZXQ=\E\s*");
+	vk8s_baz_auth.add("Basic\s+\QdXNlcjpwYXNzd29yZDE=\E\s*");
+	vk8s_baz_auth.add("Basic\s+\QbmFtZTpzZWNyZXQ=\E\s*");
 	vk8s_baz_auth.compile();
 
 	new vk8s_quux_auth = re2.set(anchor=both);
-	vk8s_quux_auth.add("\s*Basic\s+\QYmVudXR6ZXI6Z2VoZWlt\E\s*");
-	vk8s_quux_auth.add("\s*Basic\s+\QQWxiZXJ0IEFkZGluOm9wZW4gc2V6IG1l\E\s*");
+	vk8s_quux_auth.add("Basic\s+\QYmVudXR6ZXI6Z2VoZWlt\E\s*");
+	vk8s_quux_auth.add("Basic\s+\QQWxiZXJ0IEFkZGluOm9wZW4gc2V6IG1l\E\s*");
 	vk8s_quux_auth.compile();
 
 	new vk8s_urlhost_auth = re2.set(anchor=both);
-	vk8s_urlhost_auth.add("\s*Basic\s+\QdXJsOmhvc3Q=\E\s*");
-	vk8s_urlhost_auth.add("\s*Basic\s+\QYWRtaW46c3VwZXJwb3dlcnM=\E\s*");
+	vk8s_urlhost_auth.add("Basic\s+\QdXJsOmhvc3Q=\E\s*");
+	vk8s_urlhost_auth.add("Basic\s+\QYWRtaW46c3VwZXJwb3dlcnM=\E\s*");
 	vk8s_urlhost_auth.compile();
 }
 
