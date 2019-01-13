@@ -18,6 +18,9 @@ spec:
       - image: varnish-ingress/controller
         imagePullPolicy: IfNotPresent
         name: varnish-ingress-controller
+        ports:
+        - name: http
+          containerPort: 8080
         livenessProbe:
           exec:
             command:

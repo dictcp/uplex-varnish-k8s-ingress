@@ -135,6 +135,8 @@ func NewIngressController(
 		vController: vc,
 	}
 
+	InitMetrics()
+
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(ingc.log.Printf)
 	eventBroadcaster.StartRecordingToSink(&core_v1.EventSinkImpl{
@@ -273,7 +275,7 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 //
 // If readyFile is non-empty, it is the path of a file to touch when
 // the controller is ready (after informers have launched).
-func (ingc *IngressController) Run(readyFile string) {
+func (ingc *IngressController) Run(readyFile string, metricsPort uint16) {
 	defer utilruntime.HandleCrash()
 	defer ingc.nsQs.Stop()
 
@@ -284,6 +286,9 @@ func (ingc *IngressController) Run(readyFile string) {
 	go ingc.informers.secr.Run(ingc.stopCh)
 	go ingc.informers.vcfg.Run(ingc.stopCh)
 	go ingc.informers.bcfg.Run(ingc.stopCh)
+
+	ingc.log.Infof("Starting metrics listener at port %d", metricsPort)
+	go ServeMetrics(ingc.log, metricsPort)
 
 	ingc.log.Info("Controller ready")
 	if readyFile != "" {

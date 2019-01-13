@@ -284,8 +284,8 @@ func NewNamespaceQueues(
 	client kubernetes.Interface,
 	recorder record.EventRecorder) *NamespaceQueues {
 
-	q := workqueue.NewRateLimitingQueue(
-		workqueue.DefaultControllerRateLimiter())
+	q := workqueue.NewNamedRateLimitingQueue(
+		workqueue.DefaultControllerRateLimiter(), "_ALL_")
 	return &NamespaceQueues{
 		Queue:       q,
 		log:         log,

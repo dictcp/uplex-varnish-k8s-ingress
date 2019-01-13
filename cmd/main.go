@@ -33,6 +33,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"strings"
@@ -75,6 +76,8 @@ var (
 		"interval at which the monitor thread checks and updates\n"+
 			"instances of Varnish that implement Ingress.\n"+
 			"Monitor deactivated when <= 0s")
+	metricsPortF = flag.Uint("metricsport", 8080,
+		"port at which to listen for the /metrics endpoint")
 	logFormat = logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
@@ -133,6 +136,12 @@ func main() {
 		os.Exit(-1)
 	}
 
+	if *metricsPortF > math.MaxUint16 {
+		log.Fatalf("metricsport %d out of range (max %d)",
+			*metricsPortF, math.MaxUint16)
+		os.Exit(-1)
+	}
+
 	log.Info("Starting Varnish Ingress controller version:", version)
 
 	vController, err := varnish.NewVarnishController(log, *tmplDirF,
@@ -187,7 +196,7 @@ func main() {
 	go handleTermination(log, ingController, vController, varnishDone)
 	vController.Start(varnishDone)
 	informerFactory.Start(informerStop)
-	ingController.Run(*readyfileF)
+	ingController.Run(*readyfileF, uint16(*metricsPortF))
 }
 
 func handleTermination(
