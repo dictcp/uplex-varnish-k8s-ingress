@@ -48,6 +48,7 @@ import (
 	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 	"code.uplex.de/uplex-varnish/varnishapi/pkg/admin"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -164,6 +165,7 @@ func NewVarnishController(
 	if err := vcl.InitTemplates(tmplDir); err != nil {
 		return nil, err
 	}
+	initMetrics()
 	return &VarnishController{
 		svcs:     make(map[string]*varnishSvc),
 		secrets:  make(map[string]*[]byte),
@@ -189,11 +191,7 @@ func (vc *VarnishController) Start(errChan chan error) {
 }
 
 func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
-	cfgName string, vclSrc string) error {
-
-	if inst == nil {
-		return fmt.Errorf("Instance object is nil")
-	}
+	cfgName string, vclSrc string, metrics *instanceMetrics) error {
 
 	vc.log.Infof("Update Varnish instance at %s", inst.addr)
 	vc.log.Debugf("Varnish instance %s: %+v", inst.addr, *inst)
@@ -204,8 +202,11 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	defer inst.admMtx.Unlock()
 
 	vc.log.Debugf("Connect to %s, timeout=%v", inst.addr, admTimeout)
+	timer := prometheus.NewTimer(metrics.connectLatency)
 	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
+	timer.ObserveDuration()
 	if err != nil {
+		metrics.connectFails.Inc()
 		return err
 	}
 	defer adm.Close()
@@ -238,12 +239,16 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 			inst.addr)
 	} else {
 		vc.log.Debugf("Load config %s at %s", cfgName, inst.addr)
+		timer = prometheus.NewTimer(metrics.vclLoadLatency)
 		err = adm.VCLInline(cfgName, vclSrc)
+		timer.ObserveDuration()
 		if err != nil {
 			vc.log.Debugf("Error loading config %s at %s: %v",
 				cfgName, inst.addr, err)
+			metrics.vclLoadErrs.Inc()
 			return err
 		}
+		metrics.vclLoads.Inc()
 		vc.log.Infof("Loaded config %s at Varnish endpoint %s", cfgName,
 			inst.addr)
 	}
@@ -304,9 +309,18 @@ func (vc *VarnishController) updateVarnishSvc(name string) error {
 	vc.log.Infof("Update Varnish instances: load config %s", cfgName)
 	var errs VarnishAdmErrors
 	for _, inst := range svc.instances {
-		if e := vc.updateVarnishInstance(inst, cfgName, vclSrc); e != nil {
+		if inst == nil {
+			vc.log.Errorf("Instance object is nil")
+			continue
+		}
+		metrics := getInstanceMetrics(inst.addr)
+		metrics.updates.Inc()
+		if e := vc.updateVarnishInstance(inst, cfgName, vclSrc,
+			metrics); e != nil {
+
 			admErr := VarnishAdmError{addr: inst.addr, err: e}
 			errs = append(errs, admErr)
+			metrics.updateErrs.Inc()
 			continue
 		}
 	}
@@ -329,17 +343,21 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 			err:  fmt.Errorf("No known admin secret"),
 		}
 	}
+	metrics := getInstanceMetrics(inst.addr)
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
 
 	vc.log.Debugf("Connect to %s, timeout=%v", inst.addr, admTimeout)
+	timer := prometheus.NewTimer(metrics.connectLatency)
 	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
+	timer.ObserveDuration()
 	if err != nil {
 		if mayClose {
 			vc.log.Warnf("Could not connect to %s: %v", inst.addr,
 				err)
 			return nil
 		}
+		metrics.connectFails.Inc()
 		return VarnishAdmError{addr: inst.addr, err: err}
 	}
 	defer adm.Close()
@@ -373,6 +391,7 @@ func (vc *VarnishController) removeVarnishInstances(insts []*varnishInst) error 
 			errs = append(errs, admErr)
 			continue
 		}
+		instsGauge.Dec()
 	}
 	if len(errs) == 0 {
 		return nil
@@ -413,6 +432,7 @@ func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 			admMtx:    &sync.Mutex{},
 		}
 		newInsts = append(newInsts, newInst)
+		instsGauge.Inc()
 	}
 	for addr, inst := range prevAddrs {
 		_, exists := updateAddrs[addr]
@@ -435,6 +455,7 @@ func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 			errs = append(errs, admErr)
 			continue
 		}
+		instsGauge.Dec()
 	}
 	vc.log.Debugf("Varnish svc %s config: %+v", key, *svc)
 
@@ -482,9 +503,11 @@ func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
 			vc.log.Debugf("Varnish svc %s: creating instance %+v",
 				key, *instance)
 			instances = append(instances, instance)
+			instsGauge.Inc()
 		}
 		svc.instances = instances
 		vc.svcs[key] = svc
+		svcsGauge.Inc()
 		vc.log.Debugf("Varnish svc %s: created config", key)
 	}
 	vc.log.Debugf("Varnish svc %s config: %+v", key, svc)
@@ -518,6 +541,7 @@ func (vc *VarnishController) DeleteVarnishSvc(key string) error {
 	err := vc.removeVarnishInstances(svc.instances)
 	if err != nil {
 		delete(vc.svcs, key)
+		svcsGauge.Dec()
 	}
 	return err
 }
@@ -535,6 +559,7 @@ func (vc *VarnishController) Update(
 	if !exists {
 		svc = &varnishSvc{instances: make([]*varnishInst, 0)}
 		vc.svcs[svcKey] = svc
+		svcsGauge.Inc()
 		vc.log.Infof("Added Varnish service definition %s for Ingress "+
 			"%s uid=%s", svcKey, ingKey, uid)
 	}
@@ -621,6 +646,7 @@ func (vc *VarnishController) SetAdmSecret(key string, secret []byte) {
 		secretSlice := make([]byte, len(secret))
 		secr = &secretSlice
 		vc.secrets[key] = secr
+		secretsGauge.Inc()
 	}
 	copy(*vc.secrets[key], secret)
 }
@@ -645,6 +671,7 @@ func (vc *VarnishController) UpdateSvcForSecret(svcKey, secretKey string) error 
 			svcKey, secretKey)
 		svc = &varnishSvc{instances: make([]*varnishInst, 0)}
 		vc.svcs[svcKey] = svc
+		svcsGauge.Inc()
 	}
 	svc.secrName = secretKey
 
@@ -664,6 +691,7 @@ func (vc *VarnishController) DeleteAdmSecret(name string) {
 	_, exists := vc.secrets[name]
 	if exists {
 		delete(vc.secrets, name)
+		secretsGauge.Dec()
 	}
 }
 

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"code.uplex.de/uplex-varnish/varnishapi/pkg/admin"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -71,6 +72,9 @@ func (vc *VarnishController) errorEvt(svc, reason, msgFmt string,
 }
 
 func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
+	metrics := getInstanceMetrics(inst.addr)
+	metrics.monitorChecks.Inc()
+
 	if inst.admSecret == nil {
 		vc.warnEvt(svc, noAdmSecret,
 			"No admin secret known for endpoint %s", inst.addr)
@@ -79,8 +83,11 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
 
+	timer := prometheus.NewTimer(metrics.connectLatency)
 	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
+	timer.ObserveDuration()
 	if err != nil {
+		metrics.connectFails.Inc()
 		vc.errorEvt(svc, connectErr, "Error connecting to %s: %v",
 			inst.addr, err)
 		return false
@@ -92,10 +99,12 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 
 	pong, err := adm.Ping()
 	if err != nil {
+		metrics.pingFails.Inc()
 		vc.errorEvt(svc, pingErr, "Error pinging at %s: %v", inst.addr,
 			err)
 		return false
 	}
+	metrics.pings.Inc()
 	vc.log.Infof("Succesfully pinged instance %s: %+v", inst.addr, pong)
 
 	state, err := adm.Status()
@@ -105,8 +114,10 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 		return false
 	}
 	if state == admin.Running {
+		metrics.childRunning.Inc()
 		vc.log.Infof("Status at %s: %s", inst.addr, state)
 	} else {
+		metrics.childNotRunning.Inc()
 		vc.warnEvt(svc, statusNotRun, "Status at %s: %s", inst.addr,
 			state)
 	}
@@ -120,6 +131,7 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	if panic == "" {
 		vc.log.Infof("No panic at %s", inst.addr)
 	} else {
+		metrics.panics.Inc()
 		vc.errorEvt(svc, panic, "Panic at %s: %s", inst.addr, panic)
 		// XXX clear the panic? Should be configurable
 	}
@@ -139,6 +151,7 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 						"%v", vcl.Name, inst.addr, err)
 				return false
 			}
+			metrics.vclDiscards.Inc()
 			vc.log.Infof("Discarded VCL %s at %s", vcl.Name,
 				inst.addr)
 		}
