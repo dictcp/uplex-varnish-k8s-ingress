@@ -211,42 +211,40 @@ func (ingc *IngressController) logObj(action string, obj interface{}) {
 	}
 }
 
-func incWatchCounter(obj interface{}, syncType SyncType) {
+func incWatchCounter(obj interface{}, sync string) {
 	switch obj.(type) {
 	case *extensions.Ingress:
-		watchCounters["Ingress"][syncType].Inc()
+		watchCounters.WithLabelValues("Ingress", sync).Inc()
 	case *api_v1.Service:
-		watchCounters["Service"][syncType].Inc()
+		watchCounters.WithLabelValues("Service", sync).Inc()
 	case *api_v1.Endpoints:
-		watchCounters["Endpoints"][syncType].Inc()
+		watchCounters.WithLabelValues("Endpoints", sync).Inc()
 	case *api_v1.Secret:
-		watchCounters["Secret"][syncType].Inc()
+		watchCounters.WithLabelValues("Secret", sync).Inc()
 	case *vcr_v1alpha1.VarnishConfig:
-		watchCounters["VarnishConfig"][syncType].Inc()
+		watchCounters.WithLabelValues("VarnishConfig", sync).Inc()
 	case *vcr_v1alpha1.BackendConfig:
-		watchCounters["BackendConfig"][syncType].Inc()
+		watchCounters.WithLabelValues("BackendConfig", sync).Inc()
 	default:
-		err := fmt.Errorf("Unhandled type %T, watcher counter not "+
-			"incremented", obj)
-		utilruntime.HandleError(err)
+		watchCounters.WithLabelValues("Unknown", sync).Inc()
 	}
 }
 
 func (ingc *IngressController) addObj(obj interface{}) {
 	ingc.logObj("Add", obj)
-	incWatchCounter(obj, Add)
+	incWatchCounter(obj, "Add")
 	ingc.nsQs.Queue.Add(&SyncObj{Type: Add, Obj: obj})
 }
 
 func (ingc *IngressController) deleteObj(obj interface{}) {
 	ingc.logObj("Delete", obj)
-	incWatchCounter(obj, Delete)
+	incWatchCounter(obj, "Delete")
 	ingc.nsQs.Queue.Add(&SyncObj{Type: Delete, Obj: obj})
 }
 
 func (ingc *IngressController) updateObj(old, new interface{}) {
 	ingc.log.Debug("Update:", old, new)
-	incWatchCounter(new, Update)
+	incWatchCounter(new, "Update")
 	oldMeta, oldErr := meta.Accessor(old)
 	newMeta, newErr := meta.Accessor(new)
 	t, tErr := meta.TypeAccessor(old)

@@ -120,14 +120,13 @@ func (_ promProvider) NewRetriesMetric(name string) workqueue.CounterMetric {
 }
 
 var (
-	watchCounters map[string]map[SyncType]prometheus.Counter = map[string]map[SyncType]prometheus.Counter{
-		"Ingress":       make(map[SyncType]prometheus.Counter),
-		"Service":       make(map[SyncType]prometheus.Counter),
-		"Endpoints":     make(map[SyncType]prometheus.Counter),
-		"Secret":        make(map[SyncType]prometheus.Counter),
-		"VarnishConfig": make(map[SyncType]prometheus.Counter),
-		"BackendConfig": make(map[SyncType]prometheus.Counter),
-	}
+	watchCounters = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Subsystem: "watcher",
+		Namespace: namespace,
+		Name:      "events_total",
+		Help:      "Total number of watcher API events",
+	}, []string{"kind", "event"})
+
 	syncCounters = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: "sync",
@@ -138,28 +137,7 @@ var (
 
 func InitMetrics() {
 	workqueue.SetProvider(promProvider{})
-	syncLabels := map[SyncType]string{
-		Add:    "add",
-		Update: "update",
-		Delete: "delete",
-	}
-	for kind, m := range watchCounters {
-		for syncType, typeLabel := range syncLabels {
-			labels := make(map[string]string)
-			labels["kind"] = kind
-			labels["event"] = typeLabel
-			m[syncType] = prometheus.NewCounter(
-				prometheus.CounterOpts{
-					Subsystem: "watcher",
-					Namespace: namespace,
-					Name:      "events_total",
-					Help: "Total number of watcher " +
-						"API events",
-					ConstLabels: labels,
-				})
-			prometheus.Register(m[syncType])
-		}
-	}
+	prometheus.Register(watchCounters)
 	prometheus.Register(syncCounters)
 }
 
