@@ -69,7 +69,8 @@ This example uses a Deployment to run the controller container in the
 ```
 $ kubectl apply -f controller.yaml
 ```
-The ``image`` in the manifest MUST be ``varnish-ingress/controller``.
+The ``image`` in the manifest must specify the controller (named
+``varnish-ingress/controller`` above).
 
 It does *not* make sense to deploy more than one replica of the
 controller. If there are more controllers, all of them will connect to
@@ -149,7 +150,8 @@ There are some requirements on the configuration of the Varnish
 deployment that must be fulfilled in order for the Ingress to work
 properly:
 
-* The ``image`` must be specified as ``varnish-ingress/varnish``.
+* The ``image`` must specify the Varnish container (named
+  ``varnish-ingress/varnish`` above)
 * ``spec.template`` must specify the label ``app: varnish-ingress``.
   The controller recognizes Services with this label as Varnish
   deployments meant to implement Ingress:
@@ -265,6 +267,12 @@ The Service definition must fulfill some requirements:
   that realize the Varnish Service.
 
   **TO DO**: The ``port.name`` is hardwired to ``varnishadm``.
+
+* A port with the name ``http`` MUST be specified, whose
+  ``targetPort`` matches the http port defined above (named ``http``
+  in the sample Deployment).
+
+  **TO DO**: The ``port.name`` is hardwired to ``http``.
 
 * The Service must be defined so that the cluster API will allow
   Endpoints to be listed when the container is not ready (since
