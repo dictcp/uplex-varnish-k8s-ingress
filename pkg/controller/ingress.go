@@ -555,6 +555,8 @@ func (worker *NamespaceWorker) syncIng(key string) error {
 		worker.log.Infof("Ignoring Ingress %s/%s, Annotation '%v' "+
 			"absent or is not 'varnish'", ing.Namespace, ing.Name,
 			ingressClassKey)
+		syncCounters.WithLabelValues(worker.namespace, "Ingress",
+			"Ignore").Inc()
 		return nil
 	}
 	return worker.addOrUpdateIng(ing)

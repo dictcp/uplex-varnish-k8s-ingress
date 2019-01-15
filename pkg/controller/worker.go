@@ -84,29 +84,37 @@ func (worker *NamespaceWorker) event(obj interface{}, evtType, reason,
 	if syncObj, ok := obj.(*SyncObj); ok {
 		eventObj = syncObj.Obj
 	}
+	kind := "Unknown"
 	switch eventObj.(type) {
 	case *extensions.Ingress:
 		ing, _ := eventObj.(*extensions.Ingress)
 		worker.recorder.Eventf(ing, evtType, reason, msgFmt, args...)
+		kind = "Ingress"
 	case *api_v1.Service:
 		svc, _ := eventObj.(*api_v1.Service)
 		worker.recorder.Eventf(svc, evtType, reason, msgFmt, args...)
+		kind = "Service"
 	case *api_v1.Endpoints:
 		endp, _ := eventObj.(*api_v1.Endpoints)
 		worker.recorder.Eventf(endp, evtType, reason, msgFmt, args...)
+		kind = "Endpoints"
 	case *api_v1.Secret:
 		secr, _ := eventObj.(*api_v1.Secret)
 		worker.recorder.Eventf(secr, evtType, reason, msgFmt, args...)
+		kind = "Secret"
 	case *ving_v1alpha1.VarnishConfig:
 		vcfg, _ := eventObj.(*ving_v1alpha1.VarnishConfig)
 		worker.recorder.Eventf(vcfg, evtType, reason, msgFmt, args...)
+		kind = "VarnishConfig"
 	case *ving_v1alpha1.BackendConfig:
 		bcfg, _ := eventObj.(*ving_v1alpha1.BackendConfig)
 		worker.recorder.Eventf(bcfg, evtType, reason, msgFmt, args...)
+		kind = "BackendConfig"
 	default:
 		worker.log.Warnf("Unhandled type %T, no event generated",
 			eventObj)
 	}
+	syncCounters.WithLabelValues(worker.namespace, kind, reason).Inc()
 }
 
 func (worker *NamespaceWorker) infoEvent(obj interface{}, reason, msgFmt string,

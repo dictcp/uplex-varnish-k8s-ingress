@@ -110,6 +110,8 @@ func (worker *NamespaceWorker) syncVcfg(key string) error {
 		// CRD validation should prevent this.
 		worker.log.Infof("VarnishConfig %s/%s: no services defined, "+
 			"ignoring", vcfg.Namespace, vcfg.Name)
+		syncCounters.WithLabelValues(worker.namespace, "VarnishConfig",
+			"Ignore").Inc()
 		return nil
 	}
 

@@ -119,14 +119,22 @@ func (_ promProvider) NewRetriesMetric(name string) workqueue.CounterMetric {
 	return retries
 }
 
-var watchCounters map[string]map[SyncType]prometheus.Counter = map[string]map[SyncType]prometheus.Counter{
-	"Ingress":       make(map[SyncType]prometheus.Counter),
-	"Service":       make(map[SyncType]prometheus.Counter),
-	"Endpoints":     make(map[SyncType]prometheus.Counter),
-	"Secret":        make(map[SyncType]prometheus.Counter),
-	"VarnishConfig": make(map[SyncType]prometheus.Counter),
-	"BackendConfig": make(map[SyncType]prometheus.Counter),
-}
+var (
+	watchCounters map[string]map[SyncType]prometheus.Counter = map[string]map[SyncType]prometheus.Counter{
+		"Ingress":       make(map[SyncType]prometheus.Counter),
+		"Service":       make(map[SyncType]prometheus.Counter),
+		"Endpoints":     make(map[SyncType]prometheus.Counter),
+		"Secret":        make(map[SyncType]prometheus.Counter),
+		"VarnishConfig": make(map[SyncType]prometheus.Counter),
+		"BackendConfig": make(map[SyncType]prometheus.Counter),
+	}
+	syncCounters = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "sync",
+		Name:      "result_total",
+		Help:      "Total number of synchronization results",
+	}, []string{"namespace", "kind", "result"})
+)
 
 func InitMetrics() {
 	workqueue.SetProvider(promProvider{})
@@ -152,6 +160,7 @@ func InitMetrics() {
 			prometheus.Register(m[syncType])
 		}
 	}
+	prometheus.Register(syncCounters)
 }
 
 func ServeMetrics(log *logrus.Logger, port uint16) {

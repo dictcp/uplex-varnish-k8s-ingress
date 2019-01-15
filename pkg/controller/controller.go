@@ -256,9 +256,28 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 			ingc.log.Infof("Update %s %s/%s: unchanged",
 				t.GetKind(), oldMeta.GetNamespace(),
 				oldMeta.GetName())
+			syncCounters.WithLabelValues(oldMeta.GetNamespace(),
+				t.GetKind(), "Ignore").Inc()
 		} else {
-			ingc.log.Infof("Update %s/%s: unchanged",
+			kind := "Unknown"
+			switch old.(type) {
+			case *extensions.Ingress:
+				kind = "Ingress"
+			case *api_v1.Service:
+				kind = "Service"
+			case *api_v1.Endpoints:
+				kind = "Endpoints"
+			case *api_v1.Secret:
+				kind = "Secret"
+			case *vcr_v1alpha1.VarnishConfig:
+				kind = "VarnishConfig"
+			case *vcr_v1alpha1.BackendConfig:
+				kind = "BackendConfig"
+			}
+			ingc.log.Infof("Update %s %s/%s: unchanged", kind,
 				oldMeta.GetNamespace(), oldMeta.GetName())
+			syncCounters.WithLabelValues(oldMeta.GetNamespace(),
+				kind, "Ignore").Inc()
 		}
 		return
 	}
@@ -272,6 +291,8 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 
 		ingc.log.Infof("Update endpoints %s/%s: empty Subsets, ignoring",
 			newEndp.Namespace, newEndp.Name)
+		syncCounters.WithLabelValues(oldMeta.GetNamespace(),
+			"Endpoints", "Ignore").Inc()
 		return
 	}
 

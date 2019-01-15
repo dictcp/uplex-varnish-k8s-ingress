@@ -95,6 +95,8 @@ func (worker *NamespaceWorker) syncBcfg(key string) error {
 		// CRD validation should prevent this.
 		worker.log.Warnf("BackendConfig %s/%s: no services defined, "+
 			"ignoring", bcfg.Namespace, bcfg.Name)
+		syncCounters.WithLabelValues(worker.namespace, "BackendConfig",
+			"Ignore").Inc()
 		return nil
 	}
 

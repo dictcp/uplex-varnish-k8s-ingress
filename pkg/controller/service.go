@@ -83,6 +83,8 @@ func (worker *NamespaceWorker) getIngsForSvc(
 	if len(ings) == 0 {
 		worker.log.Infof("No Varnish Ingresses defined for service %s/%s",
 			svc.Namespace, svc.Name)
+		syncCounters.WithLabelValues(worker.namespace, "Service",
+			"Ignore").Inc()
 	}
 	return ings, nil
 }

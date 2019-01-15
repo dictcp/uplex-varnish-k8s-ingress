@@ -36,6 +36,8 @@ func (worker *NamespaceWorker) syncEndp(key string) error {
 	if err != nil {
 		worker.log.Warnf("Cannot get service for endpoints %s/%s, "+
 			"ignoring", worker.namespace, key)
+		syncCounters.WithLabelValues(worker.namespace, "Endpoints",
+			"Ignore").Inc()
 		return nil
 	}
 
@@ -56,6 +58,8 @@ func (worker *NamespaceWorker) syncEndp(key string) error {
 	if len(ings) == 0 {
 		worker.log.Debugf("No ingresses for endpoints: %s/%s",
 			worker.namespace, key)
+		syncCounters.WithLabelValues(worker.namespace, "Endpoints",
+			"Ignore").Inc()
 		return nil
 	}
 

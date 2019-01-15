@@ -128,6 +128,8 @@ func (worker *NamespaceWorker) syncSecret(key string) error {
 	if !ok || app != labelVal {
 		worker.log.Infof("Not a Varnish secret: %s/%s",
 			secret.Namespace, secret.Name)
+		syncCounters.WithLabelValues(worker.namespace, "Secret",
+			"Ignore").Inc()
 		return nil
 	}
 
