@@ -260,6 +260,34 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 	worker.log.Debugf("Set cluster shard configuration for Service %s/%s",
 		svc.Namespace, svc.Name)
 
+	endps, err := worker.getServiceEndpoints(svc)
+	if err != nil {
+		return fmt.Errorf("Error getting endpoints for service %s/%s: "+
+			"%v", svc.Namespace, svc.Name, err)
+	}
+	worker.log.Debugf("Endpoints for shard configuration: %+v", endps)
+
+	var nAddrs int
+	var httpPort int32
+	for _, endpSubset := range endps.Subsets {
+		nAddrs += len(endpSubset.Addresses)
+		nAddrs += len(endpSubset.NotReadyAddresses)
+		for _, port := range endpSubset.Ports {
+			if httpPort == 0 && port.Name == "http" {
+				httpPort = port.Port
+			}
+		}
+	}
+	if httpPort == 0 {
+		return fmt.Errorf("No http port found in the endpoints for "+
+			"service %s/%s", svc.Namespace, svc.Name)
+	}
+	if nAddrs <= 1 {
+		return fmt.Errorf("Sharding requested, but %d endpoint "+
+			"addresses found for service %s/%s", nAddrs,
+			svc.Namespace, svc.Name)
+	}
+
 	pods, err := worker.getPods(svc)
 	if err != nil {
 		return fmt.Errorf("Error getting pod information for service "+
@@ -270,35 +298,10 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 			"service %s/%s", len(pods.Items), svc.Namespace,
 			svc.Name)
 	}
-
 	worker.log.Debugf("Pods for shard configuration: %+v", pods.Items)
 
 	// Populate spec.ShardCluster.Nodes with Pod names and the http endpoint
 	for _, pod := range pods.Items {
-		var varnishCntnr api_v1.Container
-		var httpPort int32
-		for _, c := range pod.Spec.Containers {
-			if c.Image == "varnish-ingress/varnish" {
-				varnishCntnr = c
-				break
-			}
-		}
-		if varnishCntnr.Image != "varnish-ingress/varnish" {
-			return fmt.Errorf("No Varnish container found in Pod "+
-				"%s for service %s/%s", pod.Name, svc.Namespace,
-				svc.Name)
-		}
-		for _, p := range varnishCntnr.Ports {
-			if p.Name == "http" {
-				httpPort = p.ContainerPort
-				break
-			}
-		}
-		if httpPort == 0 {
-			return fmt.Errorf("No http port found in Pod %s for "+
-				"service %s/%s", pod.Name, svc.Namespace,
-				svc.Name)
-		}
 		node := vcl.Service{Addresses: make([]vcl.Address, 1)}
 		if pod.Spec.Hostname != "" {
 			node.Name = pod.Spec.Hostname
