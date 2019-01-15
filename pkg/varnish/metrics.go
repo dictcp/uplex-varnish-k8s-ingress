@@ -76,6 +76,13 @@ var (
 		Help:      "Current number of known admin secrets",
 	})
 
+	monResultCtr = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "monitor_result_total",
+		Help:      "Total number of monitor results",
+	}, []string{"service", "status", "result"})
+
 	addr2instMetrics map[string]*instanceMetrics = make(map[string]*instanceMetrics)
 	instMetricsMtx                               = &sync.Mutex{}
 
@@ -92,6 +99,7 @@ func initMetrics() {
 	prometheus.Register(svcsGauge)
 	prometheus.Register(instsGauge)
 	prometheus.Register(secretsGauge)
+	prometheus.Register(monResultCtr)
 }
 
 func getInstanceMetrics(addr string) *instanceMetrics {

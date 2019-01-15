@@ -55,6 +55,7 @@ func (vc *VarnishController) infoEvt(svc, reason, msgFmt string,
 
 	vc.log.Infof(msgFmt, args...)
 	vc.svcEvt.SvcInfoEvent(svc, reason, msgFmt, args...)
+	monResultCtr.WithLabelValues(svc, "info", reason).Inc()
 }
 
 func (vc *VarnishController) warnEvt(svc, reason, msgFmt string,
@@ -62,6 +63,7 @@ func (vc *VarnishController) warnEvt(svc, reason, msgFmt string,
 
 	vc.log.Warnf(msgFmt, args...)
 	vc.svcEvt.SvcWarnEvent(svc, reason, msgFmt, args...)
+	monResultCtr.WithLabelValues(svc, "warning", reason).Inc()
 }
 
 func (vc *VarnishController) errorEvt(svc, reason, msgFmt string,
@@ -69,6 +71,7 @@ func (vc *VarnishController) errorEvt(svc, reason, msgFmt string,
 
 	vc.log.Errorf(msgFmt, args...)
 	vc.svcEvt.SvcWarnEvent(svc, reason, msgFmt, args...)
+	monResultCtr.WithLabelValues(svc, "error", reason).Inc()
 }
 
 func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
