@@ -76,6 +76,22 @@ var (
 		Help:      "Current number of known admin secrets",
 	})
 
+	beSvcsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "backend_services",
+		Help: "Current number of Services configured as Varnish " +
+			"backends",
+	})
+
+	beEndpsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "backend_endpoints",
+		Help: "Current number of Service endpoints configured " +
+			"as Varnish backends",
+	})
+
 	monResultCtr = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
@@ -100,6 +116,8 @@ func initMetrics() {
 	prometheus.Register(instsGauge)
 	prometheus.Register(secretsGauge)
 	prometheus.Register(monResultCtr)
+	prometheus.Register(beSvcsGauge)
+	prometheus.Register(beEndpsGauge)
 }
 
 func getInstanceMetrics(addr string) *instanceMetrics {

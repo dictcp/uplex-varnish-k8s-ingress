@@ -546,6 +546,19 @@ func (vc *VarnishController) DeleteVarnishSvc(key string) error {
 	return err
 }
 
+func (vc *VarnishController) updateBeGauges() {
+	nBeSvcs := 0
+	nBeEndps := 0
+	for _, svc := range vc.svcs {
+		nBeSvcs += len(svc.spec.spec.AllServices)
+		for _, beSvc := range svc.spec.spec.AllServices {
+			nBeEndps += len(beSvc.Addresses)
+		}
+	}
+	beSvcsGauge.Set(float64(nBeSvcs))
+	beEndpsGauge.Set(float64(nBeEndps))
+}
+
 // Update a Varnish Service to implement an Ingress.
 //
 //    svcKey: namespace/name key for the Service
@@ -570,6 +583,7 @@ func (vc *VarnishController) Update(
 	svc.spec.key = ingKey
 	svc.spec.uid = uid
 	svc.spec.spec = spec
+	vc.updateBeGauges()
 
 	if len(svc.instances) == 0 {
 		return fmt.Errorf("Ingress %s uid=%s: Currently no known "+
