@@ -72,6 +72,21 @@ $ kubectl apply -f controller.yaml
 The ``image`` in the manifest must specify the controller (named
 ``varnish-ingress/controller`` above).
 
+The manifest specifies a ``containerPort`` for HTTP, at which the
+controller listens for the ``/metrics`` endpoint to publish
+[metrics](ref-metrics.md) suitable for integration with
+[Prometheus](https://prometheus.io/docs/introduction/overview/):
+
+```
+        ports:
+        - name: http
+          containerPort: 8080
+```
+
+The default value for the port number is 8080; to set a different
+value, use the ``-metricsport`` [command-line option](ref-cli-options.md)
+for the controller.
+
 It does *not* make sense to deploy more than one replica of the
 controller. If there are more controllers, all of them will connect to
 the Varnish instances and send them the same administrative

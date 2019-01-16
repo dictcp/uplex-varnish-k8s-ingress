@@ -8,6 +8,7 @@ The docs in this folder cover these topics:
   * [``BackendConfig`` Custom Resource](ref-backend-cfg.md)
   * [controller command-line options](ref-cli-options.md)
   * [customizing the Pod template](varnish-pod-template.md) for Varnish
+  * [metrics](ref-metrics.md) published by the controller
 
 * [Logging, Events and the Varnish Service monitor](monitor.md)
 

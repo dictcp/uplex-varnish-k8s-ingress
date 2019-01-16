@@ -23,6 +23,8 @@ Usage of ./k8s-ingress:
     	log to standard error instead of files
   -masterurl string
     	cluster master URL, for out-of-cluster runs
+  -metricsport uint
+	port at which to listen for the /metrics endpoint (default 8080)
   -monitorintvl duration
 	interval at which the monitor thread checks and updates
 	instances of Varnish that implement Ingress.
@@ -86,6 +88,14 @@ for existence. By default, no readiness file is created.
 deactivated for values <= 0. The monitor sleeps this long between
 monitor runs for Varnish Services. See the documentation at the link
 for more details.
+
+``-metricsport`` (default 8080) sets the port number at which the
+controller listens for the HTTP endpoint ``/metrics`` to publish
+[metrics](/docs/ref-metrics.md) that are suitable for integration with
+[Prometheus](https://prometheus.io/docs/introduction/overview/). It
+must match the value of the ``containerPort`` configured for ``http``
+in the [Pod template](/deploy/controller.yaml) for the controller
+(cf. the [deplyoment instructions](/deploy#deploy-the-controller)).
 
 ``-log-level`` sets the log level for the main controller code,
 ``INFO`` by default.
