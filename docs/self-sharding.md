@@ -1,14 +1,15 @@
 # Self-sharding caches in a cluster
 
-An Ingress may be annotated so that the Varnish instances in a cluster
-that implement the Ingress also implement sharding of their caches --
-for each request, there is an instance in the cluster that "owns" the
-potentially cached response, and other instances in the cluster
-forward the request to that instance. We refer to this as
-"self-sharding", because no sharding on the part of a component that
-forwards requests to the cluster (such as a load balancer) is required
-to shard the requests.  Requests may be distributed to the cluster in
-any way, and the Varnish instances take care of the sharding.
+An ``VarnishConfig`` resource may be configured so that the Varnish
+instances in a cluster that implement Ingress also implement sharding
+of their caches -- for each request, there is an instance in the
+cluster that "owns" the potentially cached response, and other
+instances in the cluster forward the request to that instance. We
+refer to this as "self-sharding", because no sharding on the part of a
+component that forwards requests to the cluster (such as a load
+balancer) is required to shard the requests.  Requests may be
+distributed to the cluster in any way, and the Varnish instances take
+care of the sharding.
 
 A sample manifest for the ``VarnishConfig`` Custom Resource to
 configure self-sharding is in the
@@ -39,6 +40,11 @@ Some of the effects of this design are:
   for cacheable responses in the system. The memory load for the cache
   is approximately duplicated by each instance.
 
+    * If T is the current total size of the cache (the sum of the
+      sizes of all distinct cached responses), then the memory load at
+      each of N replicas in the cluster is approximately T, and the
+      total load in the cluster is approximately T*N.
+
 * For N replicas in the Varnish cluster, cacheable responses are
   fetched N times from the Services that send them; and they are
   re-fetched N times when the TTL expires.
@@ -48,19 +54,30 @@ Some of the effects of this design are:
   happens to forward the request to a Varnish instance that doesn't
   have it yet in its cache.
 
+* If a cached response changes after its TTL elapses, then the
+  instances in the cluster may return different cached responses to
+  the same request, if some of them have the version before the
+  change, and others after the change.
+
 The purpose of self-sharding is to:
 
 * distribute memory load for the cache among the instances in the
   cluster.
 
+    * If T is the total cache size as described above, then the total
+      memory load in the cluster is approximately T, and the load at
+      each replica is approximately T/N.
+
 * reduce the request load on Services, so that there is only one fetch
-  for a cacheable response, from one Varnish instance, until the TTL
-  expires.
+  for a cacheable response, from only one Varnish instance, until the
+  TTL expires.
 
 * ensure that if a cached response has been fetched from a Service
   just once, then any further request for the same object will be a
   cache hit until the TTL expires, regardless of which Varnish
-  instance receives the request from the LoadBalancer.
+  instance receives the request from the LoadBalancer. The cache hit
+  will always be the same response -- the object most recently fetched
+  from a Service.
 
 ## Clustering with sharding
 
@@ -80,6 +97,18 @@ without forwarding. No special configuration for the LoadBalancer is
 required -- it can, for example, continue distributing requests to
 Varnishen in round-robin order.
 
+This is done by applying Varnish's
+[shard director](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html#new-xshard-directors-shard)
+to the Varnish instances in the cluster. If an instance finds that the
+director shards the request to itself, then it handles the request
+itself as the primary cache for the request. See the documentation at
+the link for more details about the shard director.
+
+If a request is evaluated so that the response won't be cacheable in
+any case (such as POST requests in default configurations), then the
+request is forwarded to the Service directly, since there is no point
+in forwarding it to another cache.
+
 When each instance is loaded with the same VCL configuration generated
 by the Ingress controller, then they each forward requests in the same
 way. When Varnish instances (Pods) are added to or removed from the
@@ -93,7 +122,9 @@ Some features that result from self-sharding are:
   instance receives a cacheable response from another instance, it may
   also cache the response, but only for a limited time bounded by the
   ``max-secondary-ttl`` parameter described below. So the total memory
-  load for the cache in the cluster is reduced.
+  load for the cache in the cluster is reduced, while mutliple copies
+  of frequently requested objects are still kept for low response
+  latencies.
 
 * A cacheable response is fetched from a Service only once, from the
   instance that handles the request itself without forwarding. When
@@ -102,7 +133,8 @@ Some features that result from self-sharding are:
 * If a cacheable response is in at least one the cluster's caches,
   then subsequent requests for the same object will be cache hits
   while the TTL is still valid, regardless of which Varnish instance
-  received the request from the LoadBalancer.
+  received the request from the LoadBalancer. Downstream responses are
+  consistent, since there is one primary cache for each response.
 
 * When instances are added to or removed from the cluster, the
   forwarding of requests to instances changes only as necessary. New
