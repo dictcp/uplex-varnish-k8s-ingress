@@ -76,7 +76,7 @@ const (
 	// maxSymLen is a workaround for Varnish issue #2880
 	// https://github.com/varnishcache/varnish-cache/issues/2880
 	// Will be unnecssary as of the March 2019 release
-	maxSymLen = 50
+	maxSymLen = 48
 )
 
 var (
