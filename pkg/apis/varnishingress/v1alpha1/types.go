@@ -63,7 +63,7 @@ type SelfShardSpec struct {
 	Probe     ProbeSpec `json:"probe,omitempty"`
 }
 
-// ProbeSpec specifies health probes in use for self-sharding.
+// ProbeSpec specifies health probes for self-sharding and BackendConfig.
 // see: https://code.uplex.de/uplex-varnish/k8s-ingress/blob/master/docs/self-sharding.md
 type ProbeSpec struct {
 	URL         string   `json:"url,omitempty"`
