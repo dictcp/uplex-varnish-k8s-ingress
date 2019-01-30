@@ -1,0 +1,9 @@
+
+import re2;
+import selector;
+
+
+
+sub vcl_recv {
+		set req.http.X-Quux = req.http.X-Foo + "baz";
+}

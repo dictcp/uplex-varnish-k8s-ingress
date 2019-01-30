@@ -1,0 +1,17 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_rewrite_0 = re2.set(anchor=both);
+	vk8s_rewrite_0.add("/([^/]+)/([^/]+)(.*)", string="/\2/\1\3", save=true);
+	vk8s_rewrite_0.compile();
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_0.match(req.url)) {
+		set req.url =
+			vk8s_rewrite_0.extract(req.url,
+		                                      vk8s_rewrite_0.string());
+	}
+}

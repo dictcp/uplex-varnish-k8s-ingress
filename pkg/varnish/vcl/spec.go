@@ -396,6 +396,131 @@ func (a byACLName) Len() int           { return len(a) }
 func (a byACLName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byACLName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
+type RewriteRule struct {
+	Value   string
+	Rewrite string
+}
+
+type MethodType uint8
+
+const (
+	Replace MethodType = iota
+	Sub
+	Suball
+	RewriteMethod
+	Append
+	Prepend
+	Delete
+)
+
+type RewriteCompare uint8
+
+const (
+	RewriteMatch RewriteCompare = iota
+	RewriteEqual
+	Prefix
+)
+
+type VCLSubType uint8
+
+const (
+	Unspecified VCLSubType = iota
+	Recv
+	Pipe
+	Pass
+	Hash
+	Purge
+	Miss
+	Hit
+	Deliver
+	Synth
+	BackendFetch
+	BackendResponse
+	BackendError
+)
+
+type AnchorType uint8
+
+const (
+	None AnchorType = iota
+	Start
+	Both
+)
+
+type MatchFlagsType struct {
+	MaxMem        uint64
+	Anchor        AnchorType
+	UTF8          bool
+	PosixSyntax   bool
+	LongestMatch  bool
+	Literal       bool
+	NeverCapture  bool
+	CaseSensitive bool
+	PerlClasses   bool
+	WordBoundary  bool
+}
+
+func (flags MatchFlagsType) hash(hash hash.Hash) {
+	memBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(memBytes, flags.MaxMem)
+	hash.Write(memBytes)
+	hash.Write([]byte{byte(flags.Anchor)})
+	if flags.UTF8 {
+		hash.Write([]byte("UTF8"))
+	}
+	if flags.PosixSyntax {
+		hash.Write([]byte("PosixSyntax"))
+	}
+	if flags.LongestMatch {
+		hash.Write([]byte("LongestMatch"))
+	}
+	if flags.Literal {
+		hash.Write([]byte("Literal"))
+	}
+	if flags.NeverCapture {
+		hash.Write([]byte("NeverCapture"))
+	}
+	if flags.CaseSensitive {
+		hash.Write([]byte("CaseSensitive"))
+	}
+	if flags.PerlClasses {
+		hash.Write([]byte("PerlClasses"))
+	}
+	if flags.WordBoundary {
+		hash.Write([]byte("WordBoundary"))
+	}
+}
+
+type Rewrite struct {
+	Rules      []RewriteRule
+	MatchFlags MatchFlagsType
+	Target     string
+	Source     string
+	Method     MethodType
+	Compare    RewriteCompare
+	VCLSub     VCLSubType
+}
+
+func (rw Rewrite) hash(hash hash.Hash) {
+	for _, rule := range rw.Rules {
+		hash.Write([]byte(rule.Value))
+		hash.Write([]byte(rule.Rewrite))
+	}
+	rw.MatchFlags.hash(hash)
+	hash.Write([]byte(rw.Target))
+	hash.Write([]byte(rw.Source))
+	hash.Write([]byte{byte(rw.Method)})
+	hash.Write([]byte{byte(rw.Compare)})
+	hash.Write([]byte{byte(rw.VCLSub)})
+}
+
+// interface for sorting []Rewrite
+type byVCLSub []Rewrite
+
+func (a byVCLSub) Len() int           { return len(a) }
+func (a byVCLSub) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byVCLSub) Less(i, j int) bool { return a[i].VCLSub < a[j].VCLSub }
+
 // Spec is the specification for a VCL configuration derived from
 // Ingresses and VarnishConfig Custom Resources. This abstracts the
 // VCL to be loaded by all instances of a Varnish Service.
@@ -422,7 +547,8 @@ type Spec struct {
 	// ACLs is a list of specifications for whitelisting or
 	// blacklisting IPs with access control lists, derived from
 	// VarnishConfig.Spec.ACLs.
-	ACLs []ACL
+	ACLs     []ACL
+	Rewrites []Rewrite
 }
 
 // DeepHash computes a 64-bit hash value from a Spec such that if two
@@ -452,6 +578,9 @@ func (spec Spec) DeepHash() uint64 {
 	for _, acl := range spec.ACLs {
 		acl.hash(hash)
 	}
+	for _, rw := range spec.Rewrites {
+		rw.hash(hash)
+	}
 	return hash.Sum64()
 }
 
@@ -468,6 +597,7 @@ func (spec Spec) Canonical() Spec {
 		VCL:            spec.VCL,
 		Auths:          make([]Auth, len(spec.Auths)),
 		ACLs:           make([]ACL, len(spec.ACLs)),
+		Rewrites:       make([]Rewrite, len(spec.Rewrites)),
 	}
 	copy(canon.DefaultService.Addresses, spec.DefaultService.Addresses)
 	sort.Stable(byIPPort(canon.DefaultService.Addresses))
@@ -497,5 +627,7 @@ func (spec Spec) Canonical() Spec {
 		sort.Stable(byACLAddr(acl.Addresses))
 		sort.Stable(byComparand(acl.Conditions))
 	}
+	copy(canon.Rewrites, spec.Rewrites)
+	sort.Stable(byVCLSub(canon.Rewrites))
 	return canon
 }

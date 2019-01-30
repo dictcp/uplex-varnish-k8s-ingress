@@ -1,0 +1,21 @@
+
+import re2;
+import selector;
+
+
+
+sub vcl_hit {
+		set req.http.X-Cache = "HIT";
+}
+
+sub vcl_miss {
+		set req.http.X-Cache = "MISS";
+}
+
+sub vcl_pass {
+		set req.http.X-Cache = "MISS";
+}
+
+sub vcl_deliver {
+		set resp.http.X-Cache = req.http.X-Cache;
+}

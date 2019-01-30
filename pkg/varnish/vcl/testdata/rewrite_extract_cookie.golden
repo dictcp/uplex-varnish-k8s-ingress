@@ -1,0 +1,17 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_rewrite_0 = re2.set();
+	vk8s_rewrite_0.add("\bmysession\s*=\s*([^,;[:space:]]+)", string="\1", save=true);
+	vk8s_rewrite_0.compile();
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_0.match(req.http.Cookie)) {
+		set req.http.Session-Token =
+			vk8s_rewrite_0.extract(req.http.Cookie,
+		                                      vk8s_rewrite_0.string());
+	}
+}

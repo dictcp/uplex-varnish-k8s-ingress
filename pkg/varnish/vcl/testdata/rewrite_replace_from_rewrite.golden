@@ -1,0 +1,15 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_rewrite_0 = selector.set();
+	vk8s_rewrite_0.add("cafe.example.com", string="my-cafe.com");
+	vk8s_rewrite_0.add("another.example.com", string="my-example.com");
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_0.match(req.http.Host)) {
+		set req.http.Host = vk8s_rewrite_0.string();
+	}
+}

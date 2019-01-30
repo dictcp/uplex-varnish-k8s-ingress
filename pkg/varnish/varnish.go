@@ -307,6 +307,7 @@ func (vc *VarnishController) updateVarnishSvc(name string) error {
 	cfgName := svc.spec.configName()
 
 	vc.log.Infof("Update Varnish instances: load config %s", cfgName)
+	vc.log.Tracef("Config %s source: %s", cfgName, vclSrc)
 	var errs VarnishAdmErrors
 	for _, inst := range svc.instances {
 		if inst == nil {

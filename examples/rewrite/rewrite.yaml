@@ -1,0 +1,157 @@
+# Sample configuration for header & URL path rewrites
+
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: VarnishConfig
+metadata:
+  name: rewrite-cfg
+spec:
+  # The services array is required and must have at least one element.
+  # Lists the Service names of Varnish services in the same namespace
+  # to which this config is to be applied.
+  services:
+    - varnish-ingress
+
+  rewrites:
+    - target: req.url
+      compare: match
+      method: sub
+      rules:
+        - value: /espresso(/|$)
+          rewrite: /coffee\1
+        - value: /capuccino(/|$)
+          rewrite: /coffee\1
+        - value: /latte(/|$)
+          rewrite: /coffee\1
+        - value: /macchiato(/|$)
+          rewrite: /coffee\1
+        - value: /ristretto(/|$)
+          rewrite: /coffee\1
+        - value: /americano(/|$)
+          rewrite: /coffee\1
+      match-flags:
+        anchor: start
+
+    - target: req.url
+      compare: prefix
+      rules:
+        - value: /camomille
+          rewrite: /tea
+        - value: /earl-grey
+          rewrite: /tea
+        - value: /chai
+          rewrite: /tea
+        - value: /green
+          rewrite: /tea
+        - value: /hibiscus
+          rewrite: /tea
+        - value: /oolong
+          rewrite: /tea
+      method: sub
+
+    - target: req.http.Host
+      compare: equal
+      rules:
+        - value: my-cafe.com
+          rewrite: cafe.example.com
+        - value: my-example.com
+          rewrite: cafe.example.com
+        - value: ingress.example.com
+          rewrite: cafe.example.com
+        - value: varnish.example.com
+          rewrite: cafe.example.com
+        - value: atomic-cafe.com
+          rewrite: cafe.example.com
+      method: replace
+
+    - target: resp.http.Session-Token
+      source: req.http.Cookie
+      rules:
+        - value: \bmysession\s*=\s*([^,;[:space:]]+)
+          rewrite: \1
+      method: rewrite
+
+    - target: req.http.X-Cache
+      vcl-sub: hit
+      rules:
+        - rewrite: HIT
+      method: replace
+
+    - target: req.http.X-Cache
+      vcl-sub: miss
+      rules:
+        - rewrite: MISS
+      method: replace
+
+    - target: req.http.X-Cache
+      vcl-sub: pass
+      rules:
+        - rewrite: PASS
+      method: replace
+
+    - target: resp.http.X-Cache
+      source: req.http.X-Cache
+      method: replace
+
+    - target: bereq.url
+      rules:
+        - value: /coffee/([^/]+)/([^/]+)(.*)
+          rewrite: /coffee/\2/\1\3
+      method: rewrite
+
+    - target: resp.http.Replace-Hdr-Target
+      source: req.http.Replace-Hdr-Src
+      method: replace
+
+    - target: resp.http.Replace-String-Target
+      rules:
+        - rewrite: ReplaceString
+      method: replace
+
+    - target: resp.http.Server
+      method: delete
+
+    - target: resp.http.Via
+      method: delete
+      source: req.http.Delete-Via
+      compare: equal
+      rules:
+        - value: "true"
+        - value: "yes"
+        - value: "on"
+        - value: "1"
+      match-flags:
+        case-sensitive: false
+
+    - target: resp.http.Append-String-Target
+      source: req.http.Append-String-Src
+      rules:
+        - rewrite: AppendString
+      method: append
+
+    - target: resp.http.Append-Rule-Target
+      source: req.http.Append-Rule-Src
+      rules:
+        - value: .
+          rewrite: AppendString
+      method: append
+
+    - target: req.http.Append-Hdr-Target
+      source: req.http.Append-Hdr-Src
+      method: append
+
+    - target: resp.http.Prepend-String-Target
+      source: req.http.Prepend-String-Src
+      rules:
+        - rewrite: PrependString
+      method: prepend
+
+    - target: resp.http.Prepend-Rule-Target
+      source: req.http.Prepend-Rule-Src
+      rules:
+        - value: .
+          rewrite: PrependString
+      method: prepend
+
+    - target: req.http.Prepend-Hdr-Target
+      source: req.http.Prepend-Hdr-Src
+      method: prepend

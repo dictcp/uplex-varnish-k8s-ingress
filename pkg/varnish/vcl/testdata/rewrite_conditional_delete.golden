@@ -1,0 +1,17 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_rewrite_0 = selector.set(case_sensitive=false);
+	vk8s_rewrite_0.add("true", string="");
+	vk8s_rewrite_0.add("yes", string="");
+	vk8s_rewrite_0.add("on", string="");
+	vk8s_rewrite_0.add("1", string="");
+}
+
+sub vcl_deliver {
+	if (vk8s_rewrite_0.match(req.http.Delete-Via)) {
+		unset resp.http.Via;
+	}
+}

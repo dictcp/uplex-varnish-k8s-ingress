@@ -154,6 +154,92 @@ spec:
             vcl:
               type: string
               minLength: 1
+            rewrites:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                required:
+                  - target
+                  - method
+                properties:
+                  target:
+                    type: string
+                    pattern: "^(be)?(req\\.url|re(q|sp)\\.http\\.[a-zA-Z0-9!#$%&'*+.^_`|~-]+)$"
+                  source:
+                    type: string
+                    pattern: "^(be)?(req\\.url|re(q|sp)\\.http\\.[a-zA-Z0-9!#$%&'*+.^_`|~-]+)$"
+                  method:
+                    type: string
+                    enum:
+                      - replace
+                      - sub
+                      - suball
+                      - rewrite
+                      - append
+                      - prepend
+                      - delete
+                  compare:
+                    type: string
+                    enum:
+                      - match
+                      - equal
+                      - prefix
+                  vcl-sub:
+                    type: string
+                    enum:
+                      - recv
+                      - pipe
+                      - pass
+                      - hash
+                      - purge
+                      - miss
+                      - hit
+                      - deliver
+                      - synth
+                      - backend_fetch
+                      - backend_response
+                      - backend_error
+                  rules:
+                    type: array
+                    minItems: 1
+                    items:
+                      type: object
+                      properties:
+                        rewrite:
+                          type: string
+                          minLength: 1
+                        value:
+                          type: string
+                          minLength: 1
+                  match-flags:
+                    type: object
+                    properties:
+                      max-mem:
+                        type: integer
+                        min: 0
+                      anchor:
+                        type: string
+                        enum:
+                          - none
+                          - start
+                          - both
+                      utf8:
+                        type: boolean
+                      posix-syntax:
+                        type: boolean
+                      longest-match:
+                        type: boolean
+                      literal:
+                        type: boolean
+                      never-capture:
+                        type: boolean
+                      case-sensitive:
+                        type: boolean
+                      perl-classes:
+                        type: boolean
+                      word-boundary:
+                        type: boolean
 status:
   acceptedNames:
     kind: VarnishConfig

@@ -1,0 +1,45 @@
+
+import re2;
+import selector;
+
+{{range $i, $r := .Rewrites -}}
+{{if needsMatcher $r -}}
+sub vcl_init {
+	new {{rewrName $i}} = {{rewrVMOD $r}}.set({{rewrFlags $r}});
+	{{- range $rule := $r.Rules}}
+	{{rewrName $i}}.add("{{$rule.Value}}", string="{{$rule.Rewrite}}"
+		{{- if needsSave $r}}, save=true{{end -}}
+		{{- if needsRegex $r}}, regex="{{saveRegex $r $rule}}"{{end -}}
+		{{- if needsNeverCapture $r}}, never_capture=true{{end -}}
+		);
+        {{- end}}
+        {{- if needsCompile $r}}
+	{{rewrName $i}}.compile();
+	{{- end}}
+}
+{{- end}}
+
+sub vcl_{{rewrSub $r}} {
+	{{- if needsMatcher $r}}
+	if ({{rewrName $i}}.{{rewrMatch $r}}({{$r.Source}})) {
+        {{- end}}
+	{{- if rewrMethodDelete $r}}
+		unset {{$r.Target}};
+	{{- else if rewrMethodAppend $r}}
+		set {{$r.Target}} = {{rewrOperand1 $r}} + {{rewrOperand2 $r $i}};
+	{{- else if rewrMethodPrepend $r}}
+		set {{$r.Target}} = {{rewrOperand2 $r $i}} + {{rewrOperand1 $r}};
+	{{- else if rewrMethodReplace $r}}
+		set {{$r.Target}} = {{rewrOperand2 $r $i}};
+	{{- else}}
+		set {{$r.Target}} =
+			{{rewrName $i}}.{{rewrOp $r}}({{$r.Source}},
+		                                      {{rewrName $i}}.string()
+		                         {{- if needsAll $r}}, all=true{{end -}}
+			);
+	{{- end}}
+	{{- if needsMatcher $r}}
+	}
+	{{- end}}
+}
+{{- end}}

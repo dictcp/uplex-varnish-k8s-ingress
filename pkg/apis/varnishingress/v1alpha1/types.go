@@ -54,6 +54,7 @@ type VarnishConfigSpec struct {
 	VCL          string         `json:"vcl,omitempty"`
 	Auth         []AuthSpec     `json:"auth,omitempty"`
 	ACLs         []ACLSpec      `json:"acl,omitempty"`
+	Rewrites     []RewriteSpec  `json:"rewrites,omitempty"`
 }
 
 // SelfShardSpec specifies self-sharding in a Varnish cluster.
@@ -156,6 +157,79 @@ const (
 	// NotMatch means compare with !~.
 	NotMatch = "not-match"
 )
+
+type RewriteRule struct {
+	Value   string `json:"value,omitempty"`
+	Rewrite string `json:"rewrite,omitempty"`
+}
+
+type AnchorType string
+
+const (
+	None  AnchorType = "none"
+	Start            = "start"
+	Both             = "both"
+)
+
+type MatchFlagsType struct {
+	MaxMem        *uint64    `json:"max-mem,omitempty"`
+	Anchor        AnchorType `json:"anchor,omitempty"`
+	CaseSensitive *bool      `json:"case-sensitive,omitempty"`
+	UTF8          bool       `json:"utf8,omitempty"`
+	PosixSyntax   bool       `json:"posix-syntax,omitempty"`
+	LongestMatch  bool       `json:"longest-match,omitempty"`
+	Literal       bool       `json:"literal,omitempty"`
+	NeverCapture  bool       `json:"never-capture,omitempty"`
+	PerlClasses   bool       `json:"perl-classes,omitempty"`
+	WordBoundary  bool       `json:"word-boundary,omitempty"`
+}
+
+type MethodType string
+
+const (
+	Replace MethodType = "replace"
+	Sub                = "sub"
+	Suball             = "suball"
+	Rewrite            = "rewrite"
+	Append             = "append"
+	Prepend            = "prepend"
+	Delete             = "delete"
+)
+
+type RewriteCompare string
+
+const (
+	RewriteMatch RewriteCompare = "match"
+	RewriteEqual                = "equal"
+	Prefix                      = "prefix"
+)
+
+type VCLSubType string
+
+const (
+	Recv            VCLSubType = "recv"
+	Pipe                       = "pipe"
+	Pass                       = "pass"
+	Hash                       = "hash"
+	Purge                      = "purge"
+	Miss                       = "miss"
+	Hit                        = "hit"
+	Deliver                    = "deliver"
+	Synth                      = "synth"
+	BackendFetch               = "backend_fetch"
+	BackendResponse            = "backend_response"
+	BackendError               = "backend_error"
+)
+
+type RewriteSpec struct {
+	Rules      []RewriteRule   `json:"rules,omitempty"`
+	MatchFlags *MatchFlagsType `json:"match-flags,omitempty"`
+	Target     string          `json:"target,omitempty"`
+	Source     string          `json:"source,omitempty"`
+	Method     MethodType      `json:"method,omitempty"`
+	Compare    RewriteCompare  `json:"compare,omitempty"`
+	VCLSub     VCLSubType      `json:"vcl-sub,omitempty"`
+}
 
 // VarnishConfigStatus is the status for a VarnishConfig resource
 // type VarnishConfigStatus struct {

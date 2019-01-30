@@ -1,0 +1,9 @@
+
+import re2;
+import selector;
+
+
+
+sub vcl_deliver {
+		set resp.http.X-Foo = req.http.X-Foo;
+}

@@ -1,0 +1,9 @@
+
+import re2;
+import selector;
+
+
+
+sub vcl_miss {
+		unset req.http.X-Quux;
+}

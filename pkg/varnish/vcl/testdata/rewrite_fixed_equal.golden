@@ -1,0 +1,17 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_rewrite_0 = selector.set();
+	vk8s_rewrite_0.add("/foo/", string="/bar/", regex="^\Q/foo/\E$");
+	vk8s_rewrite_0.add("/baz/", string="/quux/", regex="^\Q/baz/\E$");
+}
+
+sub vcl_backend_fetch {
+	if (vk8s_rewrite_0.match(bereq.url)) {
+		set bereq.url =
+			vk8s_rewrite_0.sub(bereq.url,
+		                                      vk8s_rewrite_0.string());
+	}
+}

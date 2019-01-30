@@ -30,6 +30,7 @@ package controller
 
 import (
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -97,6 +98,55 @@ func (worker *NamespaceWorker) enqueueIngsForVcfg(
 	return nil
 }
 
+// XXX a validating webhook should do this
+func validateRewrites(rewrites []vcr_v1alpha1.RewriteSpec) error {
+	for _, rw := range rewrites {
+		if rw.Source != "" && (strings.HasPrefix(rw.Target, "be") !=
+			strings.HasPrefix(rw.Source, "be")) {
+
+			return fmt.Errorf("target %s and source %s illegally "+
+				"mix client and backend contexts", rw.Target,
+				rw.Source)
+		}
+		if rw.Compare != vcr_v1alpha1.RewriteMatch &&
+			rw.MatchFlags != nil &&
+			((rw.MatchFlags.MaxMem != nil &&
+				*rw.MatchFlags.MaxMem != 0) ||
+				(rw.MatchFlags.Anchor != "" &&
+					rw.MatchFlags.Anchor != vcr_v1alpha1.None) ||
+				rw.MatchFlags.UTF8 ||
+				rw.MatchFlags.PosixSyntax ||
+				rw.MatchFlags.LongestMatch ||
+				rw.MatchFlags.Literal ||
+				rw.MatchFlags.NeverCapture ||
+				rw.MatchFlags.PerlClasses ||
+				rw.MatchFlags.WordBoundary) {
+
+			return fmt.Errorf("Only the case-sensitive match flag " +
+				"may be set for fixed-string matches")
+		}
+		// The same Value may not be added in more than one Rule.
+		// The Rewrite field is required, unless the method is Delete.
+		vals := make(map[string]struct{})
+		for _, rule := range rw.Rules {
+			if _, exists := vals[rule.Value]; exists {
+				return fmt.Errorf("Value \"%s\" appears in "+
+					"more than one rule", rule.Value)
+			}
+			vals[rule.Value] = struct{}{}
+
+			if rw.Method != vcr_v1alpha1.Delete &&
+				rule.Rewrite == "" {
+
+				return fmt.Errorf("Rewrite field may not be " +
+					"empty, unless the method is delete")
+			}
+		}
+		// XXX what else?
+	}
+	return nil
+}
+
 func (worker *NamespaceWorker) syncVcfg(key string) error {
 	worker.log.Infof("Syncing VarnishConfig: %s/%s", worker.namespace, key)
 	vcfg, err := worker.vcfg.Get(key)
@@ -121,6 +171,9 @@ func (worker *NamespaceWorker) syncVcfg(key string) error {
 				"sharding spec: %v", vcfg.Namespace, vcfg.Name,
 				err)
 		}
+	}
+	if err = validateRewrites(vcfg.Spec.Rewrites); err != nil {
+		return err
 	}
 
 	return worker.enqueueIngsForVcfg(vcfg)

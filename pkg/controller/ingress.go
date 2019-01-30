@@ -450,6 +450,146 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 	return nil
 }
 
+func (worker *NamespaceWorker) configRewrites(spec *vcl.Spec,
+	vcfg *vcr_v1alpha1.VarnishConfig) error {
+
+	if len(vcfg.Spec.Rewrites) == 0 {
+		worker.log.Infof("No rewrite spec found for VarnishConfig "+
+			"%s/%s", vcfg.Namespace, vcfg.Name)
+		return nil
+	}
+	spec.Rewrites = make([]vcl.Rewrite, len(vcfg.Spec.Rewrites))
+	for i, rw := range vcfg.Spec.Rewrites {
+		worker.log.Infof("VarnishConfig %s/%s: configuring rewrite "+
+			"for target %s", vcfg.Namespace, vcfg.Name, rw.Target)
+		worker.log.Debugf("Rewrite: %v", rw)
+		vclRw := vcl.Rewrite{
+			Target: rw.Target,
+			Rules:  make([]vcl.RewriteRule, len(rw.Rules)),
+		}
+		for j := range rw.Rules {
+			vclRw.Rules[j] = vcl.RewriteRule{
+				Value:   rw.Rules[j].Value,
+				Rewrite: rw.Rules[j].Rewrite,
+			}
+		}
+		if rw.Source == "" {
+			// XXX
+			// The Source is the same as the Target if:
+			// - Method is one of sub, suball or rewrite,
+			// - or Method is one of replace, append or
+			//   prepend, and there are either no rules
+			//   or more than one rule.
+			if rw.Method == vcr_v1alpha1.Sub ||
+				rw.Method == vcr_v1alpha1.Suball ||
+				rw.Method == vcr_v1alpha1.Rewrite ||
+				((rw.Method == vcr_v1alpha1.Replace ||
+					rw.Method == vcr_v1alpha1.Append ||
+					rw.Method == vcr_v1alpha1.Prepend) &&
+					len(rw.Rules) != 1) {
+
+				vclRw.Source = rw.Target
+			}
+		} else {
+			vclRw.Source = rw.Source
+		}
+
+		switch rw.Method {
+		case vcr_v1alpha1.Replace:
+			vclRw.Method = vcl.Replace
+		case vcr_v1alpha1.Sub:
+			vclRw.Method = vcl.Sub
+		case vcr_v1alpha1.Suball:
+			vclRw.Method = vcl.Suball
+		case vcr_v1alpha1.Rewrite:
+			vclRw.Method = vcl.RewriteMethod
+		case vcr_v1alpha1.Append:
+			vclRw.Method = vcl.Append
+		case vcr_v1alpha1.Prepend:
+			vclRw.Method = vcl.Prepend
+		case vcr_v1alpha1.Delete:
+			vclRw.Method = vcl.Delete
+		default:
+			return fmt.Errorf("Illegal method %s", rw.Method)
+		}
+
+		switch rw.Compare {
+		case vcr_v1alpha1.RewriteMatch:
+			vclRw.Compare = vcl.RewriteMatch
+		case vcr_v1alpha1.RewriteEqual:
+			vclRw.Compare = vcl.RewriteEqual
+		case vcr_v1alpha1.Prefix:
+			vclRw.Compare = vcl.Prefix
+		default:
+			vclRw.Compare = vcl.RewriteMatch
+		}
+
+		switch rw.VCLSub {
+		case vcr_v1alpha1.Recv:
+			vclRw.VCLSub = vcl.Recv
+		case vcr_v1alpha1.Pipe:
+			vclRw.VCLSub = vcl.Pipe
+		case vcr_v1alpha1.Pass:
+			vclRw.VCLSub = vcl.Pass
+		case vcr_v1alpha1.Hash:
+			vclRw.VCLSub = vcl.Hash
+		case vcr_v1alpha1.Purge:
+			vclRw.VCLSub = vcl.Purge
+		case vcr_v1alpha1.Miss:
+			vclRw.VCLSub = vcl.Miss
+		case vcr_v1alpha1.Hit:
+			vclRw.VCLSub = vcl.Hit
+		case vcr_v1alpha1.Deliver:
+			vclRw.VCLSub = vcl.Deliver
+		case vcr_v1alpha1.Synth:
+			vclRw.VCLSub = vcl.Synth
+		case vcr_v1alpha1.BackendFetch:
+			vclRw.VCLSub = vcl.BackendFetch
+		case vcr_v1alpha1.BackendResponse:
+			vclRw.VCLSub = vcl.BackendResponse
+		case vcr_v1alpha1.BackendError:
+			vclRw.VCLSub = vcl.BackendError
+		default:
+			vclRw.VCLSub = vcl.Unspecified
+		}
+
+		if rw.MatchFlags != nil {
+			vclRw.MatchFlags = vcl.MatchFlagsType{
+				UTF8:         rw.MatchFlags.UTF8,
+				PosixSyntax:  rw.MatchFlags.PosixSyntax,
+				LongestMatch: rw.MatchFlags.LongestMatch,
+				Literal:      rw.MatchFlags.Literal,
+				NeverCapture: rw.MatchFlags.NeverCapture,
+				PerlClasses:  rw.MatchFlags.PerlClasses,
+				WordBoundary: rw.MatchFlags.WordBoundary,
+			}
+			if rw.MatchFlags.MaxMem != nil &&
+				*rw.MatchFlags.MaxMem != 0 {
+
+				vclRw.MatchFlags.MaxMem = *rw.MatchFlags.MaxMem
+			}
+			if rw.MatchFlags.CaseSensitive == nil {
+				vclRw.MatchFlags.CaseSensitive = true
+			} else {
+				vclRw.MatchFlags.CaseSensitive =
+					*rw.MatchFlags.CaseSensitive
+			}
+			switch rw.MatchFlags.Anchor {
+			case vcr_v1alpha1.None:
+				vclRw.MatchFlags.Anchor = vcl.None
+			case vcr_v1alpha1.Start:
+				vclRw.MatchFlags.Anchor = vcl.Start
+			case vcr_v1alpha1.Both:
+				vclRw.MatchFlags.Anchor = vcl.Both
+			default:
+				vclRw.MatchFlags.Anchor = vcl.None
+			}
+		}
+		spec.Rewrites[i] = vclRw
+	}
+	return nil
+}
+
 func (worker *NamespaceWorker) hasIngress(svc *api_v1.Service,
 	ing *extensions.Ingress, spec vcl.Spec) bool {
 
@@ -509,6 +649,9 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 			return err
 		}
 		if err = worker.configACL(&vclSpec, vcfg); err != nil {
+			return err
+		}
+		if err = worker.configRewrites(&vclSpec, vcfg); err != nil {
 			return err
 		}
 		vclSpec.VCL = vcfg.Spec.VCL
