@@ -12,6 +12,6 @@ sub vcl_backend_fetch {
 	if (vk8s_rewrite_0.match(bereq.url)) {
 		set bereq.url =
 			vk8s_rewrite_0.sub(bereq.url,
-		                                      vk8s_rewrite_0.string());
+		                       vk8s_rewrite_0.string());
 	}
 }

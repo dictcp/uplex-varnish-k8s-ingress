@@ -54,6 +54,7 @@ var fMap = template.FuncMap{
 	"rewrSub":      func(rewr Rewrite) string { return rewrSub(rewr) },
 	"rewrMatch":    func(rewr Rewrite) string { return rewrMatch(rewr) },
 	"rewrOp":       func(rewr Rewrite) string { return rewrOp(rewr) },
+	"rewrSelect":   func(rewr Rewrite) string { return rewrSelect(rewr) },
 	"aclCmp": func(comparand string) string {
 		return aclCmp(comparand)
 	},
@@ -113,6 +114,22 @@ var fMap = template.FuncMap{
 	},
 	"rewrOperand2": func(rewr Rewrite, i int) string {
 		return rewrOperand2(rewr, i)
+	},
+	"needsUniqueCheck": func(rewr Rewrite) bool {
+		if rewr.Compare == RewriteEqual || rewr.Select != Unique {
+			return false
+		}
+		switch rewr.Method {
+		case Delete:
+			return false
+		case Sub, Suball, RewriteMethod:
+			return true
+		default:
+			return len(rewr.Rules) > 0 && rewr.Rules[0].Value != ""
+		}
+	},
+	"needsSelectEnum": func(rewr Rewrite) bool {
+		return rewr.Select != Unique
 	},
 }
 
@@ -437,6 +454,13 @@ func rewrSub(rewr Rewrite) string {
 	}
 }
 
+func rewrSelect(rewr Rewrite) string {
+	if rewr.Select == Unique {
+		return ""
+	}
+	return "select=" + rewr.Select.String()
+}
+
 func rewrOperand1(rewr Rewrite) string {
 	if len(rewr.Rules) == 0 {
 		return rewr.Target
@@ -449,7 +473,7 @@ func rewrOperand2(rewr Rewrite, i int) string {
 		return `"` + rewr.Rules[0].Rewrite + `"`
 	}
 	if len(rewr.Rules) > 0 && rewr.Rules[0].Value != "" {
-		return rewrName(i) + ".string()"
+		return rewrName(i) + ".string(" + rewrSelect(rewr) + ")"
 	}
 	return rewr.Source
 }

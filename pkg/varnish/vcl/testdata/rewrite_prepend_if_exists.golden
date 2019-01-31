@@ -10,6 +10,11 @@ sub vcl_init {
 
 sub vcl_deliver {
 	if (vk8s_rewrite_0.match(req.http.X-Bazz)) {
+		if (vk8s_rewrite_0.nmatches() != 1) {
+			std.log(req.http.X-Bazz + " had " +
+				vk8s_rewrite_0.nmatches() + " matches");
+			return(fail);
+		}
 		set resp.http.X-Bazz = vk8s_rewrite_0.string() + req.http.X-Bazz;
 	}
 }

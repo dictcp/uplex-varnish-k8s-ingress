@@ -1,0 +1,17 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_rewrite_0 = selector.set();
+	vk8s_rewrite_0.add("/tea/foo/bar/baz/quux", string="Quux");
+	vk8s_rewrite_0.add("/tea/foo/bar/baz", string="Baz");
+	vk8s_rewrite_0.add("/tea/foo/bar", string="Bar");
+	vk8s_rewrite_0.add("/tea/foo", string="Foo");
+}
+
+sub vcl_backend_fetch {
+	if (vk8s_rewrite_0.hasprefix(bereq.url)) {
+		set bereq.http.Hdr = vk8s_rewrite_0.string(select=FIRST);
+	}
+}

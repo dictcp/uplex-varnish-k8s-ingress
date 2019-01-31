@@ -221,6 +221,17 @@ const (
 	BackendError               = "backend_error"
 )
 
+type SelectType string
+
+const (
+	Unique   SelectType = "unique"
+	First               = "first"
+	Last                = "last"
+	Exact               = "exact"
+	Longest             = "longest"
+	Shortest            = "shortest"
+)
+
 type RewriteSpec struct {
 	Rules      []RewriteRule   `json:"rules,omitempty"`
 	MatchFlags *MatchFlagsType `json:"match-flags,omitempty"`
@@ -229,6 +240,7 @@ type RewriteSpec struct {
 	Method     MethodType      `json:"method,omitempty"`
 	Compare    RewriteCompare  `json:"compare,omitempty"`
 	VCLSub     VCLSubType      `json:"vcl-sub,omitempty"`
+	Select     SelectType      `json:"select,omitempty"`
 }
 
 // VarnishConfigStatus is the status for a VarnishConfig resource

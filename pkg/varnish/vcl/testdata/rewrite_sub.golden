@@ -11,8 +11,13 @@ sub vcl_init {
 
 sub vcl_recv {
 	if (vk8s_rewrite_0.match(req.url)) {
+		if (vk8s_rewrite_0.nmatches() != 1) {
+			std.log(req.url + " had " +
+				vk8s_rewrite_0.nmatches() + " matches");
+			return(fail);
+		}
 		set req.url =
 			vk8s_rewrite_0.sub(req.url,
-		                                      vk8s_rewrite_0.string());
+		                       vk8s_rewrite_0.string());
 	}
 }

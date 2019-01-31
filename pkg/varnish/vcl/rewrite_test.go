@@ -493,6 +493,206 @@ func TestRewritePrependHdr(t *testing.T) {
 	testTemplate(t, rewritePrependHdr, gold)
 }
 
+var rewriteSelectFirst = Spec{
+	Rewrites: []Rewrite{{
+		Target:  "bereq.http.Hdr",
+		Source:  "bereq.url",
+		Compare: Prefix,
+		Select:  First,
+		Rules: []RewriteRule{
+			{
+				Value:   `/tea/foo/bar/baz/quux`,
+				Rewrite: `Quux`,
+			},
+			{
+				Value:   `/tea/foo/bar/baz`,
+				Rewrite: `Baz`,
+			},
+			{
+				Value:   `/tea/foo/bar`,
+				Rewrite: `Bar`,
+			},
+			{
+				Value:   `/tea/foo`,
+				Rewrite: `Foo`,
+			},
+		},
+		MatchFlags: MatchFlagsType{
+			CaseSensitive: true,
+		},
+	}},
+}
+
+func TestRewriteSelectFirst(t *testing.T) {
+	gold := "rewrite_select_first.golden"
+	testTemplate(t, rewriteSelectFirst, gold)
+}
+
+var rewriteSelectPermutations = Spec{
+	Rewrites: []Rewrite{
+		{
+			Target:  "req.url",
+			Source:  "req.url",
+			Compare: Prefix,
+			Select:  Unique,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `bar`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target:  "req.url",
+			Source:  "req.url",
+			Compare: Prefix,
+			Select:  First,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `bar`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target:  "req.url",
+			Source:  "req.url",
+			Compare: Prefix,
+			Select:  Last,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `bar`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target:  "req.url",
+			Source:  "req.url",
+			Compare: Prefix,
+			Select:  Exact,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `bar`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target:  "req.url",
+			Source:  "req.url",
+			Compare: Prefix,
+			Select:  Shortest,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `bar`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target:  "req.url",
+			Source:  "req.url",
+			Compare: Prefix,
+			Select:  Longest,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `bar`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+	},
+}
+
+func TestRewriteSelectPermutations(t *testing.T) {
+	gold := "rewrite_select_permute.golden"
+	testTemplate(t, rewriteSelectPermutations, gold)
+}
+
+var rewriteSelectOperations = Spec{
+	Rewrites: []Rewrite{
+		{
+			Target:  "resp.http.Hdr",
+			Source:  "req.url",
+			Compare: Prefix,
+			Select:  First,
+			Method:  Sub,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `foo`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target:  "resp.http.Hdr",
+			Source:  "req.url",
+			Compare: Prefix,
+			Select:  Exact,
+			Method:  Suball,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `foo`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target: "resp.http.Hdr",
+			Source: "req.url",
+			Select: First,
+			Method: Sub,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `foo`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target: "resp.http.Hdr",
+			Source: "req.url",
+			Select: Last,
+			Method: Suball,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `foo`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+		{
+			Target: "resp.http.Hdr",
+			Source: "req.url",
+			Select: First,
+			Method: RewriteMethod,
+			Rules: []RewriteRule{{
+				Value:   `/foo`,
+				Rewrite: `foo`,
+			}},
+			MatchFlags: MatchFlagsType{
+				CaseSensitive: true,
+			},
+		},
+	},
+}
+
+func TestRewriteSelectOperations(t *testing.T) {
+	gold := "rewrite_select_ops.golden"
+	testTemplate(t, rewriteSelectOperations, gold)
+}
+
 // Code boilerplate for writing the golden file.
 // import ioutils
 // func TestRewriteXXX(t *testing.T) {

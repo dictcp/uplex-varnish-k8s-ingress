@@ -10,8 +10,13 @@ sub vcl_init {
 
 sub vcl_recv {
 	if (vk8s_rewrite_0.match(req.http.Cookie)) {
+		if (vk8s_rewrite_0.nmatches() != 1) {
+			std.log(req.http.Cookie + " had " +
+				vk8s_rewrite_0.nmatches() + " matches");
+			return(fail);
+		}
 		set req.http.Session-Token =
 			vk8s_rewrite_0.extract(req.http.Cookie,
-		                                      vk8s_rewrite_0.string());
+		                       vk8s_rewrite_0.string());
 	}
 }

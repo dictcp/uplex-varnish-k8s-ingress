@@ -155,3 +155,49 @@ spec:
     - target: req.http.Prepend-Hdr-Target
       source: req.http.Prepend-Hdr-Src
       method: prepend
+
+    - target: resp.http.Select-First
+      source: req.url
+      rules:
+        - value: /tea/foo/bar/baz/quux
+          rewrite: Quux
+        - value: /tea/foo/bar/baz
+          rewrite: Baz
+        - value: /tea/foo/bar
+          rewrite: Bar
+        - value: /tea/foo
+          rewrite: Foo
+      compare: prefix
+      method: replace
+      select: first
+
+    - target: resp.http.Select-Longest
+      source: req.url
+      rules:
+        - value: /tea/foo
+          rewrite: Foo
+        - value: /tea/foo/bar/baz
+          rewrite: Baz
+        - value: /tea/foo/bar
+          rewrite: Bar
+        - value: /tea/foo/bar/baz/quux
+          rewrite: Quux
+      compare: prefix
+      method: replace
+      select: longest
+
+    - target: resp.http.Cookie-Select
+      source: req.http.Cookie
+      rules:
+        - value: \bcookie1\s*=\s*([^,;[:space:]]+)
+          rewrite: cookie1:\1
+        - value: \bcookie2\s*=\s*([^,;[:space:]]+)
+          rewrite: cookie2:\1
+        - value: \bcookie3\s*=\s*([^,;[:space:]]+)
+          rewrite: cookie3:\1
+        - value: \bcookie4\s*=\s*([^,;[:space:]]+)
+          rewrite: cookie4:\1
+        - value: \bcookie5\s*=\s*([^,;[:space:]]+)
+          rewrite: cookie5:\1
+      method: rewrite
+      select: last

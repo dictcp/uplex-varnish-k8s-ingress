@@ -1,0 +1,64 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_rewrite_0 = selector.set();
+	vk8s_rewrite_0.add("/foo", string="bar");
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_0.hasprefix(req.url)) {
+		if (vk8s_rewrite_0.nmatches() != 1) {
+			std.log(req.url + " had " +
+				vk8s_rewrite_0.nmatches() + " matches");
+			return(fail);
+		}
+		set req.url = vk8s_rewrite_0.string();
+	}
+}sub vcl_init {
+	new vk8s_rewrite_1 = selector.set();
+	vk8s_rewrite_1.add("/foo", string="bar");
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_1.hasprefix(req.url)) {
+		set req.url = vk8s_rewrite_1.string(select=FIRST);
+	}
+}sub vcl_init {
+	new vk8s_rewrite_2 = selector.set();
+	vk8s_rewrite_2.add("/foo", string="bar");
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_2.hasprefix(req.url)) {
+		set req.url = vk8s_rewrite_2.string(select=LAST);
+	}
+}sub vcl_init {
+	new vk8s_rewrite_3 = selector.set();
+	vk8s_rewrite_3.add("/foo", string="bar");
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_3.hasprefix(req.url)) {
+		set req.url = vk8s_rewrite_3.string(select=EXACT);
+	}
+}sub vcl_init {
+	new vk8s_rewrite_4 = selector.set();
+	vk8s_rewrite_4.add("/foo", string="bar");
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_4.hasprefix(req.url)) {
+		set req.url = vk8s_rewrite_4.string(select=SHORTEST);
+	}
+}sub vcl_init {
+	new vk8s_rewrite_5 = selector.set();
+	vk8s_rewrite_5.add("/foo", string="bar");
+}
+
+sub vcl_recv {
+	if (vk8s_rewrite_5.hasprefix(req.url)) {
+		set req.url = vk8s_rewrite_5.string(select=LONGEST);
+	}
+}

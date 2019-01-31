@@ -108,6 +108,14 @@ func validateRewrites(rewrites []vcr_v1alpha1.RewriteSpec) error {
 				"mix client and backend contexts", rw.Target,
 				rw.Source)
 		}
+		if rw.Compare != vcr_v1alpha1.Prefix &&
+			(rw.Select == vcr_v1alpha1.Exact ||
+				rw.Select == vcr_v1alpha1.Longest ||
+				rw.Select == vcr_v1alpha1.Shortest) {
+
+			return fmt.Errorf("select value %s not permitted with "+
+				"compare value %s", rw.Select, rw.Compare)
+		}
 		if rw.Compare != vcr_v1alpha1.RewriteMatch &&
 			rw.MatchFlags != nil &&
 			((rw.MatchFlags.MaxMem != nil &&

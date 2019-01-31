@@ -1,0 +1,63 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_rewrite_0 = selector.set();
+	vk8s_rewrite_0.add("/foo", string="foo", regex="^\Q/foo\E");
+}
+
+sub vcl_deliver {
+	if (vk8s_rewrite_0.hasprefix(req.url)) {
+		set resp.http.Hdr =
+			vk8s_rewrite_0.sub(req.url,
+		                       vk8s_rewrite_0.string(select=FIRST), select=FIRST);
+	}
+}sub vcl_init {
+	new vk8s_rewrite_1 = selector.set();
+	vk8s_rewrite_1.add("/foo", string="foo", regex="^\Q/foo\E");
+}
+
+sub vcl_deliver {
+	if (vk8s_rewrite_1.hasprefix(req.url)) {
+		set resp.http.Hdr =
+			vk8s_rewrite_1.sub(req.url,
+		                       vk8s_rewrite_1.string(select=EXACT), all=true, select=EXACT);
+	}
+}sub vcl_init {
+	new vk8s_rewrite_2 = re2.set();
+	vk8s_rewrite_2.add("/foo", string="foo", save=true);
+	vk8s_rewrite_2.compile();
+}
+
+sub vcl_deliver {
+	if (vk8s_rewrite_2.match(req.url)) {
+		set resp.http.Hdr =
+			vk8s_rewrite_2.sub(req.url,
+		                       vk8s_rewrite_2.string(select=FIRST), select=FIRST);
+	}
+}sub vcl_init {
+	new vk8s_rewrite_3 = re2.set();
+	vk8s_rewrite_3.add("/foo", string="foo", save=true);
+	vk8s_rewrite_3.compile();
+}
+
+sub vcl_deliver {
+	if (vk8s_rewrite_3.match(req.url)) {
+		set resp.http.Hdr =
+			vk8s_rewrite_3.suball(req.url,
+		                       vk8s_rewrite_3.string(select=LAST), select=LAST);
+	}
+}sub vcl_init {
+	new vk8s_rewrite_4 = re2.set();
+	vk8s_rewrite_4.add("/foo", string="foo", save=true);
+	vk8s_rewrite_4.compile();
+}
+
+sub vcl_deliver {
+	if (vk8s_rewrite_4.match(req.url)) {
+		set resp.http.Hdr =
+			vk8s_rewrite_4.extract(req.url,
+		                       vk8s_rewrite_4.string(select=FIRST), select=FIRST);
+	}
+}

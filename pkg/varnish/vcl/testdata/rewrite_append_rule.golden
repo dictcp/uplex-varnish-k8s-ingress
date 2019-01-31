@@ -10,6 +10,11 @@ sub vcl_init {
 
 sub vcl_deliver {
 	if (vk8s_rewrite_0.match(req.http.Append-Rule-Src)) {
+		if (vk8s_rewrite_0.nmatches() != 1) {
+			std.log(req.http.Append-Rule-Src + " had " +
+				vk8s_rewrite_0.nmatches() + " matches");
+			return(fail);
+		}
 		set resp.http.Append-Rule-Target = req.http.Append-Rule-Src + vk8s_rewrite_0.string();
 	}
 }

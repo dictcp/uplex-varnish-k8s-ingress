@@ -22,6 +22,13 @@ sub vcl_init {
 sub vcl_{{rewrSub $r}} {
 	{{- if needsMatcher $r}}
 	if ({{rewrName $i}}.{{rewrMatch $r}}({{$r.Source}})) {
+		{{- if needsUniqueCheck $r}}
+		if ({{rewrName $i}}.nmatches() != 1) {
+			std.log({{$r.Source}} + " had " +
+				{{rewrName $i}}.nmatches() + " matches");
+			return(fail);
+		}
+		{{- end}}
         {{- end}}
 	{{- if rewrMethodDelete $r}}
 		unset {{$r.Target}};
@@ -34,8 +41,10 @@ sub vcl_{{rewrSub $r}} {
 	{{- else}}
 		set {{$r.Target}} =
 			{{rewrName $i}}.{{rewrOp $r}}({{$r.Source}},
-		                                      {{rewrName $i}}.string()
-		                         {{- if needsAll $r}}, all=true{{end -}}
+		                       {{rewrName $i}}.string({{rewrSelect $r}})
+		                       {{- if needsAll $r}}, all=true{{end -}}
+		                       {{- if needsSelectEnum $r -}}
+                                       , {{rewrSelect $r}}{{end -}}
 			);
 	{{- end}}
 	{{- if needsMatcher $r}}

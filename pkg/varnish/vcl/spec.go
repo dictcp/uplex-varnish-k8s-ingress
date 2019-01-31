@@ -491,6 +491,36 @@ func (flags MatchFlagsType) hash(hash hash.Hash) {
 	}
 }
 
+type SelectType uint8
+
+const (
+	Unique SelectType = iota
+	First
+	Last
+	Exact
+	Longest
+	Shortest
+)
+
+func (s SelectType) String() string {
+	switch s {
+	case Unique:
+		return "UNIQUE"
+	case First:
+		return "FIRST"
+	case Last:
+		return "LAST"
+	case Exact:
+		return "EXACT"
+	case Longest:
+		return "LONGEST"
+	case Shortest:
+		return "SHORTEST"
+	default:
+		return "__INVALID_SELECT__"
+	}
+}
+
 type Rewrite struct {
 	Rules      []RewriteRule
 	MatchFlags MatchFlagsType
@@ -499,6 +529,7 @@ type Rewrite struct {
 	Method     MethodType
 	Compare    RewriteCompare
 	VCLSub     VCLSubType
+	Select     SelectType
 }
 
 func (rw Rewrite) hash(hash hash.Hash) {
@@ -512,6 +543,7 @@ func (rw Rewrite) hash(hash hash.Hash) {
 	hash.Write([]byte{byte(rw.Method)})
 	hash.Write([]byte{byte(rw.Compare)})
 	hash.Write([]byte{byte(rw.VCLSub)})
+	hash.Write([]byte{byte(rw.Select)})
 }
 
 // interface for sorting []Rewrite

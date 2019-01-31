@@ -553,6 +553,23 @@ func (worker *NamespaceWorker) configRewrites(spec *vcl.Spec,
 			vclRw.VCLSub = vcl.Unspecified
 		}
 
+		switch rw.Select {
+		case vcr_v1alpha1.Unique:
+			vclRw.Select = vcl.Unique
+		case vcr_v1alpha1.First:
+			vclRw.Select = vcl.First
+		case vcr_v1alpha1.Last:
+			vclRw.Select = vcl.Last
+		case vcr_v1alpha1.Exact:
+			vclRw.Select = vcl.Exact
+		case vcr_v1alpha1.Longest:
+			vclRw.Select = vcl.Longest
+		case vcr_v1alpha1.Shortest:
+			vclRw.Select = vcl.Shortest
+		default:
+			vclRw.Select = vcl.Unique
+		}
+
 		if rw.MatchFlags != nil {
 			vclRw.MatchFlags = vcl.MatchFlagsType{
 				UTF8:         rw.MatchFlags.UTF8,

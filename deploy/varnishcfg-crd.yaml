@@ -179,6 +179,15 @@ spec:
                       - append
                       - prepend
                       - delete
+                  select:
+                    type: string
+                    enum:
+                      - unique
+                      - first
+                      - last
+                      - exact
+                      - longest
+                      - shortest
                   compare:
                     type: string
                     enum:
