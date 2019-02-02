@@ -101,6 +101,12 @@ func (worker *NamespaceWorker) enqueueIngsForVcfg(
 // XXX a validating webhook should do this
 func validateRewrites(rewrites []vcr_v1alpha1.RewriteSpec) error {
 	for _, rw := range rewrites {
+		if rw.Method == vcr_v1alpha1.Delete &&
+			strings.HasSuffix(rw.Target, ".url") {
+
+			return fmt.Errorf("target %s may not be deleted",
+				rw.Target)
+		}
 		if rw.Source != "" && (strings.HasPrefix(rw.Target, "be") !=
 			strings.HasPrefix(rw.Source, "be")) {
 
