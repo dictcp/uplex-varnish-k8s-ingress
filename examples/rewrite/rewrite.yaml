@@ -11,7 +11,39 @@ spec:
   services:
     - varnish-ingress
 
+  # rewrites is a non-empty array of rewrite specifications. Each
+  # element specifies a rewrite that is executed by the Varnish Service
+  # implementing Ingress.
+  #
+  # Each rewrite is executed in the VCL subroutine specified in the
+  # field vcl-sub; if vcl-sub is left out, the subroutine is inferred
+  # from the objects named in the target and source fields.
+  #
+  # If more than one rewrite is specified for the the same VCL subroutine,
+  # they are executed in the order in which they appear in this array.
   rewrites:
+
+    # Rewrite the URL path of the client request, so that other URL
+    # prefixes are used to route requests to the coffee-svc backend.
+    #
+    # When the source field is left out, it is implicitly equal to
+    # the target, so the rewrite is based on a match against the URL.
+    #
+    # compare:match specifies regex matching -- the source (implicitly
+    # req.url) is matched against the value fields in rules.
+    #
+    # method:sub specifies rewrite by substituting the first matching
+    # substring.
+    #
+    # anchor:start means that each regex is implicitly anchored at
+    # start-of-string, equivalent to prefixing each regex with ^.
+    #
+    # The vcl-sub field is left out, so this rewrite is executed in
+    # vcl_recv, since it applies only to req.url.
+    #
+    # When the URL matches a regex in one of the value fields of the
+    # rules, then substitute using the corresponding rewrite string,
+    # with \1 used to replace backreference 1.
     - target: req.url
       compare: match
       method: sub
@@ -31,6 +63,17 @@ spec:
       match-flags:
         anchor: start
 
+    # Similar to the previous rewrite, this one rewrites URL prefixes
+    # so that the requests are routed to the tea-svc backend.
+    #
+    # In this case, compare:prefix is used to indicate fixed prefix
+    # matching -- req.url matches if it has a prefix equal to one of
+    # the values in the rules. With prefix, matches are always fixed
+    # at start-of-string.
+    #
+    # This configuration is simpler than the one above. But note that
+    # it does not prevent rewrites for matches that do end in / or
+    # end-of-string; for example, /chain/link is rewritten as /tean/link.
     - target: req.url
       compare: prefix
       rules:
@@ -48,6 +91,20 @@ spec:
           rewrite: /tea
       method: sub
 
+    # Replace certain values of the client request header Host so that
+    # they may be routed by the Ingress (which specifies cafe.example.com).
+    #
+    # The source field is again left out, and is hence implicitly equal
+    # to the target -- the client request header Host is rewritten.
+    #
+    # Since vcl-sub is again left out, the rewrite is executed in vcl_recv,
+    # since it applies only to a client request header.
+    #
+    # compare:equal specifies fixed string equality -- a Host header matches
+    # if it is exactly equal to one of the values in the rules.
+    #
+    # method:replace means that the headers value is overwritten by the
+    # string in rewrite that corresponds to the match.
     - target: req.http.Host
       compare: equal
       rules:
@@ -63,6 +120,24 @@ spec:
           rewrite: cafe.example.com
       method: replace
 
+    # Extract the value of a cookie into a client response header.
+    #
+    # The compare field is left out, and hence implicitly specifies
+    # regex matching.
+    #
+    # source:req.http.Cookie means that the regex in the value field
+    # is match against the client request header Cookie, and the
+    # backreference refers to the captured portion of the match.
+    #
+    # target:resp.http.Session-Token means that the result of the
+    # rewrite is written to the client response header Session-Token.
+    #
+    # Since vcl-sub is left out, the rewrite is executed in vcl_deliver,
+    # since the target is a client response header.
+    #
+    # method:rewrite means that backref \1, specified in the rewrite
+    # field, is written to the Session-Token header, and unmatched
+    # portions of the Cookie header are ignored.
     - target: resp.http.Session-Token
       source: req.http.Cookie
       rules:
@@ -70,6 +145,23 @@ spec:
           rewrite: \1
       method: rewrite
 
+    # The next sequence implements a common use case for Varnish: write
+    # a value to the client request and response headers X-Cache to
+    # reflect the cache disposition of the request -- hit, miss or pass.
+    #
+    # The vcl-sub fields specify the VCL subroutines in which the
+    # rewrites are executed. Since the target in the fourth rewrite is
+    # the client response header, it is executed in vcl_deliver.
+    #
+    # method:replace means that the value of the target is overwritten.
+    #
+    # The first three rewrites specify exactly one rule, each with no
+    # value field. This means that the string in the corresponding
+    # rewrite field is written as the new value of the header.
+    #
+    # The fourth rewrite specifies replace with the request header as
+    # source and the response header as target, meaning that the value
+    # of the response header is set to the value of the request header.
     - target: req.http.X-Cache
       vcl-sub: hit
       rules:
@@ -92,24 +184,25 @@ spec:
       source: req.http.X-Cache
       method: replace
 
+    # Rewrite the backend request URL path by exchanging the next two path
+    # components after /coffee/, if the URL begins with /coffee/.
+    # For example, /coffee/cream/sugar is rewritten as /coffee/sugar/cream.
+    #
+    # method:rewrite means that the URL is rewritten as given in the rewrite
+    # field of the rule, and non-matching parts of the URL are ignored.
     - target: bereq.url
       rules:
-        - value: /coffee/([^/]+)/([^/]+)(.*)
+        - value: ^/coffee/([^/]+)/([^/]+)(.*)
           rewrite: /coffee/\2/\1\3
       method: rewrite
 
-    - target: resp.http.Replace-Hdr-Target
-      source: req.http.Replace-Hdr-Src
-      method: replace
-
-    - target: resp.http.Replace-String-Target
-      rules:
-        - rewrite: ReplaceString
-      method: replace
-
+    # Unconditionally delete the client response header Server.
     - target: resp.http.Server
       method: delete
 
+    # Delete the client response header Via if the client request header
+    # Delete-Via matches (case-insensitively) one of the strings given
+    # as a value in the rules.
     - target: resp.http.Via
       method: delete
       source: req.http.Delete-Via
@@ -122,12 +215,54 @@ spec:
       match-flags:
         case-sensitive: false
 
+    # To unconditionally write the value of one header to another, specify
+    # method:replace with no rules, and specify the headers as source and
+    # target.
+    #
+    # In other words: set Replace-Hdr-Target = Replace-Hdr-Src
+    - target: resp.http.Replace-Hdr-Target
+      source: req.http.Replace-Hdr-Src
+      method: replace
+
+    # To write a fixed string to a header, specify method:replace with no
+    # source, and exactly one rule with no value field, and the fixed
+    # string in the rewrite field.
+    #
+    # That is: set Replace-String-Target = "ReplaceString"
+    - target: resp.http.Replace-String-Target
+      rules:
+        - rewrite: ReplaceString
+      method: replace
+
+    # method:append concatenates a string after another one, and writes the
+    # result to the target.
+    #
+    # This specification appends the fixed string "AppendString" after the
+    # value of the client request header Append-String-Src, and assigns
+    # the result to the client response header Append-String-Target.
+    #
+    # That is: set Append-String-Target = Append-String-Src + "AppendString"
+    #
+    # Since the rule has no value field, the append is executed
+    # unconditionally, even if there is no client request header
+    # Append-String-Src. In that case, just the string "AppendString"
+    # is assigned to the response header.
     - target: resp.http.Append-String-Target
       source: req.http.Append-String-Src
       rules:
         - rewrite: AppendString
       method: append
 
+    # Like the rule above, but the append is only executed if the source
+    # (the client request header) matches the regex in value.
+    #
+    # Since the regex is just . (match any character), this has the effect
+    # of only executing the append if the request header exists and is
+    # non-empty.
+    #
+    # In other words:
+    #	if (request header Append-Rule-Src exists),
+    #	then set Append-Rule-Target = Append-Rule-Src + "AppendString"
     - target: resp.http.Append-Rule-Target
       source: req.http.Append-Rule-Src
       rules:
@@ -135,16 +270,36 @@ spec:
           rewrite: AppendString
       method: append
 
+    # If no rules are specified with method:append, then the value of the
+    # the source is appended to the value of target, and the result is
+    # assigned to the target. In other words:
+    #
+    # set Append-Hdr-Target = Append-Hdr-Target + Append-Hdr-Src
     - target: req.http.Append-Hdr-Target
       source: req.http.Append-Hdr-Src
       method: append
 
+    # method:prepend reverses the order of concatentation. So this
+    # specification is similar to the unconditional append shown above:
+    #
+    # set Prepend-String-Target = "PrependString" + Prepend-String-Src
+    #
+    # If there is no client request header Prepend-String-Src, then just
+    # assign the string "PrependString" to the client response header
+    # Prepend-String-Target.
     - target: resp.http.Prepend-String-Target
       source: req.http.Prepend-String-Src
       rules:
         - rewrite: PrependString
       method: prepend
 
+    # Like the conditional append shown above: execute the prepend, but
+    # only if the header specified as source matches the value in the
+    # rule; or in other words, only if the source header exists and is
+    # non-empty:
+    #
+    # if (Prepend-Rule-Src exists and is non-empty),
+    # then: set Prepend-Rule-Target = "PrependString" + Prepend-Rule-Src
     - target: resp.http.Prepend-Rule-Target
       source: req.http.Prepend-Rule-Src
       rules:
@@ -152,10 +307,28 @@ spec:
           rewrite: PrependString
       method: prepend
 
+    # Prepend the source header to the target:
+    #
+    # set Prepend-Hdr-Target = Prepend-Hdr-Src + Prepend-Hdr-Target
     - target: req.http.Prepend-Hdr-Target
       source: req.http.Prepend-Hdr-Src
       method: prepend
 
+    # The remaining examples illustrate the use of the select field to
+    # specify the rewrite rule when more than one value in a rule may
+    # match the source.
+    #
+    # This example sets the client response header Select-First to one
+    # of the fixed strings in a rewrite field, depending on which prefix
+    # matches the client request URL path.
+    #
+    # If the URL has a matching prefix, then select:first means that the
+    # the first matching value in the rules array is chosen, and the
+    # string from the corresponding rewrite field is assigned.
+    #
+    # For example, the URL /tea/foo/bar/4711 matches the regexen in the
+    # last two rules. Since select:first is specified, assign the string
+    # "Bar" to the header.
     - target: resp.http.Select-First
       source: req.url
       rules:
@@ -171,6 +344,13 @@ spec:
       method: replace
       select: first
 
+    # This example is similar to the previous one, but select:longest
+    # means that the longest prefix that matches the URL in one of the
+    # rules is chosen, and the corresponding value of rewrite is
+    # assigned to the header.
+    #
+    # The effects are the same, but do not depend on the order of rules
+    # in the rules array.
     - target: resp.http.Select-Longest
       source: req.url
       rules:
@@ -186,6 +366,22 @@ spec:
       method: replace
       select: longest
 
+    # In this example, the value of a cookie is extracted from the
+    # Cookie request header, and a string with the extracted value
+    # is assigned to the client response header Cookie-Select.
+    #
+    # select:last means that if more than one pattern in the rules
+    # array matches the Cookie header, then choose the matching pattern
+    # that appears last in the rules array. The value assigned to
+    # Cookie-Select is formed from the corresponding rewrite pattern.
+    #
+    # Examples: if the Cookie header has this value:
+    #	Cookie: cookie2=val2; cookie3=val3; cookie1=val1
+    # then "cookie3:val3" is assigned to Cookie-Select.
+    #
+    # If the Cookie header has this value:
+    #	Cookie: cookie3=val3; cookie4=val4
+    # then "cookie4:val4" is assigned to Cookie-Select.
     - target: resp.http.Cookie-Select
       source: req.http.Cookie
       rules:

@@ -23,6 +23,9 @@ requirements.
 * [Access control lists](/examples/acl) -- whitelisting or
   blacklisting requests by IP address
 
+* Specifying [rewrite rules](/examples/rewrite) for request headers,
+  response headers, and URL paths.
+
 * The [BackendConfig](/examples/backend-config) Custom Resource, to
   configure properties such as timeouts, health probes and
   load-balancing for Services to which requests are routed according
