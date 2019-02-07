@@ -543,7 +543,7 @@ Elements of the ``rewrites`` array may have these fields, of which
       both backend context. In other words, both of them must begin
       with either ``re`` or ``be``.
 
-* ``rules``: an non-empty array of rules specifying conditions under
+* ``rules``: a non-empty array of rules specifying conditions under
   which a rewrite is executed, and strings used for the rewrites. If
   the ``rules`` array is left out, then the rewrite is
   unconditional. Each rule is an object with these two fields:
