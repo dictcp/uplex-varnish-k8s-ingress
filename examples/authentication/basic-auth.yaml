@@ -22,9 +22,13 @@ spec:
       secretName: coffee-creds
       type: basic
       utf8: true
-      condition:
-        host-match: ^cafe\.example\.com$
-        url-match: ^/coffee($|/)
+      conditions:
+        - comparand: req.http.Host
+          value: cafe.example.com
+          compare: equal
+        - comparand: req.url
+          value: ^/coffee($|/)
+          compare: match
 
     # For the tea Service, require authentication for the realm "tea"
     # when the Host is "cafe.example.com" and the URL path begins with
@@ -33,6 +37,10 @@ spec:
     # left out.
     - realm: tea
       secretName: tea-creds
-      condition:
-        host-match: ^cafe\.example\.com$
-        url-match: ^/tea($|/)
+      conditions:
+        - comparand: req.http.Host
+          value: cafe.example.com
+          compare: equal
+        - comparand: req.url
+          value: ^/tea($|/)
+          compare: match

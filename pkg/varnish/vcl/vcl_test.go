@@ -244,9 +244,11 @@ var auths = Spec{
 				"dXNlcjpwYXNzd29yZDE=",
 				"bmFtZTpzZWNyZXQ=",
 			},
-			Condition: Condition{
-				HostRegex: `^baz\.com$`,
-			},
+			Conditions: []MatchTerm{{
+				Comparand: "req.http.Host",
+				Value:     `baz.com`,
+				Compare:   Equal,
+			}},
 			UTF8: true,
 		},
 		{
@@ -256,9 +258,11 @@ var auths = Spec{
 				"YmVudXR6ZXI6Z2VoZWlt",
 				"QWxiZXJ0IEFkZGluOm9wZW4gc2V6IG1l",
 			},
-			Condition: Condition{
-				URLRegex: "^/baz/quux",
-			},
+			Conditions: []MatchTerm{{
+				Comparand: "req.url",
+				Value:     "^/baz/quux",
+				Compare:   Match,
+			}},
 			UTF8: true,
 		},
 		{
@@ -268,9 +272,17 @@ var auths = Spec{
 				"dXJsOmhvc3Q=",
 				"YWRtaW46c3VwZXJwb3dlcnM=",
 			},
-			Condition: Condition{
-				HostRegex: `^url\.regex\.org$`,
-				URLRegex:  "^/secret/path",
+			Conditions: []MatchTerm{
+				{
+					Comparand: "req.http.Host",
+					Value:     "url.regex.org",
+					Compare:   Equal,
+				},
+				{
+					Comparand: "req.url",
+					Value:     "^/secret/path",
+					Compare:   Match,
+				},
 			},
 		},
 	},

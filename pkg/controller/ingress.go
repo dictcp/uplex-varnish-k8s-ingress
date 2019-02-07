@@ -326,6 +326,33 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 	return nil
 }
 
+func configConditions(vclConds []vcl.MatchTerm,
+	vcfgConds []vcr_v1alpha1.Condition) {
+
+	if len(vclConds) != len(vcfgConds) {
+		panic("configConditions: unequal slice lengths")
+	}
+	for i, cond := range vcfgConds {
+		vclMatch := vcl.MatchTerm{
+			Comparand: cond.Comparand,
+			Value:     cond.Value,
+		}
+		switch cond.Compare {
+		case vcr_v1alpha1.Equal:
+			vclMatch.Compare = vcl.Equal
+		case vcr_v1alpha1.NotEqual:
+			vclMatch.Compare = vcl.NotEqual
+		case vcr_v1alpha1.Match:
+			vclMatch.Compare = vcl.Match
+		case vcr_v1alpha1.NotMatch:
+			vclMatch.Compare = vcl.NotMatch
+		default:
+			vclMatch.Compare = vcl.Equal
+		}
+		vclConds[i] = vclMatch
+	}
+}
+
 func (worker *NamespaceWorker) configAuth(spec *vcl.Spec,
 	vcfg *vcr_v1alpha1.VarnishConfig) error {
 
@@ -357,6 +384,7 @@ func (worker *NamespaceWorker) configAuth(spec *vcl.Spec,
 		vclAuth := vcl.Auth{
 			Realm:       auth.Realm,
 			Credentials: make([]string, 0, len(secret.Data)),
+			Conditions:  make([]vcl.MatchTerm, len(auth.Conditions)),
 			UTF8:        auth.UTF8,
 		}
 		if auth.Type == "" || auth.Type == vcr_v1alpha1.Basic {
@@ -372,10 +400,7 @@ func (worker *NamespaceWorker) configAuth(spec *vcl.Spec,
 				vcfg.Name, cred, vclAuth.Realm)
 			vclAuth.Credentials = append(vclAuth.Credentials, cred)
 		}
-		if auth.Condition != nil {
-			vclAuth.Condition.URLRegex = auth.Condition.URLRegex
-			vclAuth.Condition.HostRegex = auth.Condition.HostRegex
-		}
+		configConditions(vclAuth.Conditions, auth.Conditions)
 		worker.log.Debugf("VarnishConfig %s/%s add VCL auth config: "+
 			"%+v", vcfg.Namespace, vcfg.Name, vclAuth)
 		spec.Auths = append(spec.Auths, vclAuth)
@@ -426,23 +451,7 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 			}
 			vclACL.Addresses[j] = vclAddr
 		}
-		for j, cond := range acl.Conditions {
-			vclMatch := vcl.MatchTerm{
-				Comparand: cond.Comparand,
-				Value:     cond.Value,
-			}
-			switch cond.Compare {
-			case vcr_v1alpha1.Equal:
-				vclMatch.Compare = vcl.Equal
-			case vcr_v1alpha1.NotEqual:
-				vclMatch.Compare = vcl.NotEqual
-			case vcr_v1alpha1.Match:
-				vclMatch.Compare = vcl.Match
-			case vcr_v1alpha1.NotMatch:
-				vclMatch.Compare = vcl.NotMatch
-			}
-			vclACL.Conditions[j] = vclMatch
-		}
+		configConditions(vclACL.Conditions, acl.Conditions)
 		if acl.ResultHdr != nil {
 			worker.log.Debugf("ACL %s: ResultHdr=%+v", acl.Name,
 				*acl.ResultHdr)

@@ -191,25 +191,55 @@ These fields in the elements of ``auth`` are optional:
   encoding is used for the username/password (see
   [RFC 7617 2.1](https://tools.ietf.org/html/rfc7617#section-2.1)).
   By default, ``charset`` is ``false``.
-* ``condition``: conditions under which the authentication protocol is
+* ``conditions``: conditions under which the authentication protocol is
   to be executed.
 
-If the ``condition`` object is present, it may have either or both of
-these fields:
+If the ``conditions`` array is present, then it MUST have at least one
+element, and each element must specify at least these two fields:
 
-* ``url-match`` (regular expression): pattern to match against the
-  URL path of the request
-* ``host-match`` (regular expression): pattern to match against the
-  ``Host`` request header
+* ``comparand`` (string): either ``req.url`` or ``req.http.$HEADER``,
+  where ``$HEADER`` is the name of a client request header.
 
-If either or both of these two fields are present, then the
-authentication protocol is executed for matching requests. If the
-``condition`` is left out, then the authentication is required for
-every client request.  The patterns in ``url-match`` and
-``host-match`` are implemented as
+* ``value`` (string): the value against which the ``comparand``
+  is compared
+
+``conditions`` may also have this optional field:
+
+* ``compare``: one of the following (default ``equal``):
+
+    * ``equal`` for string equality
+
+    * ``not-equal`` for string inequality
+
+    * ``match`` for regex match
+
+    * ``not-match`` for regex non-match
+
+If ``compare`` is ``equal`` or ``not-equal``, then ``value`` is
+interpreted as a fixed string, and ``comparand`` is tested for
+(in)equality with ``value``. Otherwise, ``value`` is interpreted as a
+regular expression, and the ``comparand`` is tested for
+(non-)match. Regexen are implemented as
 [VCL regular expressions](https://varnish-cache.org/docs/6.1/reference/vcl.html#regular-expressions),
 and hence have the syntax and semantics of
 [PCRE](https://www.pcre.org/original/doc/html/).
+
+The authentication protocol is executed only if all of the
+``conditions`` succeed; in other words, the ``conditions`` are the
+boolean AND of all of the match terms.
+
+For example, these ``conditions`` specify that authentication is
+executed when the URL begins with "/tea", and the Host header is
+exactly "cafe.example.com":
+
+```
+      conditions:
+      - comparand: req.url
+        compare: match
+        value: ^/tea(/|$)
+      - comparand: req.http.Host
+        value: cafe.example.com
+```
 
 Validation for ``VarnishConfig`` reports errors at apply time if:
 
@@ -218,10 +248,10 @@ Validation for ``VarnishConfig`` reports errors at apply time if:
 * any of the string fields are empty
 * ``type`` has an illegal value (neither of ``basic`` or ``proxy``)
 
-Other errors, in particular illegal regex syntax for ``url-match`` or
-``host-match``, are not reported until VCL load time. Check the
-controller log and Events generated for the Varnish Service for error
-messages from the VCL compiler.
+Other errors, in particular illegal regex syntax for ``conditions``,
+are not reported until VCL load time. Check the controller log and
+Events generated for the Varnish Service for error messages from the
+VCL compiler.
 
 Examples:
 ```
@@ -237,9 +267,13 @@ spec:
       secretName: coffee-creds
       type: basic
       utf8: true
-      condition:
-        host-match: ^cafe\.example\.com$
-        url-match: ^/coffee($|/)
+      conditions:
+        - comparand: req.http.Host
+          value: cafe.example.com
+          compare: equal
+        - comparand: req.url
+          value: ^/coffee($|/)
+          compare: match
 
     # For the tea Service, require authentication for the realm "tea"
     # when the Host is "cafe.example.com" and the URL path begins with
@@ -248,9 +282,13 @@ spec:
     # left out.
     - realm: tea
       secretName: tea-creds
-      condition:
-        host-match: ^cafe\.example\.com$
-        url-match: ^/tea($|/)
+      conditions:
+        - comparand: req.http.Host
+          value: cafe.example.com
+          compare: equal
+        - comparand: req.url
+          value: ^/tea($|/)
+          compare: match
 ```
 ```
 spec:
@@ -288,8 +326,10 @@ Optional fields for ``acl`` are:
   is matched, as detailed below; default ``client.ip``
 
 * ``conditions``: array of conditions under which the ACL match is
-  executed, as detailed below. By default, ``conditions`` is empty,
-  in which case the match is executed for every client request.
+  executed. The ``conditions`` field has the same syntax and semantics
+  as specified above for ``spec.auth`` (Basic and Proxy
+  Authentication).  By default, ``conditions`` is empty, in which case
+  the match is executed for every client request.
 
 * ``result-header``: specifies a client request header and values to
   set for the header when the failure status is or is not invoked for
@@ -414,52 +454,10 @@ X-Forwarded-For: 192.0.2.47, 203.0.113.11
 ``xff-2ndlast`` specifies a match against 203.0.113.11.
 
 If ``conditions`` are specified for an ACL, they define restrictions
-for executing the match. Each element of ``conditions`` must specify
-these two required fields:
-
-* ``comparand`` (string): either ``req.url`` or ``req.http.$HEADER``,
-  where ``$HEADER`` is the name of a client request header.
-
-* ``value`` (string): the value against which the ``comparand``
-  is compared
-
-``conditions`` may also have this optional field:
-
-* ``compare``: one of the following (default ``equal``):
-
-    * ``equal`` for string equality
-
-    * ``not-equal`` for string inequality
-
-    * ``match`` for regex match
-
-    * ``not-match`` for regex non-match
-
-If ``compare`` is ``equal`` or ``not-equal``, then ``value`` is
-interpreted as a fixed string, and ``comparand`` is tested for
-(in)equality with ``value``. Otherwise, ``value`` is interpreted as a
-regular expression, and the ``comparand`` is tested for
-(non-)match. Regexen are implemented as
-[VCL regular expressions](https://varnish-cache.org/docs/6.1/reference/vcl.html#regular-expressions),
-and hence have the syntax and semantics of
-[PCRE](https://www.pcre.org/original/doc/html/).
-
-The ACL match is executed only if all of the ``conditions`` succeed;
-in other words, the ``conditions`` are the boolean AND of all of the
-match terms.
-
-For example, these ``conditions`` specify that the match is executed
-when the URL begins with "/tea", and the Host header is exactly
-"cafe.example.com":
-
-```
-      conditions:
-      - comparand: req.url
-        compare: match
-        value: ^/tea(/|$)
-      - comparand: req.http.Host
-        value: cafe.example.com
-```
+for executing the match; the ACL match is executed only if all of the
+``conditions`` succeed. The ``conditions`` field for ACLs has the same
+syntax and semantics as specified above for Basic and Proxy
+Authentication.
 
 The ``result-header`` field specifies a client request header that is
 set with a value for the "fail" or "success" results of the ACL

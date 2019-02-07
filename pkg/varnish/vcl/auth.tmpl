@@ -14,11 +14,8 @@ sub vcl_init {
 sub vcl_recv {
 {{- range .Auths}}
 	if (
-	    {{- if ne .Condition.HostRegex ""}}
-	    req.http.Host ~ "{{.Condition.HostRegex}}" &&
-	    {{- end}}
-	    {{- if ne .Condition.URLRegex ""}}
-	    req.url ~ "{{.Condition.URLRegex}}" &&
+	    {{- range $cond := .Conditions}}
+	    {{$cond.Comparand}} {{cmpRelation .Compare}} "{{.Value}}" &&
 	    {{- end}}
 	    {{- if eq .Status 401}}
 	    !{{credsMatcher .Realm}}.match(req.http.Authorization)

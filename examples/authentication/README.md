@@ -69,15 +69,22 @@ from the ``coffee-creds`` Secret:
       secretName: coffee-creds
       type: basic
       utf8: true
-      condition:
-        host-match: ^cafe\.example\.com$
-        url-match: ^/coffee($|/)
+      conditions:
+        - comparand: req.http.Host
+          value: cafe.example.com
+          compare: equal
+        - comparand: req.url
+          value: ^/coffee($|/)
+          compare: match
 ```
 
-``type: basic`` specifies Basic Authentication, and the ``host-match``
-and ``url-match`` fields require authentication in the "coffee" realm
-when the Host is exactly equal to "cafe.example.com", and the URL path
-begins with "/coffee".
+``type: basic`` specifies Basic Authentication, and the ``conditions``
+array requires authentication when a request is routed to the
+coffee-svc Service. The first element of ``comparand`` specifies that
+the Host header is exactly equal to "cafe.example.com", and the second
+specifies that the URL path begins with "/coffee". The Basic
+Authentication protocol configured here is only executed when all of
+the ``conditions`` are met.
 
 The ``utf8: true`` setting means that the field ``charset="UTF-8"``
 field is appended to the ``WWW-Authenticate`` response header when
@@ -93,9 +100,13 @@ from the ``tea-creds`` Secret when the URL path begins with "/tea":
 ```
     - realm: tea
       secretName: tea-creds
-      condition:
-        host-match: ^cafe\.example\.com$
-        url-match: ^/tea($|/)
+      conditions:
+        - comparand: req.http.Host
+          value: cafe.example.com
+          compare: equal
+        - comparand: req.url
+          value: ^/tea($|/)
+          compare: match
 ```
 
 Not that ``type: basic`` was left out here, since ``basic`` is the
@@ -175,9 +186,9 @@ unconditionally to all requests:
 ```
 
 As with Basic Authentication, it is also possible to use the
-``condition.host-match`` and ``condition.url-match`` fields to
-restrict the requests for which the authentication is required (but
-Proxy Authentication typically applies to all requests).
+``conditions`` array to restrict the requests for which the
+authentication is required (but Proxy Authentication typically applies
+to all requests).
 
 To verify with curl, we use the ``-x`` (or ``--proxy``) argument to
 specify ``$ADDR:$PORT`` as the proxy, and send the request with an

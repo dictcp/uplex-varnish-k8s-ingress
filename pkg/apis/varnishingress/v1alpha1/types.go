@@ -79,11 +79,11 @@ type ProbeSpec struct {
 
 // AuthSpec specifies authentication (basic or proxy).
 type AuthSpec struct {
-	Realm      string         `json:"realm"`
-	SecretName string         `json:"secretName"`
-	Type       AuthType       `json:"type,omitempty"`
-	Condition  *AuthCondition `json:"condition,omitempty"`
-	UTF8       bool           `json:"utf8,omitempty"`
+	Realm      string      `json:"realm"`
+	SecretName string      `json:"secretName"`
+	Type       AuthType    `json:"type,omitempty"`
+	UTF8       bool        `json:"utf8,omitempty"`
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // AuthType classifies the protocol for an AuthSpec.
@@ -95,14 +95,6 @@ const (
 	// Proxy Authentication
 	Proxy = "proxy"
 )
-
-// AuthCondition specifies a condition under which an authentication
-// protocol must be executed -- the URL path or the Host must match a
-// pattern (or both).
-type AuthCondition struct {
-	URLRegex  string `json:"url-match,omitempty"`
-	HostRegex string `json:"host-match,omitempty"`
-}
 
 // ACLSpec specifies whitelisting or blacklisting IP addresses against
 // an access control list.

@@ -42,7 +42,7 @@ sub vcl_recv {
 		return(synth(60000 + 407));
 	}
 	if (
-	    req.http.Host ~ "^baz\.com$" &&
+	    req.http.Host == "baz.com" &&
 	    !vk8s_baz_auth.match(req.http.Authorization)
 	   ) {
 		set req.http.VK8S-Authenticate =
@@ -58,7 +58,7 @@ sub vcl_recv {
 		return(synth(60000 + 407));
 	}
 	if (
-	    req.http.Host ~ "^url\.regex\.org$" &&
+	    req.http.Host == "url.regex.org" &&
 	    req.url ~ "^/secret/path" &&
 	    !vk8s_urlhost_auth.match(req.http.Authorization)
 	   ) {

@@ -242,16 +242,6 @@ func (shard ShardCluster) hash(hash hash.Hash) {
 	hash.Write([]byte(shard.MaxSecondaryTTL))
 }
 
-// Condition specifies conditions under which an authentication
-// protocols must be executed -- the URL path or the Host must match
-// patterns, the request must be received from a TLS offloader, or any
-// combination of the three.
-type Condition struct {
-	URLRegex  string
-	HostRegex string
-	TLS       bool
-}
-
 // AuthStatus is the response code to be sent for authentication
 // failures, and serves to distinguish the protocols.
 type AuthStatus uint16
@@ -266,10 +256,10 @@ const (
 // Auth specifies Basic or Proxy Authentication, derived from an
 // AuthSpec in a VarnishConfig resource.
 type Auth struct {
-	Realm       string
+	Conditions  []MatchTerm
 	Credentials []string
+	Realm       string
 	Status      AuthStatus
-	Condition   Condition
 	UTF8        bool
 }
 
@@ -281,10 +271,8 @@ func (auth Auth) hash(hash hash.Hash) {
 	statusBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(statusBytes, uint16(auth.Status))
 	hash.Write(statusBytes)
-	hash.Write([]byte(auth.Condition.URLRegex))
-	hash.Write([]byte(auth.Condition.HostRegex))
-	if auth.Condition.TLS {
-		hash.Write([]byte("TLS"))
+	for _, cond := range auth.Conditions {
+		cond.hash(hash)
 	}
 	if auth.UTF8 {
 		hash.Write([]byte("UTF8"))
