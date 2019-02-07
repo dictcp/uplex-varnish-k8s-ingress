@@ -78,6 +78,10 @@ The next example re-creates the ACL shown as an example in
         value: ^/tea(/|$)
       - comparand: req.http.Host
         value: cafe.example.com
+      result-header:
+        header: req.http.X-Tea-Whitelisted
+        success: "true"
+        failure: "false"
 ```
 
 Addresses that match the ACL are:
@@ -117,10 +121,30 @@ requests are routed to the Service ``tea-svc`` under these
 conditions. So ``conditions`` serves to restrict the ACL match to
 requests for that Service.
 
+The example also shows the use of the ``result-header`` field to
+assign a value to a client request header, depending on the result of
+the ACL match. In this case, the client request header
+``X-Tea-Whitelisted`` is set to the string "true" if the address from
+``X-Real-IP`` matches the ACL -- the string from the ``success`` field
+is set when the failure status is not invoked, which in the case of a
+whitelist means that the address under consideration matches the
+ACL. If the address from ``X-Real-IP`` does not match the ACL, and
+hence for a whitelist leads to the failure response, then the string
+"false" from the ``failure`` field is assigned to
+``X-Tea-Whitelisted``.
+
+The use of ``request-header`` makes it possible to implement logic in
+further request processing that depends on the ACL result. In this
+case, the request header can be inspected for the result of
+whitelisting. If the ``request-header`` field does not appear in the
+ACL config, then no header is set as the result of the ACL match.
+
 To verify this configuration with curl, we use the ``-x`` option (or
 ``--proxy``) set to ``$ADDR:$PORT``, where ``$ADDR`` is the external
 address of the cluster, and ``$PORT`` is the port at which requests
-are routed to the Ingress.
+are routed to the Ingress. We also use ``varnishlog`` on the Pods
+implementing the Ingress to verify that the ``X-Tea-Whitelisted``
+is set according to the ``result-header`` config.
 
 ```
 # Requests without an X-Real-IP header fail the ACL match, and get
@@ -133,6 +157,19 @@ $ curl -v -x $ADDR:$PORT http://cafe.example.com/tea
 
 < HTTP/1.1 403 Forbidden
 [...]
+
+# varnishlog shows that X-Tea-Whitelisted was set to false:
+*   << Request  >> 33494     
+[...]
+-   ReqHeader      Host: cafe.example.com
+[...]
+-   ReqMethod      GET
+-   ReqURL         /tea
+-   ReqProtocol    HTTP/1.1
+[...]
+-   ReqHeader      X-Tea-Whitelisted: false
+[...]
+
 
 # Request with the X-Real-IP header, but set to an IP that does not
 # match the ACL:
@@ -147,6 +184,21 @@ $ curl -H 'X-Real-IP: 198.51.100.47' -v -x $ADDR:$PORT http://cafe.example.com/t
 < HTTP/1.1 403 Forbidden
 [...]
 
+# varnishlog:
+*   << Request  >> 66076     
+[...]
+-   ReqHeader      Host: cafe.example.com
+[...]
+-   ReqMethod      GET
+-   ReqURL         /tea
+-   ReqProtocol    HTTP/1.1
+[...]
+-   ReqHeader      X-Real-IP: 198.51.100.47
+[...]
+-   ReqHeader      X-Tea-Whitelisted: false
+[...]
+
+
 # Request with an X-Real-IP header that matches the ACL:
 $ curl -H 'X-Real-IP: 192.0.2.120' -v -x $ADDR:$PORT http://cafe.example.com/tea
 [...]
@@ -157,6 +209,20 @@ $ curl -H 'X-Real-IP: 192.0.2.120' -v -x $ADDR:$PORT http://cafe.example.com/tea
 [...]
 
 < HTTP/1.1 200 OK
+[...]
+
+# varnishlog shows that X-Tea-Whitelisted was set to true:
+*   << Request  >> 33592     
+[...]
+-   ReqHeader      Host: cafe.example.com
+[...]
+-   ReqMethod      GET
+-   ReqURL         /tea
+-   ReqProtocol    HTTP/1.1
+[...]
+-   ReqHeader      X-Real-IP: 192.0.2.120
+[...]
+-   ReqHeader      X-Tea-Whitelisted: true
 [...]
 ```
 
@@ -182,6 +248,10 @@ The next example defines a blacklist for the ranges 192.0.20/24 and
       - comparand: req.http.Host
         compare: equal
         value: cafe.example.com
+      result-header:
+        header: req.http.X-Coffee-Blacklist
+        failure: "true"
+        success: "false"
 ```
 
 Type ``blacklist`` means that the failure status is returned for IPs
@@ -216,6 +286,17 @@ one, which restricts ACL matches to URLs beginning with
 "/coffee". This is important to the logic of ACL matching -- the match
 for the "more specific" URL range is executed first.
 
+The example also shows that the sense of setting the ``result-header``
+is reversed for blacklisting. In this case, the client request header
+``X-Coffee-Blacklist`` is set to the string "true" if the address from
+``X-Forwarded-For`` matches the ACL, since the string from the
+``failure`` field is set when the failure status is invoked. For
+blacklists, this means that the address under consideration matches
+the ACL. If the address from ``X-Forwarded-For`` does not match the
+ACL, and hence does not lead to the failure response due to
+blacklisting, then the string "false" from the ``success`` field is
+assigned to ``X-Coffee-Blacklist``.
+
 Verifying the ACL with curl:
 
 ```
@@ -232,6 +313,19 @@ $ curl -v -x $ADDR:$ADDR http://cafe.example.com/coffee/black
 < HTTP/1.1 200 OK
 [...]
 
+# varnishlog shows the X-Coffee-Blacklist was set to "false":
+*   << Request  >> 33704     
+[...]
+-   ReqHeader      Host: cafe.example.com
+[...]
+-   ReqMethod      GET
+-   ReqURL         /coffee/black
+-   ReqProtocol    HTTP/1.1
+[...]
+-   ReqHeader      X-Coffee-Blacklist: false
+[...]
+
+
 # A request in which the first field of X-Forwarded-For does not match
 # the blacklist is not blocked:
 $ curl -H 'X-Forwarded-For: 203.0.113.47, 192.0.2.11' -v -x $ADDR:$PORT http://cafe.example.com/coffee/black
@@ -245,6 +339,21 @@ $ curl -H 'X-Forwarded-For: 203.0.113.47, 192.0.2.11' -v -x $ADDR:$PORT http://c
 < HTTP/1.1 200 OK
 [...]
 
+# varnishlog:
+*   << Request  >> 33741     
+[...]
+-   ReqHeader      Host: cafe.example.com
+[...]
+-   ReqMethod      GET
+-   ReqURL         /coffee/black
+-   ReqProtocol    HTTP/1.1
+[...]
+-   ReqHeader      X-Forwarded-For: 203.0.113.47, 192.0.2.11
+[...]
+-   ReqHeader      X-Coffee-Blacklist: false
+[...]
+
+
 # A request in which the first field of X-Forwarded-For matches the
 # blacklist is blocked, and the client receives the 404 response
 # as specified by fail-status:
@@ -257,6 +366,20 @@ $ curl -H 'X-Forwarded-For: 192.0.2.11' -v -x $ADDR:$PORT http://cafe.example.co
 [...]
 
 < HTTP/1.1 404 Not Found
+[...]
+
+# varnishlog shows the X-Coffee-Blacklist was set to "true":
+*   << Request  >> 163884    
+[...]
+-   ReqHeader      Host: cafe.example.com
+[...]
+-   ReqMethod      GET
+-   ReqURL         /coffee/black
+-   ReqProtocol    HTTP/1.1
+[...]
+-   ReqHeader      X-Forwarded-For: 192.0.2.11
+[...]
+-   ReqHeader      X-Coffee-Blacklist: true
 [...]
 ```
 

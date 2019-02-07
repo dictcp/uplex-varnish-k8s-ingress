@@ -60,6 +60,11 @@ spec:
     # - the Host header is exactly equal to "cafe.example.com"
     # (According to the Ingress rules of the cafe example, requests
     # are routed to the Service tea-svc under these conditions).
+    #
+    # The result-header config means that the client request header
+    # X-Tea-Whitelisted is set to "true" if the address from X-Real-IP
+    # is on the whitelist (the "success" string is assigned if the
+    # fail-status is not invoked); set to "false" otherwise.
     - name: man-vcl-example
       addrs:
       - addr: localhost
@@ -75,6 +80,10 @@ spec:
         value: ^/tea(/|$)
       - comparand: req.http.Host
         value: cafe.example.com
+      result-header:
+        header: req.http.X-Tea-Whitelisted
+        success: "true"
+        failure: "false"
 
     # This ACL defines a blacklist:
     # 192.0.20/24 and 198.51.100.0/24
@@ -93,6 +102,12 @@ spec:
     # The conditions specify that the ACL match is executed when:
     # - the URL path begins with "/coffee/black", and
     # - the Host header is exactly equal to "cafe.example.com"
+    #
+    # The result-header config means that the client request header
+    # X-Coffee-Blacklist is set to "true" if the address from
+    # X-Forwarded-For is on the blacklist (the "failure" string is
+    # assigned if the fail-status is invoked); set to "false"
+    # otherwise.
     - name: xff-first-example
       addrs:
       - addr: 192.0.2.0
@@ -109,6 +124,10 @@ spec:
       - comparand: req.http.Host
         compare: equal
         value: cafe.example.com
+      result-header:
+        header: req.http.X-Coffee-Blacklist
+        failure: "true"
+        success: "false"
 
     # This ACL defines a blacklist for 203.0.113.0/24.
     #

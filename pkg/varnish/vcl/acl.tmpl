@@ -20,7 +20,15 @@ sub vcl_recv {
 	    {{- end}}
 	    {{aclCmp .Comparand}} {{if .Whitelist}}!{{end}}~ {{aclName .Name}}
 	   ) {
+		{{- if .ResultHdr.Header}}
+		set {{.ResultHdr.Header}} = "{{.ResultHdr.Failure}}";
+		{{- end}}
 		return(synth({{.FailStatus}}));
 	}
+	{{- if .ResultHdr.Header}}
+	else {
+		set {{.ResultHdr.Header}} = "{{.ResultHdr.Success}}";
+	}
+	{{- end}}
 	{{- end}}
 }

@@ -472,6 +472,57 @@ func TestAclTemplate(t *testing.T) {
 	}
 }
 
+var aclResultHdr = Spec{
+	ACLs: []ACL{{
+		Name:       "man_vcl_example",
+		Comparand:  "client.ip",
+		FailStatus: 403,
+		Whitelist:  true,
+		Addresses: []ACLAddress{
+			ACLAddress{
+				Addr:     "localhost",
+				MaskBits: 255,
+				Negate:   false,
+			},
+			ACLAddress{
+				Addr:     "192.0.2.0",
+				MaskBits: 24,
+				Negate:   false,
+			},
+			ACLAddress{
+				Addr:     "192.0.2.23",
+				MaskBits: 255,
+				Negate:   true,
+			},
+		},
+		ResultHdr: ResultHdrType{
+			Header:  "req.http.ACL-Whitelist",
+			Success: "pass",
+			Failure: "fail",
+		},
+	}},
+}
+
+func TestAclResultHeader(t *testing.T) {
+	var buf bytes.Buffer
+	gold := "acl_result_hdr.golden"
+
+	if err := aclTmpl.Execute(&buf, aclResultHdr); err != nil {
+		t.Error("acls template Execute():", err)
+		return
+	}
+	ok, err := cmpGold(buf.Bytes(), gold)
+	if err != nil {
+		t.Fatalf("Reading %s: %v", gold, err)
+	}
+	if !ok {
+		t.Errorf("Generated VCL does not match gold file: %s", gold)
+		if testing.Verbose() {
+			t.Logf("Generated: %s", buf.String())
+		}
+	}
+}
+
 var customVCLSpec = Spec{
 	DefaultService: Service{},
 	Rules: []Rule{{

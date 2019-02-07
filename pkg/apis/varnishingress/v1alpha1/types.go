@@ -107,12 +107,13 @@ type AuthCondition struct {
 // ACLSpec specifies whitelisting or blacklisting IP addresses against
 // an access control list.
 type ACLSpec struct {
-	Name       string       `json:"name,omitempty"`
-	ACLType    ACLType      `json:"type,omitempty"`
-	Comparand  string       `json:"comparand,omitempty"`
-	FailStatus *int32       `json:"fail-status,omitempty"`
-	Addresses  []ACLAddress `json:"addrs,omitempty"`
-	Conditions []Condition  `json:"conditions,omitempty"`
+	Name       string         `json:"name,omitempty"`
+	ACLType    ACLType        `json:"type,omitempty"`
+	Comparand  string         `json:"comparand,omitempty"`
+	ResultHdr  *ResultHdrType `json:"result-header,omitempty"`
+	FailStatus *int32         `json:"fail-status,omitempty"`
+	Addresses  []ACLAddress   `json:"addrs,omitempty"`
+	Conditions []Condition    `json:"conditions,omitempty"`
 }
 
 // ACLAddress represents an entry in a VCL. If MaskBits is non-nil, it
@@ -157,6 +158,12 @@ const (
 	// NotMatch means compare with !~.
 	NotMatch = "not-match"
 )
+
+type ResultHdrType struct {
+	Header  string `json:"header"`
+	Success string `json:"success"`
+	Failure string `json:"failure"`
+}
 
 type RewriteRule struct {
 	Value   string `json:"value,omitempty"`

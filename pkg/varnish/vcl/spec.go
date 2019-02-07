@@ -364,6 +364,18 @@ func (a byComparand) Less(i, j int) bool {
 	return a[i].Comparand < a[j].Comparand
 }
 
+type ResultHdrType struct {
+	Header  string
+	Success string
+	Failure string
+}
+
+func (resultHdr ResultHdrType) hash(hash hash.Hash) {
+	hash.Write([]byte(resultHdr.Header))
+	hash.Write([]byte(resultHdr.Success))
+	hash.Write([]byte(resultHdr.Failure))
+}
+
 // ACL represents an Access Control List, derived from a
 // VarnishConfig.
 type ACL struct {
@@ -373,6 +385,7 @@ type ACL struct {
 	Whitelist  bool
 	Addresses  []ACLAddress
 	Conditions []MatchTerm
+	ResultHdr  ResultHdrType
 }
 
 func (acl ACL) hash(hash hash.Hash) {
@@ -387,6 +400,7 @@ func (acl ACL) hash(hash hash.Hash) {
 	for _, cond := range acl.Conditions {
 		cond.hash(hash)
 	}
+	acl.ResultHdr.hash(hash)
 }
 
 // interface for sorting []ACL

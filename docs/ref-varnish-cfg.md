@@ -291,6 +291,10 @@ Optional fields for ``acl`` are:
   executed, as detailed below. By default, ``conditions`` is empty,
   in which case the match is executed for every client request.
 
+* ``result-header``: specifies a client request header and values to
+  set for the header when the failure status is or is not invoked for
+  the ACL evaluation. By default, no header is set.
+
 Each element of the ``addrs`` array may have these fields, of which
 ``addr`` is required:
 
@@ -456,6 +460,26 @@ when the URL begins with "/tea", and the Host header is exactly
       - comparand: req.http.Host
         value: cafe.example.com
 ```
+
+The ``result-header`` field specifies a client request header that is
+set with a value for the "fail" or "success" results of the ACL
+evaluation. If ``result-header`` is present, then all three of its
+fields are required:
+
+* ``header``: a string of the form ``req.http.$HEADER``, for the
+  client request header ``$HEADER``
+
+* ``success``: a string that is assigned to the header if the failure
+  status is not invoked. So for ``type:whitelist``, the ``success``
+  string is assigned if the address matches the ACL; for
+  ``type:blacklist``, it is assigned if the address does not match.
+
+* ``failure``: a string that is assigned to the header if the failure
+  status is invoked.
+
+The ``result-header`` makes it possible to check the result of the ACL
+match at a later stage of request processing, for example to implement
+logic that depends on the result.
 
 See the [``examples/`` folder](/examples/acl) for working examples
 of ACL configurations.

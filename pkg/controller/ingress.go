@@ -443,6 +443,13 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 			}
 			vclACL.Conditions[j] = vclMatch
 		}
+		if acl.ResultHdr != nil {
+			worker.log.Debugf("ACL %s: ResultHdr=%+v", acl.Name,
+				*acl.ResultHdr)
+			vclACL.ResultHdr.Header = acl.ResultHdr.Header
+			vclACL.ResultHdr.Success = acl.ResultHdr.Success
+			vclACL.ResultHdr.Failure = acl.ResultHdr.Failure
+		}
 		worker.log.Debugf("VarnishConfig %s/%s add VCL ACL config: "+
 			"%+v", vcfg.Namespace, vcfg.Name, vclACL)
 		spec.ACLs[i] = vclACL

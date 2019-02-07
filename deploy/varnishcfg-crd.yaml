@@ -151,6 +151,22 @@ spec:
                         value:
                           type: string
                           minLength: 1
+                  result-header:
+                    type: object
+                    required:
+                      - header
+                      - success
+                      - failure
+                    properties:
+                      header:
+                        type: string
+                        pattern: "^req\\.http\\.[a-zA-Z0-9!#$%&'*+.^_`|~-]+$"
+                      success:
+                        type: string
+                        minLength: 1
+                      failure:
+                        type: string
+                        minLength: 1
             vcl:
               type: string
               minLength: 1
