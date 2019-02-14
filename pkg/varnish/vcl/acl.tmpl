@@ -23,7 +23,9 @@ sub vcl_recv {
 		{{- if .ResultHdr.Header}}
 		set {{.ResultHdr.Header}} = "{{.ResultHdr.Failure}}";
 		{{- end}}
+		{{- if ge .FailStatus 100}}
 		return(synth({{.FailStatus}}));
+		{{- end}}
 	}
 	{{- if .ResultHdr.Header}}
 	else {

@@ -137,7 +137,7 @@ spec:
                     type: string
                   fail-status:
                     type: integer
-                    minimum: 100
+                    minimum: 0
                     maximum: 599
                   comparand:
                     type: string
