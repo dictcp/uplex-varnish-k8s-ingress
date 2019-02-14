@@ -322,6 +322,14 @@ Optional fields for ``acl`` are:
 * ``fail-status`` (integer): HTTP status for a synthetic failure
   response, default 403 (for "403 Forbidden")
 
+    * If ``fail-status`` is < 100, then no failure response is
+      generated as a result of ACL failure. The purpose is to bring
+      about other effects, in particular setting a header with
+      ``result-header`` as specified below. See the
+      [``examples`` folder](/examples/authentication/) for a sample
+      config in which this is used for "either-or" authorization --
+      either an IP whitelist match or Basic Auth.
+
 * ``comparand``: specification of the IP value against which the ACL
   is matched, as detailed below; default ``client.ip``
 
