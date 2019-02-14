@@ -14,6 +14,11 @@ If you define more than one ACL, then matches against the ACLs will be
 executed in the order given in ``acl``, until one of them invokes the
 failure status, or all of them pass.
 
+See also the [authentication examples](/examples/authentication) for
+an example that combines IP whitelisting and Basic Authentication --
+access is granted if either the client IP matches a whitelist, or
+credentials are provided via Basic Auth.
+
 ## Whitelist for all client requests
 
 The first example is a whitelist against the address ranges in private

@@ -1,0 +1,48 @@
+# Sample configuration to demonstrate authorization via either
+# IP-whitelisting or Basic Authentication..
+
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: VarnishConfig
+metadata:
+  name: acl-or-auth-cfg
+spec:
+  services:
+    - varnish-ingress
+
+  # Check the value of the X-Real-IP client request header against an
+  # IP whitelist; access is authorized when the IP matches the
+  # whitelist.
+  # The request header X-Whitelisted is set to "true" or "false"
+  # depending on the result, but fail-status is 0, so no failure
+  # response is generated if the ACL match fails. Request processing
+  # goes on to Basic Auth as configured below, executed only if the
+  # whitelist match failed.
+  acl:
+    - name: ip-whitelist
+      addrs:
+      - addr: 192.0.2.0
+        mask-bits: 24
+      - addr: 198.51.100.0
+        mask-bits: 24
+      - addr: 203.0.113.0
+        mask-bits: 24
+      comparand: req.http.X-Real-IP
+      type: whitelist
+      fail-status: 0
+      result-header:
+        header: req.http.X-Whitelisted
+        success: "true"
+        failure: "false"
+
+  # Basic Auth is executed against the credentials in the coffee-creds
+  # Secret, if the client request header is set to "false".
+  # The effect is "either-or" authorization. Access is authorized (and
+  # Basic Auth is not necessary) if X-Real-IP matches the whitelist.
+  # If it doesn't, then authorization may be granted via Basic Auth.
+  auth:
+    - realm: cafe
+      secretName: coffee-creds
+      conditions:
+        - comparand: req.http.X-Whitelisted
+          value: "false"
+          compare: equal

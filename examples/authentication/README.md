@@ -218,3 +218,129 @@ $ curl --proxy-user proxy-admin:studly -v -x $ADDR:$PORT http://cafe.example.com
 < HTTP/1.1 200 OK
 [...]
 ```
+# Authorization via either IP whitelisting or Basic Auth
+
+The next example illustrates a technique for "either-or" authorization
+-- access may be granted if an IP whitelist is matched; but if the
+whitelist doesn't match, clients may be authorized via Basic
+Authentication.
+
+```
+$ kubectl apply -f acl-or-auth.yaml
+```
+
+The "either-or" logic is brought about by the configuraton of the
+``acl`` object (see the [``acl`` folder](/example/acl) for more
+examples of ACL configs).  The config uses ``result-header`` to set a
+client request header, based on the result of the ACL match. But it
+sets ``fail-status`` to 0, which means that a failure response is not
+generated on match failure; setting the request header is the only
+effect of the match result. The ``auth`` configuration in turn is only
+executed when that header has a specific value.
+
+The ``acl`` config specifies an ACL match against the IP address in
+the client request header ``X-Real-IP``:
+
+```
+  acl:
+    - name: ip-whitelist
+      addrs:
+      - addr: 192.0.2.0
+        mask-bits: 24
+      - addr: 198.51.100.0
+        mask-bits: 24
+      - addr: 203.0.113.0
+        mask-bits: 24
+      comparand: req.http.X-Real-IP
+      type: whitelist
+      fail-status: 0
+      result-header:
+        header: req.http.X-Whitelisted
+        success: "true"
+        failure: "false"
+```
+
+If the ``X-Real-IP`` header matches the whitelist, then the client
+request header ``X-Whitelisted`` is set to ``true``, otherwise
+``false``. Since ``fail-status`` is set to 0, a failure reponse is not
+generated when the whitelist match fails; request processing continues
+with ``X-Whitelisted`` set to ``false``.
+
+The ``auth`` configuration is only executed when ``X-Whitelisted`` is
+set to ``false``:
+
+```
+  auth:
+    - realm: cafe
+      secretName: coffee-creds
+      conditions:
+        - comparand: req.http.X-Whitelisted
+          value: "false"
+          compare: equal
+```
+
+In that case, Basic Auth requires authentication against the
+credentials in ``coffee-creds``.
+
+Verification shows that the "either-or" logic is functional:
+
+```
+# An access attempt with neither of X-Real-IP or credentials for Basic Auth
+# fails, and authentication for the realm "cafe" is requested.
+$ curl -x $ADDR:$PORT -v http://cafe.example.com/coffee
+[...]
+> GET http://cafe.example.com/coffee HTTP/1.1
+[...]
+>
+< HTTP/1.1 401 Unauthorized
+[...]
+< WWW-Authenticate: Basic realm="cafe"
+[...]
+
+# The same result is obtained when X-Real-IP is set to an IP that does
+# not match the whitelist:
+$ curl -H 'X-Real-IP: 127.0.0.1' -x $ADDR:$PORT -v http://cafe.example.com/coffee
+[...]
+> GET http://cafe.example.com/coffee HTTP/1.1
+[...]
+> X-Real-IP: 127.0.0.1
+>
+< HTTP/1.1 401 Unauthorized
+[...]
+< WWW-Authenticate: Basic realm="cafe"
+[...]
+
+# If X-Real-IP matches the whitelist, then access is granted and Basic
+# Auth is not requested:
+$ curl -H 'X-Real-IP: 192.0.2.1' -x $ADDR:$PORT -v http://cafe.example.com/coffee
+[...]
+> GET http://cafe.example.com/coffee HTTP/1.1
+[...]
+> X-Real-IP: 192.0.2.1
+>
+< HTTP/1.1 200 OK
+[...]
+
+# If X-Real-IP is absent or does not match the whitelist, access can be
+# granted via Basic Auth:
+$ curl --user foo:bar -x $ADDR:$PORT -v http://cafe.example.com/coffee
+[...]
+> GET http://cafe.example.com/coffee HTTP/1.1
+[...]
+> Authorization: Basic Zm9vOmJhcg==
+[...]
+>
+< HTTP/1.1 200 OK
+[...]
+
+$ curl -H 'X-Real-IP: 127.0.0.1' --user foo:bar -x $ADDR:$PORT -v http://cafe.example.com/coffee
+[...]
+> GET http://cafe.example.com/coffee HTTP/1.1
+[...]
+> Authorization: Basic Zm9vOmJhcg==
+[...]
+> X-Real-IP: 127.0.0.1
+>
+< HTTP/1.1 200 OK
+[...]
+```
