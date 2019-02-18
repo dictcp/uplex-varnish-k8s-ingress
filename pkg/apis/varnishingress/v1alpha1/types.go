@@ -183,11 +183,11 @@ type AnchorType string
 
 const (
 	// None indicates no anchoring.
-	None  AnchorType = "none"
+	None AnchorType = "none"
 	// Start indicates anchoring at start-of-string.
-	Start            = "start"
+	Start = "start"
 	// Both indicates anchoring at start- and end-of-string.
-	Both             = "both"
+	Both = "both"
 )
 
 // MatchFlagsType is a collection of options that modify matching
@@ -220,21 +220,21 @@ const (
 	Replace MethodType = "replace"
 	// Sub means that the first matching substring of the target
 	// after a regex match is substituted with the new value.
-	Sub                = "sub"
+	Sub = "sub"
 	// Suball means that each non-overlapping matching substring
 	// of the target is substituted.
-	Suball             = "suball"
+	Suball = "suball"
 	// Rewrite means that the target is rewritten with the rule in
 	// the Rewrite field, possibly with backreferences.
-	Rewrite            = "rewrite"
+	Rewrite = "rewrite"
 	// Append means that a string is concatenated after the source
 	// string, with the result written to the target.
-	Append             = "append"
+	Append = "append"
 	// Prepend means that a string is concatenated after the
 	// source string.
-	Prepend            = "prepend"
+	Prepend = "prepend"
 	// Delete means that the target object is deleted.
-	Delete             = "delete"
+	Delete = "delete"
 )
 
 // RewriteCompare classifies the comparison operation used to evaluate
@@ -245,9 +245,9 @@ const (
 	// RewriteMatch means that a regex match is executed.
 	RewriteMatch RewriteCompare = "match"
 	// RewriteEqual means that fixed strings are tested for equality.
-	RewriteEqual                = "equal"
+	RewriteEqual = "equal"
 	// Prefix indicates a fixed-string prefix match.
-	Prefix                      = "prefix"
+	Prefix = "prefix"
 )
 
 // VCLSubType classifies the VCL subroutine in which a rewrite is
@@ -256,29 +256,29 @@ type VCLSubType string
 
 const (
 	// Recv for vcl_recv
-	Recv            VCLSubType = "recv"
+	Recv VCLSubType = "recv"
 	// Pipe for vcl_pipe
-	Pipe                       = "pipe"
+	Pipe = "pipe"
 	// Pass for vcl_pass
-	Pass                       = "pass"
+	Pass = "pass"
 	// Hash for vcl_hash
-	Hash                       = "hash"
+	Hash = "hash"
 	// Purge for vcl_purge
-	Purge                      = "purge"
+	Purge = "purge"
 	// Miss for vcl_miss
-	Miss                       = "miss"
+	Miss = "miss"
 	// Hit for vcl_hit
-	Hit                        = "hit"
+	Hit = "hit"
 	// Deliver for vcl_deliver
-	Deliver                    = "deliver"
+	Deliver = "deliver"
 	// Synth for vcl_synth
-	Synth                      = "synth"
+	Synth = "synth"
 	// BackendFetch for vcl_backend_fetch
-	BackendFetch               = "backend_fetch"
+	BackendFetch = "backend_fetch"
 	// BackendResponse for vcl_backend_response
-	BackendResponse            = "backend_response"
+	BackendResponse = "backend_response"
 	// BackendError for vcl_backend_error
-	BackendError               = "backend_error"
+	BackendError = "backend_error"
 )
 
 // SelectType classifies the determination of the rewrite rule to
@@ -293,21 +293,21 @@ type SelectType string
 const (
 	// Unique means that only one rewrite rule may match,
 	// otherwise VCL failure is invoked.
-	Unique   SelectType = "unique"
+	Unique SelectType = "unique"
 	// First means that the first matching rule in the order of
 	// the Rules array is executed.
-	First               = "first"
+	First = "first"
 	// Last means that the last matching rule is executed.
-	Last                = "last"
+	Last = "last"
 	// Exact means that, for a prefix match, the rule by which the
 	// full string matched exactly is executed.
-	Exact               = "exact"
+	Exact = "exact"
 	// Longest means that the rule for the longest prefix that
 	// matched is executed.
-	Longest             = "longest"
+	Longest = "longest"
 	// Shortest means that the rule for the shortest prefix that
 	// matched is executed.
-	Shortest            = "shortest"
+	Shortest = "shortest"
 )
 
 // RewriteSpec is the configuration for a set of rewrite rules;
