@@ -135,12 +135,15 @@ var (
 	}, []string{"namespace", "kind", "result"})
 )
 
+// InitMetrics sets the prometheus provider for the workqueue metrics,
+// and registers the counter vectors.
 func InitMetrics() {
 	workqueue.SetProvider(promProvider{})
 	prometheus.Register(watchCounters)
 	prometheus.Register(syncCounters)
 }
 
+// ServeMetrics executes the HTTP Handler for the /metrics endpoint.
 func ServeMetrics(log *logrus.Logger, port uint16) {
 	addr := fmt.Sprintf(":%d", port)
 	http.Handle("/metrics", promhttp.Handler())
