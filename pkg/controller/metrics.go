@@ -47,7 +47,7 @@ const (
 
 type promProvider struct{}
 
-func (_ promProvider) NewDepthMetric(name string) workqueue.GaugeMetric {
+func (promProvider) NewDepthMetric(name string) workqueue.GaugeMetric {
 	label := make(map[string]string)
 	label["namespace"] = name
 	depth := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -61,7 +61,7 @@ func (_ promProvider) NewDepthMetric(name string) workqueue.GaugeMetric {
 	return depth
 }
 
-func (_ promProvider) NewAddsMetric(name string) workqueue.CounterMetric {
+func (promProvider) NewAddsMetric(name string) workqueue.CounterMetric {
 	label := make(map[string]string)
 	label["namespace"] = name
 	adds := prometheus.NewCounter(prometheus.CounterOpts{
@@ -75,7 +75,7 @@ func (_ promProvider) NewAddsMetric(name string) workqueue.CounterMetric {
 	return adds
 }
 
-func (_ promProvider) NewLatencyMetric(name string) workqueue.SummaryMetric {
+func (promProvider) NewLatencyMetric(name string) workqueue.SummaryMetric {
 	label := make(map[string]string)
 	label["namespace"] = name
 	latency := prometheus.NewSummary(prometheus.SummaryOpts{
@@ -90,7 +90,7 @@ func (_ promProvider) NewLatencyMetric(name string) workqueue.SummaryMetric {
 	return latency
 }
 
-func (_ promProvider) NewWorkDurationMetric(name string) workqueue.SummaryMetric {
+func (promProvider) NewWorkDurationMetric(name string) workqueue.SummaryMetric {
 	label := make(map[string]string)
 	label["namespace"] = name
 	workDuration := prometheus.NewSummary(prometheus.SummaryOpts{
@@ -105,7 +105,7 @@ func (_ promProvider) NewWorkDurationMetric(name string) workqueue.SummaryMetric
 	return workDuration
 }
 
-func (_ promProvider) NewRetriesMetric(name string) workqueue.CounterMetric {
+func (promProvider) NewRetriesMetric(name string) workqueue.CounterMetric {
 	label := make(map[string]string)
 	label["namespace"] = name
 	retries := prometheus.NewCounter(prometheus.CounterOpts{
