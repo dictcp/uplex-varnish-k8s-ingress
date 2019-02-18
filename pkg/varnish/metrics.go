@@ -99,10 +99,10 @@ var (
 		Help:      "Total number of monitor results",
 	}, []string{"service", "status", "result"})
 
-	addr2instMetrics map[string]*instanceMetrics = make(map[string]*instanceMetrics)
-	instMetricsMtx                               = &sync.Mutex{}
+	addr2instMetrics = make(map[string]*instanceMetrics)
+	instMetricsMtx   = &sync.Mutex{}
 
-	latencyObjectives map[float64]float64 = map[float64]float64{
+	latencyObjectives = map[float64]float64{
 		0.5:   0.001,
 		0.9:   0.001,
 		0.95:  0.001,
