@@ -151,25 +151,52 @@ const (
 	NotMatch = "not-match"
 )
 
+// ResultHdrType describes the configuration for writing a header as
+// the result of an ACL comparison. Header is the header to write in
+// VCL notation. Failure is the value to write on the fail condition,
+// Success the value to write otherwise.
 type ResultHdrType struct {
 	Header  string `json:"header"`
 	Success string `json:"success"`
 	Failure string `json:"failure"`
 }
 
+// RewriteRule describes conditions under which a rewrite is executed, and
+// strings to be used for the rewrite. Elements of the Rules array for a
+// RewriteSpec have this type.
+//
+// Value is a string or pattern against which the Source object is
+// compared. If Values is a regular expression, it has the syntax and
+// semantics of RE2 (https://github.com/google/re2/wiki/Syntax).
+//
+// Rewrite is a string to be used for the rewrite if the Value
+// compares successfully. Depending on the RewriteSpec's Method,
+// Rewrite may contain backreferences captured from a regex match.
 type RewriteRule struct {
 	Value   string `json:"value,omitempty"`
 	Rewrite string `json:"rewrite,omitempty"`
 }
 
+// AnchorType classifies start-of-string and/or end-of-string
+// anchoring for a regex match.
 type AnchorType string
 
 const (
+	// None indicates no anchoring.
 	None  AnchorType = "none"
+	// Start indicates anchoring at start-of-string.
 	Start            = "start"
+	// Both indicates anchoring at start- and end-of-string.
 	Both             = "both"
 )
 
+// MatchFlagsType is a collection of options that modify matching
+// operations. CaseSensitive can be applied to both fixed string
+// matches and regex matches; the remainder are for regex matches
+// only. These correspond to flags for RE2 matching, and are used
+// by the RE2 VMOD.
+//
+// See: https://code.uplex.de/uplex-varnish/libvmod-re2
 type MatchFlagsType struct {
 	MaxMem        *uint64    `json:"max-mem,omitempty"`
 	Anchor        AnchorType `json:"anchor,omitempty"`
@@ -183,54 +210,118 @@ type MatchFlagsType struct {
 	WordBoundary  bool       `json:"word-boundary,omitempty"`
 }
 
+// MethodType classifies the process by which a rewrite modifies the
+// Target object.
 type MethodType string
 
 const (
+	// Replace means that the target is overwritten with a new
+	// value.
 	Replace MethodType = "replace"
+	// Sub means that the first matching substring of the target
+	// after a regex match is substituted with the new value.
 	Sub                = "sub"
+	// Suball means that each non-overlapping matching substring
+	// of the target is substituted.
 	Suball             = "suball"
+	// Rewrite means that the target is rewritten with the rule in
+	// the Rewrite field, possibly with backreferences.
 	Rewrite            = "rewrite"
+	// Append means that a string is concatenated after the source
+	// string, with the result written to the target.
 	Append             = "append"
+	// Prepend means that a string is concatenated after the
+	// source string.
 	Prepend            = "prepend"
+	// Delete means that the target object is deleted.
 	Delete             = "delete"
 )
 
+// RewriteCompare classifies the comparison operation used to evaluate
+// the conditions for a rewrite.
 type RewriteCompare string
 
 const (
+	// RewriteMatch means that a regex match is executed.
 	RewriteMatch RewriteCompare = "match"
+	// RewriteEqual means that fixed strings are tested for equality.
 	RewriteEqual                = "equal"
+	// Prefix indicates a fixed-string prefix match.
 	Prefix                      = "prefix"
 )
 
+// VCLSubType classifies the VCL subroutine in which a rewrite is
+// executed.
 type VCLSubType string
 
 const (
+	// Recv for vcl_recv
 	Recv            VCLSubType = "recv"
+	// Pipe for vcl_pipe
 	Pipe                       = "pipe"
+	// Pass for vcl_pass
 	Pass                       = "pass"
+	// Hash for vcl_hash
 	Hash                       = "hash"
+	// Purge for vcl_purge
 	Purge                      = "purge"
+	// Miss for vcl_miss
 	Miss                       = "miss"
+	// Hit for vcl_hit
 	Hit                        = "hit"
+	// Deliver for vcl_deliver
 	Deliver                    = "deliver"
+	// Synth for vcl_synth
 	Synth                      = "synth"
+	// BackendFetch for vcl_backend_fetch
 	BackendFetch               = "backend_fetch"
+	// BackendResponse for vcl_backend_response
 	BackendResponse            = "backend_response"
+	// BackendError for vcl_backend_error
 	BackendError               = "backend_error"
 )
 
+// SelectType classifies the determination of the rewrite rule to
+// apply if more than one of them in the Rules array compares
+// successfully. This is only possible when the Method specifies a
+// regex or prefix match.
+//
+// The values Unique, First or Last may be used for both regex and
+// prefix matches; the others may only be used for prefix matches.
 type SelectType string
 
 const (
+	// Unique means that only one rewrite rule may match,
+	// otherwise VCL failure is invoked.
 	Unique   SelectType = "unique"
+	// First means that the first matching rule in the order of
+	// the Rules array is executed.
 	First               = "first"
+	// Last means that the last matching rule is executed.
 	Last                = "last"
+	// Exact means that, for a prefix match, the rule by which the
+	// full string matched exactly is executed.
 	Exact               = "exact"
+	// Longest means that the rule for the longest prefix that
+	// matched is executed.
 	Longest             = "longest"
+	// Shortest means that the rule for the shortest prefix that
+	// matched is executed.
 	Shortest            = "shortest"
 )
 
+// RewriteSpec is the configuration for a set of rewrite rules;
+// elements of the Rewrites array of a VarnishConfigSpec have this
+// type.
+//
+// Target is the object to be rewritten, in VCL notation. It can be
+// the client or backend URL path, or a client or backend request or
+// response header.
+//
+// Source is the object against which comparisons are applied, and
+// from which substrings may be extracted. It may have the same values
+// as Target. If Source is the empty string, then the Source is the
+// same as the Target, and the Target is rewritten in place.
 type RewriteSpec struct {
 	Rules      []RewriteRule   `json:"rules,omitempty"`
 	MatchFlags *MatchFlagsType `json:"match-flags,omitempty"`
