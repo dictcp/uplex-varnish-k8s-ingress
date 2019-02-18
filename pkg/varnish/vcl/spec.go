@@ -352,6 +352,10 @@ func (a byComparand) Less(i, j int) bool {
 	return a[i].Comparand < a[j].Comparand
 }
 
+// ResultHdrType describes the configuration for writing a header as
+// the result of an ACL comparison. Header is the header to write in
+// VCL notation. Failure is the value to write on the fail condition,
+// Success the value to write otherwise.
 type ResultHdrType struct {
 	Header  string
 	Success string
@@ -398,57 +402,117 @@ func (a byACLName) Len() int           { return len(a) }
 func (a byACLName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byACLName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
+// RewriteRule describes conditions under which a rewrite is executed,
+// and strings to be used for the rewrite. Elements of the Rules array
+// for a Rewrite have this type.
+//
+// Value is a string or pattern against which the Source object is
+// compared. If Values is a regular expression, it has the syntax and
+// semantics of RE2 (https://github.com/google/re2/wiki/Syntax).
+//
+// Rewrite is a string to be used for the rewrite if the Value
+// compares successfully. Depending on the RewriteSpec's Method,
+// Rewrite may contain backreferences captured from a regex match.
 type RewriteRule struct {
 	Value   string
 	Rewrite string
 }
 
+// MethodType classifies the process by which a rewrite modifies the
+// Target object.
 type MethodType uint8
 
 const (
+	// Replace means that the target is overwritten with a new
+	// value.
 	Replace MethodType = iota
+	// Sub means that the first matching substring of the target
+	// after a regex match is substituted with the new value.
 	Sub
+	// Suball means that each non-overlapping matching substring
+	// of the target is substituted.
 	Suball
+	// RewriteMethod means that the target is rewritten with the
+	// rule in the Rewrite field, possibly with backreferences.
 	RewriteMethod
+	// Append means that a string is concatenated after the source
+	// string, with the result written to the target.
 	Append
+	// Prepend means that a string is concatenated after the
+	// source string.
 	Prepend
+	// Delete means that the target object is deleted.
 	Delete
 )
 
+// RewriteCompare classifies the comparison operation used to evaluate
+// the conditions for a rewrite.
 type RewriteCompare uint8
 
 const (
+	// RewriteMatch means that a regex match is executed.
 	RewriteMatch RewriteCompare = iota
+	// RewriteEqual means that fixed strings are tested for equality.
 	RewriteEqual
+	// Prefix indicates a fixed-string prefix match.
 	Prefix
 )
 
+// VCLSubType classifies the VCL subroutine in which a rewrite is
+// executed.
 type VCLSubType uint8
 
 const (
+	// Unspecified means that the VCL sub was not specified in the
+	// user configuration, and will be inferred from the Source
+	// and Target.
 	Unspecified VCLSubType = iota
+	// Recv for vcl_recv
 	Recv
+	// Pipe for vcl_pipe
 	Pipe
+	// Pass for vcl_pass
 	Pass
+	// Hash for vcl_hash
 	Hash
+	// Purge for vcl_purge
 	Purge
+	// Miss for vcl_miss
 	Miss
+	// Hit for vcl_hit
 	Hit
+	// Deliver for vcl_deliver
 	Deliver
+	// Synth for vcl_synth
 	Synth
+	// BackendFetch for vcl_backend_fetch
 	BackendFetch
+	// BackendResponse for vcl_backend_response
 	BackendResponse
+	// BackendError for vcl_backend_error
 	BackendError
 )
 
+// AnchorType classifies start-of-string and/or end-of-string
+// anchoring for a regex match.
 type AnchorType uint8
 
 const (
+	// None indicates no anchoring.
 	None AnchorType = iota
+	// Start indicates anchoring at start-of-string.
 	Start
+	// Both indicates anchoring at start- and end-of-string.
 	Both
 )
 
+// MatchFlagsType is a collection of options that modify matching
+// operations. CaseSensitive can be applied to both fixed string
+// matches and regex matches; the remainder are for regex matches
+// only. These correspond to flags for RE2 matching, and are used
+// by the RE2 VMOD.
+//
+// See: https://code.uplex.de/uplex-varnish/libvmod-re2
 type MatchFlagsType struct {
 	MaxMem        uint64
 	Anchor        AnchorType
@@ -493,17 +557,38 @@ func (flags MatchFlagsType) hash(hash hash.Hash) {
 	}
 }
 
+// SelectType classifies the determination of the rewrite rule to
+// apply if more than one of them in the Rules array compares
+// successfully. This is only possible when the Method specifies a
+// regex or prefix match.
+//
+// The values Unique, First or Last may be used for both regex and
+// prefix matches; the others may only be used for prefix matches.
 type SelectType uint8
 
 const (
+	// Unique means that only one rewrite rule may match,
+	// otherwise VCL failure is invoked.
 	Unique SelectType = iota
+	// First means that the first matching rule in the order of
+	// the Rules array is executed.
+	// Last means that the last matching rule is executed.
 	First
+	// Last means that the last matching rule is executed.
 	Last
+	// Exact means that, for a prefix match, the rule by which the
+	// full string matched exactly is executed.
 	Exact
+	// Longest means that the rule for the longest prefix that
+	// matched is executed.
 	Longest
+	// Shortest means that the rule for the shortest prefix that
+	// matched is executed.
 	Shortest
 )
 
+// The String method returns the upper-case name of the enum used for
+// VMOD re2.
 func (s SelectType) String() string {
 	switch s {
 	case Unique:
@@ -523,6 +608,16 @@ func (s SelectType) String() string {
 	}
 }
 
+// Rewrite is the specification for a set of rewrite rules; elements
+// of the Rewrites array of a VCL Spec have this type.
+//
+// Target is the object to be rewritten, in VCL notation. It can be
+// the client or backend URL path, or a client or backend request or
+// response header.
+//
+// Source is the object against which comparisons are applied, and
+// from which substrings may be extracted. It may have the same values
+// as Target.
 type Rewrite struct {
 	Rules      []RewriteRule
 	MatchFlags MatchFlagsType
