@@ -9,6 +9,13 @@ The docs in this folder cover these topics:
   * [controller command-line options](ref-cli-options.md)
   * [customizing the Pod template](varnish-pod-template.md) for Varnish
   * [metrics](ref-metrics.md) published by the controller
+  * [configuration elements and rules](ref-svcs-ingresses-ns.md) for:
+      * specifying the Varnish Service that implements the routing
+        rules of an Ingress definition
+      * relating Varnish Services, Ingresses and backend Services from
+        different namespaces
+      * merging various Ingress definitions into a comprehensive set
+        or routing rules implemented by a Varnish Service
 
 * [Logging, Events and the Varnish Service monitor](monitor.md)
 
