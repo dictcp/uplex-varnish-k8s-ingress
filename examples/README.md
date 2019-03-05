@@ -13,6 +13,9 @@ requirements.
 * [Customizing the Pod template](/examples/varnish_pod_template)
   for Varnish
 
+* [Sample architectures](/examples/architectures) for relationships
+  among multiple Varnish Services, Ingresses and namespaces.
+
 * [Custom VCL](/examples/custom-vcl)
 
 * [Self-sharding Varnish cluster](/examples/self-sharding)
