@@ -36,6 +36,9 @@ spec:
 [...]
 ```
 
+See the [``examples/`` folder](/examples/architectures/) for sample
+configurations that apply the following rules.
+
 * The controller only considers Ingress definitions with the
   ``kubernetes.io/ingress.class`` annotation set to specify Varnish as
   the implementation, with the currently hard-wired value

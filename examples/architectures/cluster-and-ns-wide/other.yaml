@@ -1,0 +1,34 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: other
+  namespace: other
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: other
+  template:
+    metadata:
+      labels:
+        app: other
+    spec:
+      containers:
+      - name: other
+        image: nginxdemos/hello:plain-text
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: other-svc
+  namespace: other
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: other

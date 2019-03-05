@@ -1,0 +1,50 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: varnish-coffee
+  namespace: cafe
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: varnish-ingress
+      ingress: coffee
+  template:
+    metadata:
+      labels:
+        app: varnish-ingress
+        ingress: coffee
+    spec:
+      containers:
+      - image: varnish-ingress/varnish
+        imagePullPolicy: IfNotPresent
+        name: varnish-ingress
+        ports:
+        - name: http
+          containerPort: 80
+        - name: k8s
+          containerPort: 8080
+        - name: varnishadm
+          containerPort: 6081
+        volumeMounts:
+        - name: adm-secret
+          mountPath: "/var/run/varnish"
+          readOnly: true
+        livenessProbe:
+          exec:
+            command:
+            - /usr/bin/pgrep
+            - -P
+            - "0"
+            - varnishd
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: k8s
+      volumes:
+      - name: adm-secret
+        secret:
+          secretName: coffee-secret
+          items:
+          - key: admin
+            path: _.secret

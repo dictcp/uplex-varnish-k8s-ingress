@@ -1,0 +1,12 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: other-ingress
+  namespace: other
+  annotations:
+    kubernetes.io/ingress.class: "varnish"
+    ingress.varnish-cache.org/varnish-svc: "kube-system/varnish-ingress"
+spec:
+  backend:
+    serviceName: other-svc
+    servicePort: 80
