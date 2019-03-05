@@ -551,6 +551,9 @@ func (vc *VarnishController) updateBeGauges() {
 	nBeSvcs := 0
 	nBeEndps := 0
 	for _, svc := range vc.svcs {
+		if svc == nil || svc.spec == nil {
+			continue
+		}
 		nBeSvcs += len(svc.spec.spec.AllServices)
 		for _, beSvc := range svc.spec.spec.AllServices {
 			nBeEndps += len(beSvc.Addresses)
