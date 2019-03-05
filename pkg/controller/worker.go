@@ -67,6 +67,7 @@ type NamespaceWorker struct {
 	vController *varnish.VarnishController
 	queue       workqueue.RateLimitingInterface
 	stopChan    chan struct{}
+	listers     *Listers
 	ing         ext_listers.IngressNamespaceLister
 	svc         core_v1_listers.ServiceNamespaceLister
 	endp        core_v1_listers.EndpointsNamespaceLister
@@ -341,6 +342,7 @@ func (qs *NamespaceQueues) next() {
 			vController: qs.vController,
 			queue:       q,
 			stopChan:    make(chan struct{}),
+			listers:     qs.listers,
 			ing:         qs.listers.ing.Ingresses(ns),
 			svc:         qs.listers.svc.Services(ns),
 			endp:        qs.listers.endp.Endpoints(ns),

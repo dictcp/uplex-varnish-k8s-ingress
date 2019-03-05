@@ -36,7 +36,10 @@ import (
 	"strconv"
 
 	vcr_v1alpha1 "code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1"
+	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish"
 	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
+
+	"k8s.io/client-go/tools/cache"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -57,28 +60,125 @@ const (
 func (worker *NamespaceWorker) getVarnishSvcForIng(
 	ing *extensions.Ingress) (*api_v1.Service, error) {
 
-	svcs, err := worker.svc.List(varnishIngressSelector)
+	svcs, err := worker.listers.svc.List(varnishIngressSelector)
 	if err != nil {
 		return nil, err
 	}
 	if varnishSvc, exists := ing.Annotations[varnishSvcKey]; exists {
+		worker.log.Debugf("Ingress %s/%s has annotation %s:%s",
+			ing.Namespace, ing.Name, varnishSvcKey, varnishSvc)
+		targetNs, targetSvc, err :=
+			cache.SplitMetaNamespaceKey(varnishSvc)
+		if err != nil {
+			return nil, err
+		}
+		if targetNs == "" {
+			targetNs = worker.namespace
+		}
 		for _, svc := range svcs {
-			if svc.Name == varnishSvc {
+			if svc.Namespace == targetNs && svc.Name == targetSvc {
 				return svc, nil
 			}
 		}
+		worker.log.Debugf("Ingress %s/%s: Varnish Service %s not found",
+			ing.Namespace, ing.Name, varnishSvc)
 		return nil, nil
 	}
+	worker.log.Debugf("Ingress %s/%s does not have annotation %s",
+		ing.Namespace, ing.Name, varnishSvcKey)
 	if len(svcs) == 1 {
+		worker.log.Debugf("Exactly one Varnish Ingress Service "+
+			"cluster-wide: %s", svcs[0])
+		return svcs[0], nil
+	}
+	svcs, err = worker.svc.List(varnishIngressSelector)
+	if err != nil {
+		return nil, err
+	}
+	if len(svcs) == 1 {
+		worker.log.Debugf("Exactly one Varnish Ingress Service "+
+			"in namespace %s: %s", worker.namespace, svcs[0])
 		return svcs[0], nil
 	}
 	return nil, nil
 }
 
-func (worker *NamespaceWorker) ingBackend2Addrs(
+func (worker *NamespaceWorker) getIngsForVarnishSvc(
+	svc *api_v1.Service) ([]*extensions.Ingress, error) {
+
+	ings, err := worker.listers.ing.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	allVarnishSvcs, err := worker.listers.svc.List(varnishIngressSelector)
+	if err != nil {
+		return nil, err
+	}
+	nsVarnishSvcs, err := worker.svc.List(varnishIngressSelector)
+	if err != nil {
+		return nil, err
+	}
+	ings4Svc := make([]*extensions.Ingress, 0)
+	for _, ing := range ings {
+		namespace := ing.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+		if ingSvc, exists := ing.Annotations[varnishSvcKey]; exists {
+			targetNs, targetSvc, err :=
+				cache.SplitMetaNamespaceKey(ingSvc)
+			if err != nil {
+				return nil, err
+			}
+			if targetNs == "" {
+				targetNs = namespace
+			}
+			if targetNs == svc.Namespace && targetSvc == svc.Name {
+				ings4Svc = append(ings4Svc, ing)
+			}
+		} else if len(allVarnishSvcs) == 1 {
+			ings4Svc = append(ings4Svc, ing)
+		} else if ing.Namespace == svc.Namespace &&
+			len(nsVarnishSvcs) == 1 {
+
+			ings4Svc = append(ings4Svc, ing)
+		}
+	}
+	return ings4Svc, nil
+}
+
+func ingMergeError(ings []*extensions.Ingress) error {
+	host2ing := make(map[string]*extensions.Ingress)
+	var ingWdefBackend *extensions.Ingress
+	for _, ing := range ings {
+		if ing.Spec.Backend != nil {
+			if ingWdefBackend != nil {
+				return fmt.Errorf("Default backend configured "+
+					"in more than one Ingress: %s/%s and "+
+					"%s/%s", ing.Namespace, ing.Name,
+					ingWdefBackend.Namespace,
+					ingWdefBackend.Name)
+			}
+			ingWdefBackend = ing
+		}
+		for _, rule := range ing.Spec.Rules {
+			if otherIng, exists := host2ing[rule.Host]; exists {
+				return fmt.Errorf("Host '%s' named in rules "+
+					"for more than one Ingress: %s/%s and "+
+					"%s/%s", rule.Host, otherIng.Namespace,
+					otherIng.Name, ing.Namespace, ing.Name)
+			}
+			host2ing[rule.Host] = ing
+		}
+	}
+	return nil
+}
+
+func (worker *NamespaceWorker) ingBackend2Addrs(namespace string,
 	backend extensions.IngressBackend) (addrs []vcl.Address, err error) {
 
-	svc, err := worker.svc.Get(backend.ServiceName)
+	nsLister := worker.listers.svc.Services(namespace)
+	svc, err := nsLister.Get(backend.ServiceName)
 	if err != nil {
 		return
 	}
@@ -142,19 +242,23 @@ func getVCLProbe(probe *vcr_v1alpha1.ProbeSpec) *vcl.Probe {
 	return vclProbe
 }
 
-func (worker *NamespaceWorker) getVCLSvc(svcName string,
-	addrs []vcl.Address) (vcl.Service, error) {
+func (worker *NamespaceWorker) getVCLSvc(svcNamespace string, svcName string,
+	addrs []vcl.Address) (vcl.Service, *vcr_v1alpha1.BackendConfig, error) {
 
+	if svcNamespace == "" {
+		svcNamespace = "default"
+	}
 	vclSvc := vcl.Service{
-		Name:      svcName,
+		Name:      svcNamespace + "/" + svcName,
 		Addresses: addrs,
 	}
-	bcfgs, err := worker.bcfg.List(labels.Everything())
+	nsLister := worker.listers.bcfg.BackendConfigs(svcNamespace)
+	bcfgs, err := nsLister.List(labels.Everything())
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return vclSvc, nil
+			return vclSvc, nil, nil
 		}
-		return vclSvc, err
+		return vclSvc, nil, err
 	}
 	var bcfg *vcr_v1alpha1.BackendConfig
 BCfgs:
@@ -168,7 +272,7 @@ BCfgs:
 		}
 	}
 	if bcfg == nil {
-		return vclSvc, nil
+		return vclSvc, nil, nil
 	}
 	if bcfg.Spec.Director != nil {
 		vclSvc.Director = &vcl.Director{
@@ -194,58 +298,79 @@ BCfgs:
 	if bcfg.Spec.ProxyHeader != nil {
 		vclSvc.ProxyHeader = uint8(*bcfg.Spec.ProxyHeader)
 	}
-	return vclSvc, nil
+	return vclSvc, bcfg, nil
 }
 
-func (worker *NamespaceWorker) ing2VCLSpec(
-	ing *extensions.Ingress) (vcl.Spec, error) {
-
+func (worker *NamespaceWorker) ings2VCLSpec(
+	ings []*extensions.Ingress) (vcl.Spec,
+	map[string]*vcr_v1alpha1.BackendConfig, error) {
 	vclSpec := vcl.Spec{}
 	vclSpec.AllServices = make(map[string]vcl.Service)
-	if ing.Spec.TLS != nil && len(ing.Spec.TLS) > 0 {
-		worker.log.Warnf("TLS config currently ignored in Ingress %s",
-			ing.ObjectMeta.Name)
-	}
-	if ing.Spec.Backend != nil {
-		backend := ing.Spec.Backend
-		addrs, err := worker.ingBackend2Addrs(*backend)
-		if err != nil {
-			return vclSpec, err
+	bcfgs := make(map[string]*vcr_v1alpha1.BackendConfig)
+	for _, ing := range ings {
+		namespace := ing.Namespace
+		if namespace == "" {
+			namespace = "default"
 		}
-		vclSvc, err := worker.getVCLSvc(backend.ServiceName, addrs)
-		if err != nil {
-			return vclSpec, err
+		if ing.Spec.TLS != nil && len(ing.Spec.TLS) > 0 {
+			worker.log.Warnf("TLS config currently ignored in "+
+				"Ingress %s/%s", namespace, ing.Name)
 		}
-		vclSpec.DefaultService = vclSvc
-		vclSpec.AllServices[backend.ServiceName] = vclSvc
-	}
-	for _, rule := range ing.Spec.Rules {
-		if rule.Host == "" {
-			return vclSpec, fmt.Errorf("Ingress rule contains " +
-				"empty Host")
+		if ing.Spec.Backend != nil {
+			if vclSpec.DefaultService.Name != "" {
+				panic("More than one Ingress default backend")
+			}
+			backend := ing.Spec.Backend
+			addrs, err := worker.ingBackend2Addrs(namespace,
+				*backend)
+			if err != nil {
+				return vclSpec, bcfgs, err
+			}
+			vclSvc, bcfg, err := worker.getVCLSvc(namespace,
+				backend.ServiceName, addrs)
+			if err != nil {
+				return vclSpec, bcfgs, err
+			}
+			vclSpec.DefaultService = vclSvc
+			vclSpec.AllServices[namespace+"/"+backend.ServiceName] = vclSvc
+			if bcfg != nil {
+				bcfgs[vclSvc.Name] = bcfg
+			}
 		}
-		vclRule := vcl.Rule{Host: rule.Host}
-		vclRule.PathMap = make(map[string]vcl.Service)
-		if rule.IngressRuleValue.HTTP == nil {
+		for _, rule := range ing.Spec.Rules {
+			// XXX this should not be an error
+			if rule.Host == "" {
+				return vclSpec, bcfgs,
+					fmt.Errorf("Ingress rule contains empty Host")
+			}
+			vclRule := vcl.Rule{Host: rule.Host}
+			vclRule.PathMap = make(map[string]vcl.Service)
+			if rule.IngressRuleValue.HTTP == nil {
+				vclSpec.Rules = append(vclSpec.Rules, vclRule)
+				continue
+			}
+			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				addrs, err := worker.ingBackend2Addrs(
+					namespace, path.Backend)
+				if err != nil {
+					return vclSpec, bcfgs, err
+				}
+				vclSvc, bcfg, err := worker.getVCLSvc(namespace,
+					path.Backend.ServiceName, addrs)
+				if err != nil {
+					return vclSpec, bcfgs, err
+				}
+				vclRule.PathMap[path.Path] = vclSvc
+				vclSpec.AllServices[namespace+"/"+
+					path.Backend.ServiceName] = vclSvc
+				if bcfg != nil {
+					bcfgs[vclSvc.Name] = bcfg
+				}
+			}
 			vclSpec.Rules = append(vclSpec.Rules, vclRule)
-			continue
 		}
-		for _, path := range rule.IngressRuleValue.HTTP.Paths {
-			addrs, err := worker.ingBackend2Addrs(path.Backend)
-			if err != nil {
-				return vclSpec, err
-			}
-			vclSvc, err := worker.getVCLSvc(
-				path.Backend.ServiceName, addrs)
-			if err != nil {
-				return vclSpec, nil
-			}
-			vclRule.PathMap[path.Path] = vclSvc
-			vclSpec.AllServices[path.Backend.ServiceName] = vclSvc
-		}
-		vclSpec.Rules = append(vclSpec.Rules, vclRule)
 	}
-	return vclSpec, nil
+	return vclSpec, bcfgs, nil
 }
 
 func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
@@ -623,15 +748,6 @@ func (worker *NamespaceWorker) configRewrites(spec *vcl.Spec,
 	return nil
 }
 
-func (worker *NamespaceWorker) hasIngress(svc *api_v1.Service,
-	ing *extensions.Ingress, spec vcl.Spec) bool {
-
-	svcKey := svc.Namespace + "/" + svc.Name
-	ingKey := ing.Namespace + "/" + ing.Name
-	return worker.vController.HasIngress(svcKey, ingKey, string(ing.UID),
-		spec)
-}
-
 func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 	ingKey := ing.ObjectMeta.Namespace + "/" + ing.ObjectMeta.Name
 	worker.log.Infof("Adding or Updating Ingress: %s", ingKey)
@@ -646,13 +762,30 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 			ing.Namespace, ing.Name)
 	}
 	svcKey := svc.Namespace + "/" + svc.Name
-	worker.log.Infof("Ingress %s to be implemented by Varnish Service %s",
-		ingKey, svcKey)
+	worker.log.Infof("Ingress %s configured for Varnish Service %s", ingKey,
+		svcKey)
 
-	vclSpec, err := worker.ing2VCLSpec(ing)
+	ings, err := worker.getIngsForVarnishSvc(svc)
+	if err != nil {
+		return nil
+	}
+	if len(ings) == 0 {
+		worker.log.Infof("No Ingresses to be implemented by Varnish "+
+			"Service %s, setting to not ready", svcKey)
+		return worker.vController.SetNotReady(svcKey)
+	}
+
+	ingNames := make([]string, len(ings))
+	for i, ingress := range ings {
+		ingNames[i] = ingress.Namespace + "/" + ingress.Name
+	}
+	worker.log.Infof("Ingresses implemented by Varnish Service %s: %v",
+		svcKey, ingNames)
+	vclSpec, bcfgs, err := worker.ings2VCLSpec(ings)
 	if err != nil {
 		return err
 	}
+	worker.log.Debugf("VCL spec generated from the Ingresses: %v", vclSpec)
 
 	var vcfg *vcr_v1alpha1.VarnishConfig
 	worker.log.Debugf("Listing VarnishConfigs in namespace %s",
@@ -693,23 +826,52 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 			"%s/%s", svc.Namespace, svc.Name)
 	}
 
-	worker.log.Debugf("Check if Ingress is loaded: key=%s uuid=%s hash=%0x",
-		ingKey, string(ing.UID), vclSpec.Canonical().DeepHash())
-	if worker.hasIngress(svc, ing, vclSpec) {
-		worker.log.Infof("Ingress %s uid=%s hash=%0x already loaded",
-			ingKey, ing.UID, vclSpec.Canonical().DeepHash())
+	ingsMeta := make(map[string]varnish.Meta)
+	for _, ing := range ings {
+		metaDatum := varnish.Meta{
+			Key: ing.Namespace + "/" + ing.Name,
+			UID: string(ing.UID),
+			Ver: ing.ResourceVersion,
+		}
+		ingsMeta[metaDatum.Key] = metaDatum
+	}
+	var vcfgMeta varnish.Meta
+	if vcfg != nil {
+		vcfgMeta = varnish.Meta{
+			Key: vcfg.Namespace + "/" + vcfg.Name,
+			UID: string(vcfg.UID),
+			Ver: vcfg.ResourceVersion,
+		}
+	}
+	bcfgMeta := make(map[string]varnish.Meta)
+	for name, bcfg := range bcfgs {
+		bcfgMeta[name] = varnish.Meta{
+			Key: bcfg.Namespace + "/" + bcfg.Name,
+			UID: string(bcfg.UID),
+			Ver: bcfg.ResourceVersion,
+		}
+	}
+	worker.log.Debugf("Check if config is loaded: hash=%0x "+
+		"ingressMetaData=%+v vcfgMetaData=%+v bcfgMetaData=%+v",
+		vclSpec.Canonical().DeepHash(), ingsMeta, vcfgMeta, bcfgMeta)
+	if worker.vController.HasConfig(svcKey, vclSpec, ingsMeta, vcfgMeta,
+		bcfgMeta) {
+		worker.log.Infof("Varnish Service %s: config already "+
+			"loaded: hash=%0x", svcKey,
+			vclSpec.Canonical().DeepHash())
 		return nil
 	}
-
-	worker.log.Debugf("Update Ingress key=%s svc=%s uuid=%s: %+v", ingKey,
-		svcKey, string(ing.ObjectMeta.UID), vclSpec)
-	err = worker.vController.Update(svcKey, ingKey,
-		string(ing.ObjectMeta.UID), vclSpec)
+	worker.log.Debugf("Update config svc=%s ingressMetaData=%+v "+
+		"vcfgMetaData=%+v bcfgMetaData=%+v: %+v", svcKey, ingsMeta,
+		vcfgMeta, bcfgMeta, vclSpec)
+	err = worker.vController.Update(svcKey, vclSpec, ingsMeta, vcfgMeta,
+		bcfgMeta)
 	if err != nil {
 		return err
 	}
-	worker.log.Debugf("Updated Ingress key=%s uuid=%s svc=%s: %+v", ingKey,
-		string(ing.ObjectMeta.UID), svcKey, vclSpec)
+	worker.log.Debugf("Updated config svc=%s ingressMetaData=%+v "+
+		"vcfgMetaData=%+v bcfgMetaData=%+v: %+v", svcKey, ingsMeta,
+		vcfgMeta, bcfgMeta, vclSpec)
 	return nil
 }
 
@@ -749,21 +911,8 @@ func (worker *NamespaceWorker) updateIng(key string) error {
 func (worker *NamespaceWorker) deleteIng(obj interface{}) error {
 	ing, ok := obj.(*extensions.Ingress)
 	if !ok || ing == nil {
-		// XXX should clean up Varnish config nevertheless
 		worker.log.Warnf("Delete Ingress: not found: %v", obj)
 		return nil
 	}
-	svc, err := worker.getVarnishSvcForIng(ing)
-	if err != nil {
-		return err
-	}
-	if svc == nil {
-		return fmt.Errorf("No Varnish Service found for Ingress %s/%s",
-			ing.Namespace, ing.Name)
-	}
-	ingKey := ing.Namespace + "/" + ing.Name
-	svcKey := svc.Namespace + "/" + svc.Name
-	worker.log.Infof("Deleting Ingress %s (Varnish service %s):", ingKey,
-		svcKey)
-	return worker.vController.DeleteIngress(svcKey, ingKey)
+	return worker.addOrUpdateIng(ing)
 }

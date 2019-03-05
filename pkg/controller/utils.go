@@ -59,7 +59,8 @@ var (
 func (worker *NamespaceWorker) getServiceEndpoints(
 	svc *api_v1.Service) (ep *api_v1.Endpoints, err error) {
 
-	eps, err := worker.endp.List(labels.Everything())
+	nsLister := worker.listers.endp.Endpoints(svc.Namespace)
+	eps, err := nsLister.List(labels.Everything())
 	if err != nil {
 		return
 	}

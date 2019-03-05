@@ -105,14 +105,27 @@ func (vadmErrs VarnishAdmErrors) Error() string {
 	return sb.String()
 }
 
+// Meta encapsulates meta-data for the resource types that enter into
+// a Varnish configuration: Ingress, VarnishConfig and BackendConfig.
+//
+//    Key: namespace/name
+//    UID: UID field from the resource meta-data
+//    Ver: ResourceVersion field from the resource meta-data
+type Meta struct {
+	Key string
+	UID string
+	Ver string
+}
+
 type vclSpec struct {
 	spec vcl.Spec
-	key  string
-	uid  string
+	ings map[string]Meta
+	vcfg Meta
+	bcfg map[string]Meta
 }
 
 func (spec vclSpec) configName() string {
-	name := fmt.Sprintf("%s%s_%s_%0x", ingressPrefix, spec.key, spec.uid,
+	name := fmt.Sprintf("%s%0x", ingressPrefix,
 		spec.spec.Canonical().DeepHash())
 	return nonAlNum.ReplaceAllLiteralString(name, "_")
 }
@@ -563,57 +576,50 @@ func (vc *VarnishController) updateBeGauges() {
 	beEndpsGauge.Set(float64(nBeEndps))
 }
 
-// Update a Varnish Service to implement an Ingress.
+// Update a Varnish Service to implement an configuration.
 //
 //    svcKey: namespace/name key for the Service
-//    ingKey: namespace/name key for the Ingress
-//    uid: UID field from the Ingress
-//    spec: VCL spec corresponding to the Ingress definition
-func (vc *VarnishController) Update(
-	svcKey, ingKey, uid string, spec vcl.Spec) error {
+//    spec: VCL spec corresponding to the configuration
+//    ingsMeta: Ingress meta-data
+//    vcfgMeta: VarnishConfig meta-data
+//    bcfgMeta: BackendConfig meta-data
+func (vc *VarnishController) Update(svcKey string, spec vcl.Spec,
+	ingsMeta map[string]Meta, vcfgMeta Meta,
+	bcfgMeta map[string]Meta) error {
 
 	svc, exists := vc.svcs[svcKey]
 	if !exists {
 		svc = &varnishSvc{instances: make([]*varnishInst, 0)}
 		vc.svcs[svcKey] = svc
 		svcsGauge.Inc()
-		vc.log.Infof("Added Varnish service definition %s for Ingress "+
-			"%s uid=%s", svcKey, ingKey, uid)
+		vc.log.Infof("Added Varnish service definition %s", svcKey)
 	}
 	svc.cfgLoaded = false
 	if svc.spec == nil {
 		svc.spec = &vclSpec{}
 	}
-	svc.spec.key = ingKey
-	svc.spec.uid = uid
 	svc.spec.spec = spec
+	svc.spec.ings = ingsMeta
+	svc.spec.vcfg = vcfgMeta
+	svc.spec.bcfg = bcfgMeta
 	vc.updateBeGauges()
 
 	if len(svc.instances) == 0 {
-		return fmt.Errorf("Ingress %s uid=%s: Currently no known "+
-			"endpoints for Varnish service %s", ingKey, uid, svcKey)
+		return fmt.Errorf("Currently no known endpoints for Varnish "+
+			"service %s", svcKey)
 	}
 	return vc.updateVarnishSvc(svcKey)
 }
 
-// DeleteIngress is called for the Delete event on an Ingress, and
-// syncs its effect for a Varnish Service.
-//
-//    svcKey: namespace/name key for the Varnish Service
-//    ingKey: namespace/name key for the Ingress
-//
-// We currently only support one Ingress definition at a time for a
-// Varnish Service, so deleting the Ingress means that we set Varnish
-// instances to the not ready state.
-func (vc *VarnishController) DeleteIngress(svcKey, ingKey string) error {
+// SetNotReady may be called on the Delete event on an Ingress, if no
+// Ingresses remain that are to be implemented by a Varnish Service.
+// The Service is set to the not ready state, by relabelling VCL so
+// that readiness checks are not answered with status 200.
+func (vc *VarnishController) SetNotReady(svcKey string) error {
 	svc, ok := vc.svcs[svcKey]
 	if !ok {
-		return fmt.Errorf("Delete Ingress %s: no known Varnish service",
-			ingKey)
-	}
-	if svc.spec != nil && svc.spec.key != ingKey {
-		return fmt.Errorf("Delete Ingress %s: Ingress %s is assigned "+
-			"to Varnish service %s", ingKey, svc.spec.key, svcKey)
+		return fmt.Errorf("Set Varnish Service not ready: %s unknown",
+			svcKey)
 	}
 	svc.spec = nil
 
@@ -636,24 +642,57 @@ func (vc *VarnishController) DeleteIngress(svcKey, ingKey string) error {
 	return errs
 }
 
-// HasIngress returns true iff an Ingress definition is already loaded
-// for a Varnish Service (so a new sync attempt is not necessary).
+// HasConfig returns true iff a configuration is already loaded for a
+// Varnish Service (so a new sync attempt is not necessary).
 //
 //    svcKey: namespace/name key for the Varnish Service
-//    ingKey: namespace/name key for the Ingress
-//    uid: UID field from the Ingress
-//    spec: VCL specification derived from the Ingress
-func (vc *VarnishController) HasIngress(svcKey, ingKey, uid string,
-	spec vcl.Spec) bool {
+//    spec: VCL specification derived from the configuration
+//    ingsMeta: Ingress meta-data
+//    vcfgMeta: VarnishConfig meta-data
+//    bcfgMeta: BackendConfig meta-data
+func (vc *VarnishController) HasConfig(svcKey string, spec vcl.Spec,
+	ingsMeta map[string]Meta, vcfgMeta Meta,
+	bcfgMeta map[string]Meta) bool {
 
 	svc, ok := vc.svcs[svcKey]
 	if !ok {
 		return false
 	}
-	return svc.cfgLoaded &&
-		svc.spec.key == ingKey &&
-		svc.spec.uid == uid &&
-		reflect.DeepEqual(svc.spec.spec.Canonical(), spec.Canonical())
+	if !svc.cfgLoaded {
+		return false
+	}
+	if len(ingsMeta) != len(svc.spec.ings) {
+		return false
+	}
+	if len(bcfgMeta) != len(svc.spec.bcfg) {
+		return false
+	}
+	if vcfgMeta.Key != svc.spec.vcfg.Key ||
+		vcfgMeta.UID != svc.spec.vcfg.UID ||
+		vcfgMeta.Ver != svc.spec.vcfg.Ver {
+		return false
+	}
+	for k, v := range ingsMeta {
+		specIng, exists := svc.spec.ings[k]
+		if !exists {
+			return false
+		}
+		if specIng.Key != v.Key || specIng.UID != v.UID ||
+			specIng.Ver != v.Ver {
+			return false
+		}
+	}
+	for k, v := range bcfgMeta {
+		specBcfg, exists := svc.spec.bcfg[k]
+		if !exists {
+			return false
+		}
+		if specBcfg.Key != v.Key || specBcfg.UID != v.UID ||
+			specBcfg.Ver != v.Ver {
+			return false
+		}
+	}
+	return reflect.DeepEqual(svc.spec.spec.Canonical(), spec.Canonical())
 }
 
 // SetAdmSecret stores the Secret data identified by the
