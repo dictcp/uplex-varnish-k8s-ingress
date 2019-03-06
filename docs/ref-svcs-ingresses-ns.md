@@ -1,4 +1,4 @@
-# Structuring Varnish Services, Ingresses and namespaces
+# Structuring Varnish Services, Ingresses, controllers and namespaces
 
 This document is the authoritative reference for the configuration
 elements and rules governing these relationships:
@@ -11,6 +11,8 @@ elements and rules governing these relationships:
 
 * how various Ingress definitions can be merged into a comprehensive
   set of routing rules implemented by a single Varnish Service
+
+* how to operate more than one controller in a cluster, if needed
 
 These relations are driven by the contents of Ingress definitions,
 both their rules and these two annotations:
@@ -41,9 +43,11 @@ configurations that apply the following rules.
 
 * The controller only considers Ingress definitions with the
   ``kubernetes.io/ingress.class`` annotation set to specify Varnish as
-  the implementation, with the currently hard-wired value
-  ``"varnish"``.  Ingresses that do not have the annotation, or in
-  which the annotation is set to another value, are ignored.
+  the implementation, by default with the value ``"varnish"`` (or the
+  value of the [controller option
+  ``-class``](/docs/ref-cli-options.md)).  Ingresses that do not have
+  the annotation, or in which the annotation is set to another value,
+  are ignored.
 
 * Services that run Varnish and implement Ingress, using the
   Varnish container defined for this project, are identified
@@ -92,3 +96,37 @@ of the Kubernetes standard specification for host and path rules. For
 each host, the first path rule that matches the URL determines how a
 request is routed. But if the same host appears in more than one
 Ingress, then there is no defined ordering for the path rules.
+
+## Multiple controllers
+
+The controller is designed so that it can run in only one Pod and
+manage all of the Varnish Services for Ingress in the entire cluster
+(deployment in namespace ``kube-system`` is a natural choice). But it
+is possible to run more than one instance to manage separate Varnish
+Services, for example to partition the controller load, or to
+logically separate the responsibilities of controllers.
+
+To do so:
+
+* Start the different controller instances with different values of
+  the [command-line option ``-class``](/docs/ref-cli-options.md), to
+  designate distinct values of the Ingress annotation
+  ``kubernetes.io/ingress.class``. Then the different controller
+  instances will only implement the Ingress definitions that have
+  their "own" value for the annotation.
+
+* Ingress definitions with distinct values of the ``ingress.class``
+  annotation should designate distinct Varnish Services (with one of
+  the means described above). In other words, the Ingresses and
+  Varnish Services managed by one controller should not be managed by
+  any other controller.
+
+Multiple controllers in a cluster SHOULD NOT be started with the same
+value of the ``-class`` option. Varnish Services SHOULD NOT be
+designated by Ingress definitions with different values of the
+``ingress.class`` annotation. If more than one controller attempts to
+manage the same Ingresses or Varnish Services, the results are
+undefined, and the desired state of the cluster might not be achieved.
+
+See the [``examples/`` folder](/examples/architectures/multi-controller/)
+for a working example of two Varnish controllers in a cluster.

@@ -16,6 +16,8 @@ The docs in this folder cover these topics:
         different namespaces
       * merging various Ingress definitions into a comprehensive set
         or routing rules implemented by a Varnish Service
+      * running more than one controller in a cluster, if necessary
+        (in most cases, one controller Pod in a cluster will suffice)
 
 * [Logging, Events and the Varnish Service monitor](monitor.md)
 

@@ -105,11 +105,12 @@ The controller is notified about all Services, Ingresses and so on in
 the cluster, by default in every namespace, including components that
 have nothing to do with Ingress or Varnish. These are ignored -- for
 example, Ingresses without the ``ingress.class`` annotation set to
-``varnish``, or Secrets that do not have the label
-``app: varnish-ingress``. The controller may generate ``SyncSuccess``
-Events for such objects, but in fact it has done nothing for them.
-The controller log usually contains a message at the ``INFO`` level
-that it has ignored information about a component.
+``varnish`` (or the value of the [controller option
+``-class``](/docs/ref-cli-options.md), or Secrets that do not have the
+label ``app: varnish-ingress``. The controller may generate
+``SyncSuccess`` Events for such objects, but in fact it has done
+nothing for them.  The controller log usually contains a message at
+the ``INFO`` level that it has ignored information about a component.
 
 ## Varnish Service monitor
 

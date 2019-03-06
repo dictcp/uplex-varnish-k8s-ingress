@@ -1,0 +1,39 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: varnish-coffee-ingress-controller
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: varnish-ingress-controller
+  template:
+    metadata:
+      labels:
+        app: varnish-ingress-controller
+    spec:
+      serviceAccountName: varnish-ingress-controller
+      containers:
+      - image: varnish-ingress/controller
+        imagePullPolicy: IfNotPresent
+        name: varnish-ingress-controller
+        ports:
+        - name: http
+          containerPort: 8080
+        livenessProbe:
+          exec:
+            command:
+            - /usr/bin/pgrep
+            - -P
+            - "0"
+            - k8s-ingress
+        readinessProbe:
+          exec:
+            command:
+            - /usr/bin/test
+            - -e
+            - /ready
+        args:
+        - -readyfile=/ready
+        - -class=varnish-coffee

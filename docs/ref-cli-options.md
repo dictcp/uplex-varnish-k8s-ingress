@@ -10,6 +10,10 @@ $ k8s-ingress --help
 Usage of ./k8s-ingress:
   -alsologtostderr
     	log to standard error as well as files
+  -class string
+	value of the Ingress annotation kubernetes.io/ingress.class
+	the controller only considers Ingresses with this value for the
+	annotation (default "varnish")
   -kubeconfig string
     	config path for the cluster master URL, for out-of-cluster runs
   -log-level string
@@ -82,6 +86,18 @@ If ``-readyfile /path/to/file`` is set, then the controller removes
 the file at that path immediately at startup, if any exists, and
 touches it when it is ready. Readiness probes can then test the file
 for existence. By default, no readiness file is created.
+
+``-class ingclass`` sets the string ``ingclass`` (default ``varnish``)
+as the required value of the Ingress annotation
+``kubernetes.io/ingress.class``.  The controller ignores Ingresses
+that do not have the annotation set to this value. This makes it
+possible for the Varnish Ingress implementation to co-exist in a
+cluster with other implementations, as long as the other
+implementations also respect the annotation. It also makes it possible
+to deploy more than one Varnish controller to manage Varnish Services
+and Ingresses separately; see the
+[documentation](/docs/ref-svcs-ingresses-ns.md) and
+[examples](/examples/architectures/multi-controller/) for details.
 
 ``-monitorintvl`` sets the interval for the
 [monitor](/docs/monitor.md). By default 30 seconds, and the monitor is
