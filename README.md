@@ -16,13 +16,8 @@ version 6.1.1.
 ## WORK IN PROGRESS
 
 The Ingress controller implementation is presently in development and
-is undergoing initial testing. It is currently subject to a number of
-limitations, expected to be removed over time, including:
-
-* No support for TLS connections
-* Only one Ingress definition in a namespace is valid at a time. If
-  more than one definition is added to the namespace, then the most
-  recent definition becomes valid.
+is undergoing initial testing. There is currently no support for TLS
+connections, but TLS support will be added.
 
 Other features are subject to change on short notice. Testing and
 feedback are nevertheless welcome, and very valuable at this early
@@ -58,7 +53,8 @@ features. You might want to begin with the
 of "hello world" for Ingress).
 
 This implementation requires that the Ingress definition includes an
-``ingress.class`` Annotation identifying ``varnish``:
+``ingress.class`` Annotation specifying that its rules are to be
+implemented by Varnish:
 ```
 kind: Ingress
 metadata:
