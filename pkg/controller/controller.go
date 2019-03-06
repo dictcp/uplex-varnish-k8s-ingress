@@ -115,6 +115,7 @@ type IngressController struct {
 // NewIngressController creates a controller.
 //
 //    log: logger initialized at startup
+//    ingClass: value of the ingress.class Ingress annotation
 //    kubeClient: k8s client initialized at startup
 //    vc: Varnish controller
 //    infFactory: SharedInformerFactory to create informers & listers for
@@ -122,6 +123,7 @@ type IngressController struct {
 //    vcrInfFactory: SharedInformerFactory for the project's own client APIs
 func NewIngressController(
 	log *logrus.Logger,
+	ingClass string,
 	kubeClient kubernetes.Interface,
 	vc *varnish.VarnishController,
 	infFactory informers.SharedInformerFactory,
@@ -190,8 +192,8 @@ func NewIngressController(
 			Lister(),
 	}
 
-	ingc.nsQs = NewNamespaceQueues(ingc.log, ingc.vController, ingc.listers,
-		ingc.client, ingc.recorder)
+	ingc.nsQs = NewNamespaceQueues(ingc.log, ingClass, ingc.vController,
+		ingc.listers, ingc.client, ingc.recorder)
 
 	return &ingc, nil
 }

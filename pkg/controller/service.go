@@ -97,7 +97,7 @@ func (worker *NamespaceWorker) enqueueIngressForService(
 		return err
 	}
 	for _, ing := range ings {
-		if !isVarnishIngress(ing) {
+		if !worker.isVarnishIngress(ing) {
 			continue
 		}
 		worker.queue.Add(&SyncObj{Type: Update, Obj: ing})

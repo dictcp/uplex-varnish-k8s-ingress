@@ -78,6 +78,9 @@ var (
 			"Monitor deactivated when <= 0s")
 	metricsPortF = flag.Uint("metricsport", 8080,
 		"port at which to listen for the /metrics endpoint")
+	ingressClassF = flag.String("class", "varnish", "value of the Ingress "+
+		"annotation kubernetes.io/ingress.class\nthe controller only "+
+		"considers Ingresses with this value for the\nannotation")
 	logFormat = logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
@@ -136,6 +139,11 @@ func main() {
 		os.Exit(-1)
 	}
 
+	if *ingressClassF == "" {
+		log.Fatalf("class may not be empty")
+		os.Exit(-1)
+	}
+
 	if *metricsPortF > math.MaxUint16 {
 		log.Fatalf("metricsport %d out of range (max %d)",
 			*metricsPortF, math.MaxUint16)
@@ -143,6 +151,7 @@ func main() {
 	}
 
 	log.Info("Starting Varnish Ingress controller version:", version)
+	log.Info("Ingress class:", *ingressClassF)
 
 	vController, err := varnish.NewVarnishController(log, *tmplDirF,
 		*monIntvlF)
@@ -185,8 +194,9 @@ func main() {
 		// 	informers.WithNamespace(*namespaceF))
 	}
 
-	ingController, err := controller.NewIngressController(log, kubeClient,
-		vController, informerFactory, vcrInformerFactory)
+	ingController, err := controller.NewIngressController(log,
+		*ingressClassF, kubeClient, vController, informerFactory,
+		vcrInformerFactory)
 	if err != nil {
 		log.Fatalf("Could not initialize controller: %v")
 		os.Exit(-1)

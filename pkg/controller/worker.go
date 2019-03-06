@@ -63,6 +63,7 @@ const (
 // namespaces are synced in parallel.
 type NamespaceWorker struct {
 	namespace   string
+	ingClass    string
 	log         *logrus.Logger
 	vController *varnish.VarnishController
 	queue       workqueue.RateLimitingInterface
@@ -271,6 +272,7 @@ func (worker *NamespaceWorker) work() {
 // responsible for each namespace.
 type NamespaceQueues struct {
 	Queue       workqueue.RateLimitingInterface
+	ingClass    string
 	log         *logrus.Logger
 	vController *varnish.VarnishController
 	workers     map[string]*NamespaceWorker
@@ -282,12 +284,14 @@ type NamespaceQueues struct {
 // NewNamespaceQueues creates a NamespaceQueues object.
 //
 //    log: logger initialized at startup
+//    ingClass: value of the ingress.class Ingress annotation
 //    vController: Varnish controller initialied at startup
 //    listers: client-go/lister instance for each resource type
 //    client: k8s API client initialized at startup
 //    recorder: Event broadcaster initialized at startup
 func NewNamespaceQueues(
 	log *logrus.Logger,
+	ingClass string,
 	vController *varnish.VarnishController,
 	listers *Listers,
 	client kubernetes.Interface,
@@ -298,6 +302,7 @@ func NewNamespaceQueues(
 	return &NamespaceQueues{
 		Queue:       q,
 		log:         log,
+		ingClass:    ingClass,
 		vController: vController,
 		workers:     make(map[string]*NamespaceWorker),
 		listers:     listers,
@@ -338,6 +343,7 @@ func (qs *NamespaceQueues) next() {
 			workqueue.DefaultControllerRateLimiter(), ns)
 		worker = &NamespaceWorker{
 			namespace:   ns,
+			ingClass:    qs.ingClass,
 			log:         qs.log,
 			vController: qs.vController,
 			queue:       q,

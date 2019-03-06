@@ -875,10 +875,11 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 	return nil
 }
 
-// We only handle Ingresses with the class annotation "varnish".
-func isVarnishIngress(ing *extensions.Ingress) bool {
+// We only handle Ingresses with the class annotation with the value
+// given as the "class" flag (default "varnish").
+func (worker *NamespaceWorker) isVarnishIngress(ing *extensions.Ingress) bool {
 	class, exists := ing.Annotations[ingressClassKey]
-	return exists && class == "varnish"
+	return exists && class == worker.ingClass
 }
 
 func (worker *NamespaceWorker) syncIng(key string) error {
@@ -889,10 +890,10 @@ func (worker *NamespaceWorker) syncIng(key string) error {
 		return err
 	}
 
-	if !isVarnishIngress(ing) {
+	if !worker.isVarnishIngress(ing) {
 		worker.log.Infof("Ignoring Ingress %s/%s, Annotation '%v' "+
-			"absent or is not 'varnish'", ing.Namespace, ing.Name,
-			ingressClassKey)
+			"absent or is not '%s'", ing.Namespace, ing.Name,
+			ingressClassKey, worker.ingClass)
 		syncCounters.WithLabelValues(worker.namespace, "Ingress",
 			"Ignore").Inc()
 		return nil

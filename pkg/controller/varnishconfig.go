@@ -59,7 +59,7 @@ func (worker *NamespaceWorker) enqueueIngsForVcfg(
 		return err
 	}
 	for _, ing := range ings {
-		if !isVarnishIngress(ing) {
+		if !worker.isVarnishIngress(ing) {
 			continue
 		}
 		vSvc, err := worker.getVarnishSvcForIng(ing)

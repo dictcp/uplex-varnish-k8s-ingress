@@ -65,7 +65,7 @@ func (worker *NamespaceWorker) syncEndp(key string) error {
 
 	worker.log.Debugf("Update ingresses for endpoints %s", key)
 	for _, ing := range ings {
-		if !isVarnishIngress(ing) {
+		if !worker.isVarnishIngress(ing) {
 			worker.log.Debugf("Ingress %s/%s: not Varnish",
 				ing.Namespace, ing.Name)
 			continue
