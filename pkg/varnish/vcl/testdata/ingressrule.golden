@@ -33,8 +33,8 @@ backend vk8s_tea-svc_192_0_2_3 {
 
 
 sub vcl_init {
-	new vk8s_hosts = re2.set(posix_syntax=true, literal=true, anchor=both);
-	vk8s_hosts.add("cafe.example.com");
+	new vk8s_hosts = re2.set(anchor=both);
+	vk8s_hosts.add("\Qcafe.example.com\E(:\d+)?");
 	vk8s_hosts.compile();
 
 	new vk8s_coffee-svc_director = directors.round_robin();

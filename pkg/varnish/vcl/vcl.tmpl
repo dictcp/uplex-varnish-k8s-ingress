@@ -80,9 +80,9 @@ backend {{backendName $svc $addr.IP}} {
 
 sub vcl_init {
 {{- if .Rules}}
-	new vk8s_hosts = re2.set(posix_syntax=true, literal=true, anchor=both);
+	new vk8s_hosts = re2.set(anchor=both);
 	{{- range $rule := .Rules}}
-	vk8s_hosts.add("{{$rule.Host}}");
+	vk8s_hosts.add("\Q{{$rule.Host}}\E(:\d+)?");
 	{{- end}}
 	vk8s_hosts.compile();
 {{end}}
