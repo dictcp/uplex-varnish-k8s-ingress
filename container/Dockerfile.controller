@@ -10,11 +10,13 @@ RUN mkdir -p /go/src/code.uplex.de/uplex-varnish/k8s-ingress/.git
 WORKDIR /go/src/code.uplex.de/uplex-varnish/k8s-ingress
 COPY go.mod .
 COPY go.sum .
+
+RUN vgo mod download
+
 COPY ./pkg/ /go/src/code.uplex.de/uplex-varnish/k8s-ingress/pkg/
 COPY ./cmd/ /go/src/code.uplex.de/uplex-varnish/k8s-ingress/cmd/
 COPY ./.git/ /go/src/code.uplex.de/uplex-varnish/k8s-ingress/.git/
 
-RUN vgo mod download
 RUN vgo generate ./cmd/... && vgo build ./pkg/... ./cmd/... && \
     CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress cmd/*.go
 
