@@ -54,7 +54,7 @@ func TestDeepHash(t *testing.T) {
 		if testing.Verbose() {
 			t.Logf("spec1: %+v", cafeSpec)
 			t.Logf("spec2: %+v", cafeSpec2)
-			t.Logf("hash: %0x", cafeSpec.DeepHash())
+			t.Logf("hash: %s", cafeSpec.DeepHash())
 		}
 	}
 }
@@ -120,9 +120,9 @@ func TestCanoncial(t *testing.T) {
 		t.Error("Canonical(): Unequal hashes for equivalent specs")
 		if testing.Verbose() {
 			t.Logf("spec1 canonical: %+v", canonCafe)
-			t.Logf("spec1 hash: %0x", canonCafe.DeepHash())
+			t.Logf("spec1 hash: %s", canonCafe.DeepHash())
 			t.Logf("spec2 canonical: %+v", canonShuf)
-			t.Logf("spec2 hash: %0x", canonShuf.DeepHash())
+			t.Logf("spec2 hash: %s", canonShuf.DeepHash())
 		}
 	}
 }

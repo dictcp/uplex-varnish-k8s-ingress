@@ -125,8 +125,7 @@ type vclSpec struct {
 }
 
 func (spec vclSpec) configName() string {
-	name := fmt.Sprintf("%s%0x", ingressPrefix,
-		spec.spec.Canonical().DeepHash())
+	name := fmt.Sprint(ingressPrefix, spec.spec.Canonical().DeepHash())
 	return nonAlNum.ReplaceAllLiteralString(name, "_")
 }
 

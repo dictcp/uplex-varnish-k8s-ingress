@@ -851,13 +851,13 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 			Ver: bcfg.ResourceVersion,
 		}
 	}
-	worker.log.Debugf("Check if config is loaded: hash=%0x "+
+	worker.log.Debugf("Check if config is loaded: hash=%s "+
 		"ingressMetaData=%+v vcfgMetaData=%+v bcfgMetaData=%+v",
 		vclSpec.Canonical().DeepHash(), ingsMeta, vcfgMeta, bcfgMeta)
 	if worker.vController.HasConfig(svcKey, vclSpec, ingsMeta, vcfgMeta,
 		bcfgMeta) {
 		worker.log.Infof("Varnish Service %s: config already "+
-			"loaded: hash=%0x", svcKey,
+			"loaded: hash=%s", svcKey,
 			vclSpec.Canonical().DeepHash())
 		return nil
 	}

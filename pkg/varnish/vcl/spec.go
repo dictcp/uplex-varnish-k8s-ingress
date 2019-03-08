@@ -29,10 +29,11 @@
 package vcl
 
 import (
+	"crypto/sha512"
 	"encoding/binary"
 	"hash"
-	"hash/fnv"
 	"math"
+	"math/big"
 	"sort"
 )
 
@@ -680,10 +681,11 @@ type Spec struct {
 	Rewrites []Rewrite
 }
 
-// DeepHash computes a 64-bit hash value from a Spec such that if two
-// Specs are deeply equal, then their hash values are equal.
-func (spec Spec) DeepHash() uint64 {
-	hash := fnv.New64a()
+// DeepHash computes a alphanumerically encoded hash value from a Spec
+// such that, almost certainly, two Specs are deeply equal iff their
+// hash values are equal (unless we've discovered a SHA512 collision).
+func (spec Spec) DeepHash() string {
+	hash := sha512.New512_224()
 	spec.DefaultService.hash(hash)
 	for _, rule := range spec.Rules {
 		rule.hash(hash)
@@ -710,7 +712,9 @@ func (spec Spec) DeepHash() uint64 {
 	for _, rw := range spec.Rewrites {
 		rw.hash(hash)
 	}
-	return hash.Sum64()
+	h := new(big.Int)
+	h.SetBytes(hash.Sum(nil))
+	return h.Text(62)
 }
 
 // Canonical returns a canonical form of a Spec, in which all of its
