@@ -36,10 +36,11 @@ install-code-gen:
 	vgo get k8s.io/code-generator/cmd/lister-gen@$(KUBEVER)
 	vgo get k8s.io/code-generator/cmd/informer-gen@$(KUBEVER)
 
+CODE_SUBDIRS=./pkg/... ./cmd/...
 build: vgo
-	vgo fmt ./...
-	vgo generate ./...
-	vgo build ./...
+	vgo fmt $(CODE_SUBDIRS)
+	vgo generate $(CODE_SUBDIRS)
+	vgo build $(CODE_SUBDIRS)
 
 GENVER=code.uplex.de/uplex-varnish/k8s-ingress/pkg/apis/varnishingress/v1alpha1
 BOILERPLATE=hack/boilerplate.txt
@@ -66,12 +67,13 @@ k8s-ingress: build
 	CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress cmd/*.go
 
 check: build
-	golint ./...
-	vgo test -v ./...
+	golint ./pkg/...
+	golint ./cmd/...
+	vgo test -v $(CODE_SUBDIRS)
 
 test: check
 
 clean:
-	vgo clean ./...
+	vgo clean $(CODE_SUBDIRS)
 	rm -f cmd/main_version.go
 	rm -f k8s-ingress
