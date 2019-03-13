@@ -1,0 +1,69 @@
+vcl 4.0;
+
+import std;
+import directors;
+import re2;
+
+backend vk8s_notfound {
+	# 192.0.2.0/24 reserved for docs & examples (RFC5737).
+	.host = "192.0.2.255";
+	.port = "80";
+}
+
+
+
+sub vcl_init {}
+
+sub vk8s_set_backend {
+	set req.backend_hint = vk8s_notfound;
+
+	if (req.backend_hint == vk8s_notfound) {
+		return (synth(404));
+	}
+}
+
+sub vcl_miss {
+	call vk8s_set_backend;
+}
+
+sub vcl_pass {
+	call vk8s_set_backend;
+}
+
+import re2;
+
+sub vcl_init {
+	new vk8s_foo_auth = re2.set(anchor=both);
+	vk8s_foo_auth.add("Basic\s+\QQWxhZGRpbjpvcGVuIHNlc2FtZQ==\E\s*");
+	vk8s_foo_auth.add("Basic\s+\QQWxhZGRpbjpPcGVuU2VzYW1l\E\s*");
+	vk8s_foo_auth.compile();
+}
+
+sub vcl_recv {
+	if (
+	    !vk8s_foo_auth.match(req.http.Authorization)
+	   ) {
+		set req.http.VK8S-Authenticate = {"Basic realm="foo""};
+		return(synth(60000 + 401));
+	}
+}
+
+sub vcl_synth {
+	if (resp.status == 60401) {
+		set resp.http.WWW-Authenticate = req.http.VK8S-Authenticate;
+		return(deliver);
+	}
+	if (resp.status == 60407) {
+		set resp.http.Proxy-Authenticate = req.http.VK8S-Authenticate;
+		return(deliver);
+	}
+}
+
+import re2;
+import selector;
+
+
+
+sub vcl_recv {
+		unset req.http.Authorization;
+}

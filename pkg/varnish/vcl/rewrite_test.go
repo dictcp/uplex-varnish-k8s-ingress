@@ -31,6 +31,7 @@ package vcl
 import (
 	"bytes"
 	"testing"
+	"io/ioutil"
 )
 
 func testTemplate(t *testing.T, spec Spec, gold string) {
@@ -691,6 +692,46 @@ var rewriteSelectOperations = Spec{
 func TestRewriteSelectOperations(t *testing.T) {
 	gold := "rewrite_select_ops.golden"
 	testTemplate(t, rewriteSelectOperations, gold)
+}
+
+// Test the use case that Auth should be executed, but the
+// Authorization header must be removed, to prevent return(pass) from
+// builtin vcl_recv.  For that, the Authorization header delete must
+// run *after* the auth protocol is executed.
+var rewriteDeleteAuth = Spec{
+	Rewrites: []Rewrite{{
+		Target: "req.http.Authorization",
+		Method: Delete,
+	}},
+	Auths: []Auth{{
+		Realm:  "foo",
+		Status: Basic,
+		Credentials: []string{
+			"QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
+			"QWxhZGRpbjpPcGVuU2VzYW1l",
+		},
+	}},
+}
+
+func TestRewriteDeleteAuth(t *testing.T) {
+	gold := "rewrite_auth_delete.golden"
+	var src string
+	var err error
+	var goldbytes []byte
+
+	if src, err = rewriteDeleteAuth.GetSrc(); err != nil {
+		t.Fatal("GetSrc():", err)
+	}
+
+	if goldbytes, err = ioutil.ReadFile("testdata/"+gold); err != nil {
+		t.Fatal("WriteFile():", err)
+	}
+	if !bytes.Equal(goldbytes, []byte(src)) {
+		t.Fatalf("Generated VCL does not match gold file: %s", gold)
+		if testing.Verbose() {
+			t.Logf("Generated: %s", src)
+		}
+	}
 }
 
 // Code boilerplate for writing the golden file.
