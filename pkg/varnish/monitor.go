@@ -78,6 +78,9 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	metrics := getInstanceMetrics(inst.addr)
 	metrics.monitorChecks.Inc()
 
+	vc.log.Infof("Monitoring Varnish instance %s (Service %s)", inst.addr,
+		svc)
+
 	if inst.admSecret == nil {
 		vc.warnEvt(svc, noAdmSecret,
 			"No admin secret known for endpoint %s", inst.addr)
@@ -97,7 +100,7 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	}
 	defer adm.Close()
 	inst.Banner = adm.Banner
-	vc.log.Infof("Connected to Varnish instance %s, banner: %s", inst.addr,
+	vc.log.Debugf("Connected to Varnish instance %s, banner: %s", inst.addr,
 		adm.Banner)
 
 	pong, err := adm.Ping()
@@ -108,7 +111,7 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 		return false
 	}
 	metrics.pings.Inc()
-	vc.log.Infof("Succesfully pinged instance %s: %+v", inst.addr, pong)
+	vc.log.Debugf("Succesfully pinged instance %s: %+v", inst.addr, pong)
 
 	state, err := adm.Status()
 	if err != nil {
@@ -118,7 +121,7 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	}
 	if state == admin.Running {
 		metrics.childRunning.Inc()
-		vc.log.Infof("Status at %s: %s", inst.addr, state)
+		vc.log.Debugf("Status at %s: %s", inst.addr, state)
 	} else {
 		metrics.childNotRunning.Inc()
 		vc.warnEvt(svc, statusNotRun, "Status at %s: %s", inst.addr,
@@ -132,7 +135,7 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 		return false
 	}
 	if panic == "" {
-		vc.log.Infof("No panic at %s", inst.addr)
+		vc.log.Debugf("No panic at %s", inst.addr)
 	} else {
 		metrics.panics.Inc()
 		vc.errorEvt(svc, panic, "Panic at %s: %s", inst.addr, panic)
@@ -192,7 +195,8 @@ func (vc *VarnishController) monitor(monitorIntvl time.Duration) {
 			}
 			if good {
 				vc.infoEvt(svcName, monitorGood,
-					"Monitor check good")
+					"Monitor check good for Service: %s",
+					svcName)
 			}
 		}
 	}

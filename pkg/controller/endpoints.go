@@ -49,24 +49,24 @@ func (worker *NamespaceWorker) syncEndp(key string) error {
 		return nil
 	}
 
-	worker.log.Debugf("Checking ingresses for endpoints: %s/%s",
+	worker.log.Tracef("Checking ingresses for endpoints: %s/%s",
 		worker.namespace, key)
 	ings, err := worker.getIngsForSvc(svc)
 	if err != nil {
 		return err
 	}
 	if len(ings) == 0 {
-		worker.log.Debugf("No ingresses for endpoints: %s/%s",
+		worker.log.Tracef("No ingresses for endpoints: %s/%s",
 			worker.namespace, key)
 		syncCounters.WithLabelValues(worker.namespace, "Endpoints",
 			"Ignore").Inc()
 		return nil
 	}
 
-	worker.log.Debugf("Update ingresses for endpoints %s", key)
+	worker.log.Tracef("Update ingresses for endpoints %s", key)
 	for _, ing := range ings {
 		if !worker.isVarnishIngress(ing) {
-			worker.log.Debugf("Ingress %s/%s: not Varnish",
+			worker.log.Tracef("Ingress %s/%s: not Varnish",
 				ing.Namespace, ing.Name)
 			continue
 		}

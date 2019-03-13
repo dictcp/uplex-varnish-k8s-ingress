@@ -88,7 +88,7 @@ func (worker *NamespaceWorker) syncBcfg(key string) error {
 	if err != nil {
 		return err
 	}
-	worker.log.Debugf("BackendConfig %s/%s: %+v", bcfg.Namespace,
+	worker.log.Tracef("BackendConfig %s/%s: %+v", bcfg.Namespace,
 		bcfg.Name, bcfg)
 
 	if len(bcfg.Spec.Services) == 0 {

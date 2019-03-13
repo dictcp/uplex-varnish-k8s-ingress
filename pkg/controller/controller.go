@@ -204,10 +204,10 @@ func (ingc *IngressController) logObj(action string, obj interface{}) {
 	t, tErr := meta.TypeAccessor(obj)
 	if mErr == nil && tErr == nil {
 		if t.GetKind() != "" {
-			ingc.log.Infof("%s %s: %s/%s", action, t.GetKind(),
+			ingc.log.Debugf("%s %s: %s/%s", action, t.GetKind(),
 				m.GetNamespace(), m.GetName())
 		} else {
-			ingc.log.Infof("%s: %s/%s", action, m.GetNamespace(),
+			ingc.log.Debugf("%s: %s/%s", action, m.GetNamespace(),
 				m.GetName())
 		}
 	}
@@ -253,7 +253,7 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 	if oldErr == nil && newErr == nil &&
 		oldMeta.GetResourceVersion() == newMeta.GetResourceVersion() {
 		if tErr == nil && t.GetKind() != "" {
-			ingc.log.Infof("Update %s %s/%s: unchanged",
+			ingc.log.Debugf("Update %s %s/%s: unchanged",
 				t.GetKind(), oldMeta.GetNamespace(),
 				oldMeta.GetName())
 			syncCounters.WithLabelValues(oldMeta.GetNamespace(),
@@ -274,7 +274,7 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 			case *vcr_v1alpha1.BackendConfig:
 				kind = "BackendConfig"
 			}
-			ingc.log.Infof("Update %s %s/%s: unchanged", kind,
+			ingc.log.Debugf("Update %s %s/%s: unchanged", kind,
 				oldMeta.GetNamespace(), oldMeta.GetName())
 			syncCounters.WithLabelValues(oldMeta.GetNamespace(),
 				kind, "Ignore").Inc()
@@ -289,7 +289,7 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 	if oldEndpExists && newEndpExists &&
 		len(oldEndp.Subsets) == 0 && len(newEndp.Subsets) == 0 {
 
-		ingc.log.Infof("Update endpoints %s/%s: empty Subsets, ignoring",
+		ingc.log.Debugf("Update endpoints %s/%s: empty Subsets, ignoring",
 			newEndp.Namespace, newEndp.Name)
 		syncCounters.WithLabelValues(oldMeta.GetNamespace(),
 			"Endpoints", "Ignore").Inc()
@@ -304,10 +304,10 @@ func (ingc *IngressController) updateObj(old, new interface{}) {
 	}
 	if metaObj != nil {
 		if tErr == nil && t.GetKind() != "" {
-			ingc.log.Infof("Update %s: %s/%s", t.GetKind(),
+			ingc.log.Debugf("Update %s: %s/%s", t.GetKind(),
 				(*metaObj).GetNamespace(), (*metaObj).GetName())
 		} else {
-			ingc.log.Infof("Update: %s/%s",
+			ingc.log.Debugf("Update: %s/%s",
 				(*metaObj).GetNamespace(), (*metaObj).GetName())
 		}
 	}

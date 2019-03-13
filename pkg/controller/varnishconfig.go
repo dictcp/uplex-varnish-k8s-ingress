@@ -167,7 +167,7 @@ func (worker *NamespaceWorker) syncVcfg(key string) error {
 	if err != nil {
 		return err
 	}
-	worker.log.Debugf("VarnishConfig %s/%s: %+v", vcfg.Namespace,
+	worker.log.Tracef("VarnishConfig %s/%s: %+v", vcfg.Namespace,
 		vcfg.Name, vcfg)
 
 	if len(vcfg.Spec.Services) == 0 {

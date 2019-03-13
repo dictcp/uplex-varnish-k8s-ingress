@@ -137,7 +137,7 @@ func (worker *NamespaceWorker) syncSecret(key string) error {
 	if err != nil {
 		return err
 	}
-	worker.log.Debugf("Found Varnish services for secret %s/%s: %v",
+	worker.log.Tracef("Found Varnish services for secret %s/%s: %v",
 		secret.Namespace, secret.Name, svcs)
 	if len(svcs) == 0 {
 		worker.log.Infof("No Varnish services with admin secret: %s/%s",
@@ -151,7 +151,7 @@ func (worker *NamespaceWorker) syncSecret(key string) error {
 			secret.Namespace, secret.Name, admSecretKey)
 	}
 	secretKey := secret.Namespace + "/" + secret.Name
-	worker.log.Debugf("Setting secret %s", secretKey)
+	worker.log.Tracef("Setting secret %s", secretKey)
 	worker.vController.SetAdmSecret(secretKey, secretData)
 
 	return worker.updateVarnishSvcsForSecret(svcs, secretKey)
@@ -176,7 +176,7 @@ func (worker *NamespaceWorker) deleteSecret(obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	worker.log.Debugf("Found Varnish services for secret %s/%s: %v",
+	worker.log.Tracef("Found Varnish services for secret %s/%s: %v",
 		secr.Namespace, secr.Name, svcs)
 	if len(svcs) == 0 {
 		worker.log.Infof("No Varnish services with admin secret: %s/%s",

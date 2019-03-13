@@ -162,13 +162,13 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 			continue
 		}
 		updateVCL = true
-		worker.log.Debugf("Requeueing Ingress %s/%s after changed "+
+		worker.log.Tracef("Requeueing Ingress %s/%s after changed "+
 			"Varnish service %s/%s: %+v", ing.Namespace,
 			ing.Name, svc.Namespace, svc.Name, ing)
 		worker.queue.Add(&SyncObj{Type: Update, Obj: ing})
 	}
 	if !updateVCL {
-		worker.log.Debugf("No change in VCL due to changed Varnish "+
+		worker.log.Tracef("No change in VCL due to changed Varnish "+
 			"service %s/%s", svc.Namespace, svc.Name)
 	}
 
@@ -176,14 +176,14 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 	if err != nil {
 		return err
 	}
-	worker.log.Debugf("Varnish service %s/%s endpoints: %+v", svc.Namespace,
+	worker.log.Tracef("Varnish service %s/%s endpoints: %+v", svc.Namespace,
 		svc.Name, endps)
 
 	// Get the secret name and admin port for the service. We have
 	// to retrieve a Pod spec for the service, then look for the
 	// SecretVolumeSource, and the port matching admPortName.
 	secrName := ""
-	worker.log.Debugf("Searching Pods for the secret for %s/%s",
+	worker.log.Tracef("Searching Pods for the secret for %s/%s",
 		svc.Namespace, svc.Name)
 	pods, err := worker.getPods(svc)
 	if err != nil {
@@ -232,7 +232,7 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 			addrs = append(addrs, addr)
 		}
 	}
-	worker.log.Debugf("Varnish service %s/%s addresses: %+v", svc.Namespace,
+	worker.log.Tracef("Varnish service %s/%s addresses: %+v", svc.Namespace,
 		svc.Name, addrs)
 	return worker.vController.AddOrUpdateVarnishSvc(
 		svc.Namespace+"/"+svc.Name, addrs, secrName, !updateVCL)

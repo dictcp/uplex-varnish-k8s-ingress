@@ -206,14 +206,14 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	cfgName string, vclSrc string, metrics *instanceMetrics) error {
 
 	vc.log.Infof("Update Varnish instance at %s", inst.addr)
-	vc.log.Debugf("Varnish instance %s: %+v", inst.addr, *inst)
+	vc.log.Tracef("Varnish instance %s: %+v", inst.addr, *inst)
 	if inst.admSecret == nil {
 		return fmt.Errorf("No known admin secret")
 	}
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
 
-	vc.log.Debugf("Connect to %s, timeout=%v", inst.addr, admTimeout)
+	vc.log.Tracef("Connect to %s, timeout=%v", inst.addr, admTimeout)
 	timer := prometheus.NewTimer(metrics.connectLatency)
 	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
 	timer.ObserveDuration()
@@ -226,12 +226,12 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	vc.log.Infof("Connected to Varnish admin endpoint at %s", inst.addr)
 
 	loaded, labelled, ready := false, false, false
-	vc.log.Debugf("List VCLs at %s", inst.addr)
+	vc.log.Tracef("List VCLs at %s", inst.addr)
 	vcls, err := adm.VCLList()
 	if err != nil {
 		return err
 	}
-	vc.log.Debugf("VCL List at %s: %+v", inst.addr, vcls)
+	vc.log.Tracef("VCL List at %s: %+v", inst.addr, vcls)
 	for _, vcl := range vcls {
 		if vcl.Name == cfgName {
 			loaded = true
@@ -250,12 +250,12 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 		vc.log.Infof("Config %s already loaded at instance %s", cfgName,
 			inst.addr)
 	} else {
-		vc.log.Debugf("Load config %s at %s", cfgName, inst.addr)
+		vc.log.Tracef("Load config %s at %s", cfgName, inst.addr)
 		timer = prometheus.NewTimer(metrics.vclLoadLatency)
 		err = adm.VCLInline(cfgName, vclSrc)
 		timer.ObserveDuration()
 		if err != nil {
-			vc.log.Debugf("Error loading config %s at %s: %v",
+			vc.log.Tracef("Error loading config %s at %s: %v",
 				cfgName, inst.addr, err)
 			metrics.vclLoadErrs.Inc()
 			return err
@@ -269,7 +269,7 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 		vc.log.Infof("Config %s already labelled as regular at %s",
 			cfgName, inst.addr)
 	} else {
-		vc.log.Debugf("Label config %s as %s at %s", cfgName,
+		vc.log.Tracef("Label config %s as %s at %s", cfgName,
 			regularLabel, inst.addr)
 		err = adm.VCLLabel(regularLabel, cfgName)
 		if err != nil {
@@ -283,7 +283,7 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 		vc.log.Infof("Config %s already labelled as ready at %s",
 			readyCfg, inst.addr)
 	} else {
-		vc.log.Debugf("Label config %s as %s at %s", readyCfg,
+		vc.log.Tracef("Label config %s as %s at %s", readyCfg,
 			readinessLabel, inst.addr)
 		err = adm.VCLLabel(readinessLabel, readyCfg)
 		if err != nil {
@@ -300,7 +300,7 @@ func (vc *VarnishController) updateVarnishSvc(name string) error {
 	if !exists || svc == nil {
 		return fmt.Errorf("No known Varnish Service %s", name)
 	}
-	vc.log.Debugf("Update Varnish svc %s: config=%+v", name, *svc)
+	vc.log.Tracef("Update Varnish svc %s: config=%+v", name, *svc)
 	svc.cfgLoaded = false
 	if svc.secrName == "" {
 		return fmt.Errorf("No known admin secret for Varnish Service "+
@@ -360,7 +360,7 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
 
-	vc.log.Debugf("Connect to %s, timeout=%v", inst.addr, admTimeout)
+	vc.log.Tracef("Connect to %s, timeout=%v", inst.addr, admTimeout)
 	timer := prometheus.NewTimer(metrics.connectLatency)
 	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)
 	timer.ObserveDuration()
@@ -377,7 +377,7 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 	inst.Banner = adm.Banner
 	vc.log.Infof("Connected to Varnish admin endpoint at %s", inst.addr)
 
-	vc.log.Debugf("Set config %s to label %s at %s", inst.addr, cfg, lbl)
+	vc.log.Tracef("Set config %s to label %s at %s", inst.addr, cfg, lbl)
 	if err := adm.VCLLabel(lbl, cfg); err != nil {
 		if err == io.EOF {
 			if mayClose {
@@ -453,13 +453,13 @@ func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 			remInsts = append(remInsts, inst)
 		}
 	}
-	vc.log.Debugf("Varnish svc %s: keeping instances=%+v, "+
+	vc.log.Tracef("Varnish svc %s: keeping instances=%+v, "+
 		"new instances=%+v, removing instances=%+v", key, keepInsts,
 		newInsts, remInsts)
 	svc.instances = append(keepInsts, newInsts...)
 
 	for _, inst := range remInsts {
-		vc.log.Debugf("Varnish svc %s setting to not ready: %+v", key,
+		vc.log.Tracef("Varnish svc %s setting to not ready: %+v", key,
 			inst)
 		if err := vc.setCfgLabel(inst, notAvailCfg, readinessLabel,
 			true); err != nil {
@@ -470,10 +470,10 @@ func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 		}
 		instsGauge.Dec()
 	}
-	vc.log.Debugf("Varnish svc %s config: %+v", key, *svc)
+	vc.log.Tracef("Varnish svc %s config: %+v", key, *svc)
 
 	if loadVCL {
-		vc.log.Debugf("Varnish svc %s: load VCL", key)
+		vc.log.Tracef("Varnish svc %s: load VCL", key)
 		updateErrs := vc.updateVarnishSvc(key)
 		if updateErrs != nil {
 			vadmErrs, ok := updateErrs.(VarnishAdmErrors)
@@ -513,7 +513,7 @@ func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
 				addr:   admAddr,
 				admMtx: &sync.Mutex{},
 			}
-			vc.log.Debugf("Varnish svc %s: creating instance %+v",
+			vc.log.Tracef("Varnish svc %s: creating instance %+v",
 				key, *instance)
 			instances = append(instances, instance)
 			instsGauge.Inc()
@@ -521,9 +521,9 @@ func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
 		svc.instances = instances
 		vc.svcs[key] = svc
 		svcsGauge.Inc()
-		vc.log.Debugf("Varnish svc %s: created config", key)
+		vc.log.Tracef("Varnish svc %s: created config", key)
 	}
-	vc.log.Debugf("Varnish svc %s config: %+v", key, svc)
+	vc.log.Tracef("Varnish svc %s config: %+v", key, svc)
 
 	svc.secrName = secrName
 	if _, exists := vc.secrets[secrName]; exists {
@@ -534,10 +534,10 @@ func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
 	for _, inst := range svc.instances {
 		inst.admSecret = secrPtr
 	}
-	vc.log.Debugf("Varnish svc %s: updated instance with secret %s", key,
+	vc.log.Tracef("Varnish svc %s: updated instance with secret %s", key,
 		secrName)
 
-	vc.log.Debugf("Update Varnish svc %s: addrs=%+v secret=%s reloadVCL=%v",
+	vc.log.Tracef("Update Varnish svc %s: addrs=%+v secret=%s reloadVCL=%v",
 		key, addrs, secrName, loadVCL)
 	return vc.updateVarnishSvcAddrs(key, addrs, secrPtr, loadVCL)
 }

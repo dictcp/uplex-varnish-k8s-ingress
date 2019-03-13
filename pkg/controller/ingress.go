@@ -65,7 +65,7 @@ func (worker *NamespaceWorker) getVarnishSvcForIng(
 		return nil, err
 	}
 	if varnishSvc, exists := ing.Annotations[varnishSvcKey]; exists {
-		worker.log.Debugf("Ingress %s/%s has annotation %s:%s",
+		worker.log.Tracef("Ingress %s/%s has annotation %s:%s",
 			ing.Namespace, ing.Name, varnishSvcKey, varnishSvc)
 		targetNs, targetSvc, err :=
 			cache.SplitMetaNamespaceKey(varnishSvc)
@@ -80,14 +80,14 @@ func (worker *NamespaceWorker) getVarnishSvcForIng(
 				return svc, nil
 			}
 		}
-		worker.log.Debugf("Ingress %s/%s: Varnish Service %s not found",
+		worker.log.Tracef("Ingress %s/%s: Varnish Service %s not found",
 			ing.Namespace, ing.Name, varnishSvc)
 		return nil, nil
 	}
-	worker.log.Debugf("Ingress %s/%s does not have annotation %s",
+	worker.log.Tracef("Ingress %s/%s does not have annotation %s",
 		ing.Namespace, ing.Name, varnishSvcKey)
 	if len(svcs) == 1 {
-		worker.log.Debugf("Exactly one Varnish Ingress Service "+
+		worker.log.Tracef("Exactly one Varnish Ingress Service "+
 			"cluster-wide: %s", svcs[0])
 		return svcs[0], nil
 	}
@@ -96,7 +96,7 @@ func (worker *NamespaceWorker) getVarnishSvcForIng(
 		return nil, err
 	}
 	if len(svcs) == 1 {
-		worker.log.Debugf("Exactly one Varnish Ingress Service "+
+		worker.log.Tracef("Exactly one Varnish Ingress Service "+
 			"in namespace %s: %s", worker.namespace, svcs[0])
 		return svcs[0], nil
 	}
@@ -377,12 +377,12 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 	vcfg *vcr_v1alpha1.VarnishConfig, svc *api_v1.Service) error {
 
 	if vcfg.Spec.SelfSharding == nil {
-		worker.log.Debugf("No cluster shard configuration for Service "+
+		worker.log.Tracef("No cluster shard configuration for Service "+
 			"%s/%s", svc.Namespace, svc.Name)
 		return nil
 	}
 
-	worker.log.Debugf("Set cluster shard configuration for Service %s/%s",
+	worker.log.Tracef("Set cluster shard configuration for Service %s/%s",
 		svc.Namespace, svc.Name)
 
 	endps, err := worker.getServiceEndpoints(svc)
@@ -390,7 +390,7 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 		return fmt.Errorf("Error getting endpoints for service %s/%s: "+
 			"%v", svc.Namespace, svc.Name, err)
 	}
-	worker.log.Debugf("Endpoints for shard configuration: %+v", endps)
+	worker.log.Tracef("Endpoints for shard configuration: %+v", endps)
 
 	var nAddrs int
 	var httpPort int32
@@ -423,7 +423,7 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 			"service %s/%s", len(pods.Items), svc.Namespace,
 			svc.Name)
 	}
-	worker.log.Debugf("Pods for shard configuration: %+v", pods.Items)
+	worker.log.Tracef("Pods for shard configuration: %+v", pods.Items)
 
 	// Populate spec.ShardCluster.Nodes with Pod names and the http endpoint
 	for _, pod := range pods.Items {
@@ -437,7 +437,7 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 		node.Addresses[0].Port = httpPort
 		spec.ShardCluster.Nodes = append(spec.ShardCluster.Nodes, node)
 	}
-	worker.log.Debugf("Node configuration for self-sharding in Service "+
+	worker.log.Tracef("Node configuration for self-sharding in Service "+
 		"%s/%s: %+v", svc.Namespace, svc.Name, spec.ShardCluster.Nodes)
 
 	cfgSpec := vcfg.Spec.SelfSharding
@@ -446,7 +446,7 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 	if cfgSpec.Max2ndTTL != "" {
 		spec.ShardCluster.MaxSecondaryTTL = cfgSpec.Max2ndTTL
 	}
-	worker.log.Debugf("Spec configuration for self-sharding in Service "+
+	worker.log.Tracef("Spec configuration for self-sharding in Service "+
 		"%s/%s: %+v", svc.Namespace, svc.Name, spec.ShardCluster)
 	return nil
 }
@@ -486,11 +486,11 @@ func (worker *NamespaceWorker) configAuth(spec *vcl.Spec,
 			vcfg.Namespace, vcfg.Name)
 		return nil
 	}
-	worker.log.Debugf("VarnishConfig %s/%s: configure %d VCL auths",
+	worker.log.Tracef("VarnishConfig %s/%s: configure %d VCL auths",
 		vcfg.Namespace, vcfg.Name, len(vcfg.Spec.Auth))
 	spec.Auths = make([]vcl.Auth, 0, len(vcfg.Spec.Auth))
 	for _, auth := range vcfg.Spec.Auth {
-		worker.log.Debugf("VarnishConfig %s/%s configuring VCL auth "+
+		worker.log.Tracef("VarnishConfig %s/%s configuring VCL auth "+
 			"from: %+v", vcfg.Namespace, vcfg.Name, auth)
 		secret, err := worker.secr.Get(auth.SecretName)
 		if err != nil {
@@ -503,7 +503,7 @@ func (worker *NamespaceWorker) configAuth(spec *vcl.Spec,
 				vcfg.Namespace, vcfg.Name)
 			continue
 		}
-		worker.log.Debugf("VarnishConfig %s/%s configure %d "+
+		worker.log.Tracef("VarnishConfig %s/%s configure %d "+
 			"credentials for realm %s", vcfg.Namespace, vcfg.Name,
 			len(secret.Data), auth.Realm)
 		vclAuth := vcl.Auth{
@@ -520,13 +520,13 @@ func (worker *NamespaceWorker) configAuth(spec *vcl.Spec,
 		for user, pass := range secret.Data {
 			str := user + ":" + string(pass)
 			cred := base64.StdEncoding.EncodeToString([]byte(str))
-			worker.log.Debugf("VarnishConfig %s/%s: add cred %s "+
+			worker.log.Tracef("VarnishConfig %s/%s: add cred %s "+
 				"for realm %s to VCL config", vcfg.Namespace,
 				vcfg.Name, cred, vclAuth.Realm)
 			vclAuth.Credentials = append(vclAuth.Credentials, cred)
 		}
 		configConditions(vclAuth.Conditions, auth.Conditions)
-		worker.log.Debugf("VarnishConfig %s/%s add VCL auth config: "+
+		worker.log.Tracef("VarnishConfig %s/%s add VCL auth config: "+
 			"%+v", vcfg.Namespace, vcfg.Name, vclAuth)
 		spec.Auths = append(spec.Auths, vclAuth)
 	}
@@ -545,7 +545,7 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 	for i, acl := range vcfg.Spec.ACLs {
 		worker.log.Infof("VarnishConfig %s/%s configuring ACL %s",
 			vcfg.Namespace, vcfg.Name, acl.Name)
-		worker.log.Debugf("ACL %s: %+v", acl.Name, acl)
+		worker.log.Tracef("ACL %s: %+v", acl.Name, acl)
 		vclACL := vcl.ACL{
 			Name:       acl.Name,
 			Addresses:  make([]vcl.ACLAddress, len(acl.Addresses)),
@@ -578,13 +578,13 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 		}
 		configConditions(vclACL.Conditions, acl.Conditions)
 		if acl.ResultHdr != nil {
-			worker.log.Debugf("ACL %s: ResultHdr=%+v", acl.Name,
+			worker.log.Tracef("ACL %s: ResultHdr=%+v", acl.Name,
 				*acl.ResultHdr)
 			vclACL.ResultHdr.Header = acl.ResultHdr.Header
 			vclACL.ResultHdr.Success = acl.ResultHdr.Success
 			vclACL.ResultHdr.Failure = acl.ResultHdr.Failure
 		}
-		worker.log.Debugf("VarnishConfig %s/%s add VCL ACL config: "+
+		worker.log.Tracef("VarnishConfig %s/%s add VCL ACL config: "+
 			"%+v", vcfg.Namespace, vcfg.Name, vclACL)
 		spec.ACLs[i] = vclACL
 	}
@@ -603,7 +603,7 @@ func (worker *NamespaceWorker) configRewrites(spec *vcl.Spec,
 	for i, rw := range vcfg.Spec.Rewrites {
 		worker.log.Infof("VarnishConfig %s/%s: configuring rewrite "+
 			"for target %s", vcfg.Namespace, vcfg.Name, rw.Target)
-		worker.log.Debugf("Rewrite: %v", rw)
+		worker.log.Tracef("Rewrite: %v", rw)
 		vclRw := vcl.Rewrite{
 			Target: rw.Target,
 			Rules:  make([]vcl.RewriteRule, len(rw.Rules)),
@@ -785,17 +785,17 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 	if err != nil {
 		return err
 	}
-	worker.log.Debugf("VCL spec generated from the Ingresses: %v", vclSpec)
+	worker.log.Tracef("VCL spec generated from the Ingresses: %v", vclSpec)
 
 	var vcfg *vcr_v1alpha1.VarnishConfig
-	worker.log.Debugf("Listing VarnishConfigs in namespace %s",
+	worker.log.Tracef("Listing VarnishConfigs in namespace %s",
 		worker.namespace)
 	vcfgs, err := worker.vcfg.List(labels.Everything())
 	if err != nil {
 		return err
 	}
 	for _, v := range vcfgs {
-		worker.log.Debugf("VarnishConfig: %s/%s: %+v", v.Namespace,
+		worker.log.Tracef("VarnishConfig: %s/%s: %+v", v.Namespace,
 			v.Name, v)
 		for _, svcName := range v.Spec.Services {
 			if svcName == svc.Name {
@@ -851,7 +851,7 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 			Ver: bcfg.ResourceVersion,
 		}
 	}
-	worker.log.Debugf("Check if config is loaded: hash=%s "+
+	worker.log.Tracef("Check if config is loaded: hash=%s "+
 		"ingressMetaData=%+v vcfgMetaData=%+v bcfgMetaData=%+v",
 		vclSpec.Canonical().DeepHash(), ingsMeta, vcfgMeta, bcfgMeta)
 	if worker.vController.HasConfig(svcKey, vclSpec, ingsMeta, vcfgMeta,
@@ -861,7 +861,7 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 			vclSpec.Canonical().DeepHash())
 		return nil
 	}
-	worker.log.Debugf("Update config svc=%s ingressMetaData=%+v "+
+	worker.log.Tracef("Update config svc=%s ingressMetaData=%+v "+
 		"vcfgMetaData=%+v bcfgMetaData=%+v: %+v", svcKey, ingsMeta,
 		vcfgMeta, bcfgMeta, vclSpec)
 	err = worker.vController.Update(svcKey, vclSpec, ingsMeta, vcfgMeta,
@@ -869,7 +869,7 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 	if err != nil {
 		return err
 	}
-	worker.log.Debugf("Updated config svc=%s ingressMetaData=%+v "+
+	worker.log.Tracef("Updated config svc=%s ingressMetaData=%+v "+
 		"vcfgMetaData=%+v bcfgMetaData=%+v: %+v", svcKey, ingsMeta,
 		vcfgMeta, bcfgMeta, vclSpec)
 	return nil
