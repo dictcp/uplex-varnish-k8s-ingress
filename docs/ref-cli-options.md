@@ -38,6 +38,10 @@ Usage of ./k8s-ingress:
   -readyfile string
 	path of a file to touch when the controller is ready,
 	for readiness probes
+  -resyncPeriod duration
+	if non-zero, re-update the controller with the state of
+	the cluster this often, even if nothing has changed,
+	to synchronize state that may have been missed (default 30s)
   -stderrthreshold value
     	logs at or above this threshold go to stderr
   -templatedir string
@@ -104,6 +108,15 @@ and Ingresses separately; see the
 deactivated for values <= 0. The monitor sleeps this long between
 monitor runs for Varnish Services. See the documentation at the link
 for more details.
+
+``-resyncPeriod`` determines how often the controller is re-updated
+with the state of the cluster. On this interval, the controller
+receives Update events for all of the relevant resources in the
+cluster, even if nothing has changed. This makes it possible to update
+the state of Varnish Services, even if an earlier event was missed or
+incorrectly interpreted for some reason. By default 30 seconds, and
+there is no resync if set to 0s -- then the controller is only
+notified when something changes.
 
 ``-metricsport`` (default 8080) sets the port number at which the
 controller listens for the HTTP endpoint ``/metrics`` to publish
