@@ -151,6 +151,9 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 		if err != nil {
 			return err
 		}
+		if ingSvc == nil {
+			continue
+		}
 		if ingSvc.Namespace != svc.Namespace ||
 			ingSvc.Name != svc.Name {
 			continue
