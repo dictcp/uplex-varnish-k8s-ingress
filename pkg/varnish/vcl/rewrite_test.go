@@ -30,8 +30,8 @@ package vcl
 
 import (
 	"bytes"
-	"testing"
 	"io/ioutil"
+	"testing"
 )
 
 func testTemplate(t *testing.T, spec Spec, gold string) {
@@ -723,7 +723,7 @@ func TestRewriteDeleteAuth(t *testing.T) {
 		t.Fatal("GetSrc():", err)
 	}
 
-	if goldbytes, err = ioutil.ReadFile("testdata/"+gold); err != nil {
+	if goldbytes, err = ioutil.ReadFile("testdata/" + gold); err != nil {
 		t.Fatal("WriteFile():", err)
 	}
 	if !bytes.Equal(goldbytes, []byte(src)) {
