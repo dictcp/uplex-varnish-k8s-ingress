@@ -27,6 +27,8 @@ spec:
         - name: adm-secret
           mountPath: "/var/run/varnish"
           readOnly: true
+        - name: varnish-home
+          mountPath: "/var/run/varnish-home"
         livenessProbe:
           exec:
             command:
@@ -38,6 +40,9 @@ spec:
           httpGet:
             path: /ready
             port: k8s
+        args:
+          - -n
+          - /var/run/varnish-home
         env:
         # PROTO=PROXY causes the listener at the http port to accept
         # the PROXY protocol (v1 or v2).
@@ -51,3 +56,6 @@ spec:
           items:
           - key: admin
             path: _.secret
+      - name: varnish-home
+        emptyDir:
+          medium: "Memory"

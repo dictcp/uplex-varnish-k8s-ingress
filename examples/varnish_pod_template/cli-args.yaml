@@ -27,6 +27,8 @@ spec:
         - name: adm-secret
           mountPath: "/var/run/varnish"
           readOnly: true
+        - name: varnish-home
+          mountPath: "/var/run/varnish-home"
         livenessProbe:
           exec:
             command:
@@ -42,12 +44,15 @@ spec:
         # varnishd command-line options
         # In this example:
         # varnishd -s malloc,256m -t 900 -p workspace_client=256k
-        - -s
-        - malloc,256m
-        - -t
-        - "900"
-        - -p
-        - workspace_client=256k
+        # in addition to the -n arg used for all deployments.
+          - -n
+          - /var/run/varnish-home
+          - -s
+          - malloc,256m
+          - -t
+          - "900"
+          - -p
+          - workspace_client=256k
       volumes:
       - name: adm-secret
         secret:
@@ -55,3 +60,6 @@ spec:
           items:
           - key: admin
             path: _.secret
+      - name: varnish-home
+        emptyDir:
+          medium: "Memory"

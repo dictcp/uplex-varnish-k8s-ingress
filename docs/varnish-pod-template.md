@@ -44,6 +44,65 @@ for details about available options.
         - workspace_client=256k
 ```
 
+### Using ``-n`` to mount the Varnish home directory in tmpfs
+
+The [sample manifest](/deploy/varnish.yaml) shown in the
+[deployment instructions](/deploy/) uses the ``-n`` command-line
+option to set the Varnish home directory to a path mounted in
+tmpfs. The same configuration is used in all of the sample Varnish
+deployments shown in the [``examples/`` folder](/examples/).
+
+This is a best practice for Varnish, and is recommeneded for all
+deployments. Among other things, the home directory contains the files
+that are mapped to shared memory, used by Varnish for logging and
+statistics. The tmpfs mount ensures that there is no file I/O involved
+in any of the work that Varnish does for these purposes.
+
+The configuration for ``-n`` requires that an ``emptyDir`` volume is
+defined in the Pod template with ``medium:"Memory"`` specified in
+order to use tmpfs:
+
+```
+    spec:
+      # [...]
+      volumes:
+      # [...]
+      - name: varnish-home
+        emptyDir:
+          medium: "Memory"
+```
+
+In ``spec.container``, the path of the home directory is specified for
+the volume mount, and that path is used as the argument of the ``-n``
+option:
+
+```
+    spec:
+      containers:
+      - image: varnish-ingress/varnish
+        # [...]
+        volumeMounts:
+        # [...]
+        - name: varnish-home
+          mountPath: "/var/run/varnish-home"
+        # [...]
+        args:
+          - -n
+          - /var/run/varnish-home
+```
+
+You may of course choose a different path name. Note that this use of
+``-n`` means that other commands in the Varnish container that access
+shared memory, such as
+[``varnishlog``](https://varnish-cache.org/docs/6.1/reference/varnishlog.html),
+[``varnishstat``](https://varnish-cache.org/docs/6.1/reference/varnishstat.html)
+or
+[``varnishadm``](https://varnish-cache.org/docs/6.1/reference/varnishadm.html),
+must also be called with the ``-n`` option set to the Varnish home
+directory (for example when executed via ``kubectl exec``).
+
+### Restrictions on command-line arguments
+
 Because of the fact that the container starts with a number of options
 in order to implement the role of an Ingress, there are restrictions
 on the options that you can or should set. Some of them result in
