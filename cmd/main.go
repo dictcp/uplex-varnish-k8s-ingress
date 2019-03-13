@@ -81,6 +81,10 @@ var (
 	ingressClassF = flag.String("class", "varnish", "value of the Ingress "+
 		"annotation kubernetes.io/ingress.class\nthe controller only "+
 		"considers Ingresses with this value for the\nannotation")
+	resyncPeriodF = flag.Duration("resyncPeriod", 30*time.Second,
+		"if non-zero, re-update the controller with the state of\n"+
+			"the cluster this often, even if nothing has changed,\n"+
+			"to synchronize state that may have been missed")
 	logFormat = logrus.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
@@ -92,10 +96,6 @@ var (
 	}
 	informerStop = make(chan struct{})
 )
-
-const resyncPeriod = 0
-
-//	resyncPeriod    = 30 * time.Second
 
 // Satisifes type TweakListOptionsFunc in
 // k8s.io/client-go/informers/internalinterfaces, for use in
@@ -177,20 +177,20 @@ func main() {
 	var vcrInformerFactory vcr_informers.SharedInformerFactory
 	if *namespaceF == api_v1.NamespaceAll {
 		informerFactory = informers.NewSharedInformerFactory(
-			kubeClient, resyncPeriod)
+			kubeClient, *resyncPeriodF)
 		vcrInformerFactory = vcr_informers.NewSharedInformerFactory(
-			vingClient, resyncPeriod)
+			vingClient, *resyncPeriodF)
 	} else {
 		informerFactory = informers.NewFilteredSharedInformerFactory(
-			kubeClient, resyncPeriod, *namespaceF, noop)
+			kubeClient, *resyncPeriodF, *namespaceF, noop)
 		vcrInformerFactory =
 			vcr_informers.NewFilteredSharedInformerFactory(
-				vingClient, resyncPeriod, *namespaceF, noop)
+				vingClient, *resyncPeriodF, *namespaceF, noop)
 
 		// XXX this is prefered, but only available in newer
 		// versions of client-go.
 		// informerFactory = informers.NewSharedInformerFactoryWithOptions(
-		// 	kubeClient, resyncPeriod,
+		// 	kubeClient, *resyncPeriodF,
 		// 	informers.WithNamespace(*namespaceF))
 	}
 
