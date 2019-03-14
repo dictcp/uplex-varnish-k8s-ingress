@@ -231,8 +231,8 @@ func handleTermination(
 			log.Info("varnish controller exited successfully")
 		}
 		exited = true
-	case <-signalChan:
-		log.Info("Received SIGTERM, shutting down")
+	case sig := <-signalChan:
+		log.Infof("Received signal (%s), shutting down", sig.String())
 	}
 
 	log.Info("Shutting down informers")
