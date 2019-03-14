@@ -216,7 +216,7 @@ func handleTermination(
 	varnishDone chan error) {
 
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGTERM)
+	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT)
 
 	exitStatus := 0
 	exited := false
