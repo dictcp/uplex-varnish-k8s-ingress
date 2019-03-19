@@ -120,6 +120,9 @@ func (worker *NamespaceWorker) getIngsForVarnishSvc(
 	}
 	ings4Svc := make([]*extensions.Ingress, 0)
 	for _, ing := range ings {
+		if !worker.isVarnishIngress(ing) {
+			continue
+		}
 		namespace := ing.Namespace
 		if namespace == "" {
 			namespace = "default"
