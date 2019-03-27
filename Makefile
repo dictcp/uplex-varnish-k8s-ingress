@@ -64,7 +64,8 @@ generate: install-code-gen
 		--output-package $(CLIENTPKG)/informers -h $(BOILERPLATE)
 
 k8s-ingress: build
-	CGO_ENABLED=0 GOOS=linux vgo build -o k8s-ingress cmd/*.go
+	CGO_ENABLED=0 GOOS=linux vgo build -ldflags="-w -s" -o k8s-ingress \
+		cmd/*.go
 
 check: build
 	golint ./pkg/controller/...
