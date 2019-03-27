@@ -235,11 +235,11 @@ func handleTermination(
 		log.Infof("Received signal (%s), shutting down", sig.String())
 	}
 
-	log.Info("Shutting down informers")
-	informerStop <- struct{}{}
-
 	log.Info("Shutting down the ingress controller")
 	ingc.Stop()
+
+	log.Info("Shutting down informers")
+	informerStop <- struct{}{}
 
 	if !exited {
 		log.Info("Shutting down the Varnish controller")

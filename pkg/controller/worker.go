@@ -30,6 +30,7 @@ package controller
 
 import (
 	"fmt"
+	"sync"
 
 	api_v1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
@@ -67,7 +68,6 @@ type NamespaceWorker struct {
 	log         *logrus.Logger
 	vController *varnish.VarnishController
 	queue       workqueue.RateLimitingInterface
-	stopChan    chan struct{}
 	listers     *Listers
 	ing         ext_listers.IngressNamespaceLister
 	svc         core_v1_listers.ServiceNamespaceLister
@@ -77,6 +77,7 @@ type NamespaceWorker struct {
 	bcfg        vcr_listers.BackendConfigNamespaceLister
 	client      kubernetes.Interface
 	recorder    record.EventRecorder
+	wg          *sync.WaitGroup
 }
 
 func (worker *NamespaceWorker) event(obj interface{}, evtType, reason,
@@ -228,14 +229,6 @@ func (worker *NamespaceWorker) dispatch(obj interface{}) error {
 }
 
 func (worker *NamespaceWorker) next() {
-	select {
-	case <-worker.stopChan:
-		worker.queue.ShutDown()
-		return
-	default:
-		break
-	}
-
 	obj, quit := worker.queue.Get()
 	if quit {
 		return
@@ -257,6 +250,8 @@ func (worker *NamespaceWorker) next() {
 }
 
 func (worker *NamespaceWorker) work() {
+	defer worker.wg.Done()
+
 	worker.log.Info("Starting worker for namespace:", worker.namespace)
 
 	for !worker.queue.ShuttingDown() {
@@ -272,6 +267,7 @@ func (worker *NamespaceWorker) work() {
 // responsible for each namespace.
 type NamespaceQueues struct {
 	Queue       workqueue.RateLimitingInterface
+	DoneChan    chan struct{}
 	ingClass    string
 	log         *logrus.Logger
 	vController *varnish.VarnishController
@@ -279,6 +275,7 @@ type NamespaceQueues struct {
 	listers     *Listers
 	client      kubernetes.Interface
 	recorder    record.EventRecorder
+	wg          *sync.WaitGroup
 }
 
 // NewNamespaceQueues creates a NamespaceQueues object.
@@ -301,6 +298,7 @@ func NewNamespaceQueues(
 		workqueue.DefaultControllerRateLimiter(), "_ALL_")
 	return &NamespaceQueues{
 		Queue:       q,
+		DoneChan:    make(chan struct{}),
 		log:         log,
 		ingClass:    ingClass,
 		vController: vController,
@@ -308,6 +306,7 @@ func NewNamespaceQueues(
 		listers:     listers,
 		client:      client,
 		recorder:    recorder,
+		wg:          new(sync.WaitGroup),
 	}
 }
 
@@ -347,7 +346,6 @@ func (qs *NamespaceQueues) next() {
 			log:         qs.log,
 			vController: qs.vController,
 			queue:       q,
-			stopChan:    make(chan struct{}),
 			listers:     qs.listers,
 			ing:         qs.listers.ing.Ingresses(ns),
 			svc:         qs.listers.svc.Services(ns),
@@ -357,9 +355,11 @@ func (qs *NamespaceQueues) next() {
 			bcfg:        qs.listers.bcfg.BackendConfigs(ns),
 			client:      qs.client,
 			recorder:    qs.recorder,
+			wg:          qs.wg,
 		}
 		qs.workers[ns] = worker
 		go worker.work()
+		qs.wg.Add(1)
 	}
 	worker.queue.Add(obj)
 	qs.Queue.Forget(obj)
@@ -373,16 +373,19 @@ func (qs *NamespaceQueues) Run() {
 	for !qs.Queue.ShuttingDown() {
 		qs.next()
 	}
-	qs.log.Info("Shutting down dispatcher worker")
 }
 
 // Stop shuts down the main queue loop initiated by Run(), and in turn
 // shuts down all of the NamespaceWorkers.
 func (qs *NamespaceQueues) Stop() {
+	qs.log.Info("Shutting down dispatcher worker")
 	qs.Queue.ShutDown()
 	for _, worker := range qs.workers {
+		qs.log.Infof("Shutting down queue for namespace: %s",
+			worker.namespace)
 		worker.queue.ShutDown()
-		close(worker.stopChan)
 	}
-	// XXX wait for WaitGroup
+	qs.log.Info("Waiting for workers to shut down")
+	qs.wg.Wait()
+	close(qs.DoneChan)
 }

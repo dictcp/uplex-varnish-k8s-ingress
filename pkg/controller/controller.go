@@ -371,10 +371,13 @@ func (ingc *IngressController) Run(readyFile string, metricsPort uint16) {
 	go wait.Until(ingc.nsQs.Run, time.Second, ingc.stopCh)
 
 	<-ingc.stopCh
-	ingc.log.Info("Shutting down workers")
 }
 
 // Stop the Ingress controller -- signal the workers to stop.
 func (ingc *IngressController) Stop() {
+	ingc.stopCh <- struct{}{}
+	ingc.log.Info("Shutting down workers")
 	close(ingc.stopCh)
+	<-ingc.nsQs.DoneChan
+	ingc.log.Info("Controller exiting")
 }
