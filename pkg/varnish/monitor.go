@@ -88,6 +88,8 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	}
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
+	vc.wg.Add(1)
+	defer vc.wg.Done()
 
 	timer := prometheus.NewTimer(metrics.connectLatency)
 	adm, err := admin.Dial(inst.addr, *inst.admSecret, admTimeout)

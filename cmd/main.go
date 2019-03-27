@@ -202,9 +202,8 @@ func main() {
 		os.Exit(-1)
 	}
 	vController.EvtGenerator(ingController)
-	varnishDone := make(chan error, 1)
-	go handleTermination(log, ingController, vController, varnishDone)
-	vController.Start(varnishDone)
+	go handleTermination(log, ingController, vController)
+	vController.Start()
 	informerFactory.Start(informerStop)
 	ingController.Run(*readyfileF, uint16(*metricsPortF))
 }
@@ -212,28 +211,13 @@ func main() {
 func handleTermination(
 	log *logrus.Logger,
 	ingc *controller.IngressController,
-	vc *varnish.VarnishController,
-	varnishDone chan error) {
+	vc *varnish.VarnishController) {
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT)
 
-	exitStatus := 0
-	exited := false
-
-	select {
-	case err := <-varnishDone:
-		if err != nil {
-			log.Error("varnish controller exited with an error:",
-				err)
-			exitStatus = 1
-		} else {
-			log.Info("varnish controller exited successfully")
-		}
-		exited = true
-	case sig := <-signalChan:
-		log.Infof("Received signal (%s), shutting down", sig.String())
-	}
+	sig := <-signalChan
+	log.Infof("Received signal (%s), shutting down", sig.String())
 
 	log.Info("Shutting down the ingress controller")
 	ingc.Stop()
@@ -241,11 +225,9 @@ func handleTermination(
 	log.Info("Shutting down informers")
 	informerStop <- struct{}{}
 
-	if !exited {
-		log.Info("Shutting down the Varnish controller")
-		vc.Quit()
-	}
+	log.Info("Shutting down the Varnish controller")
+	vc.Quit()
 
-	log.Info("Exiting with a status:", exitStatus)
-	os.Exit(exitStatus)
+	log.Info("Exiting")
+	os.Exit(0)
 }

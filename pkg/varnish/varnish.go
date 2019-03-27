@@ -151,7 +151,7 @@ type VarnishController struct {
 	svcEvt   interfaces.SvcEventGenerator
 	svcs     map[string]*varnishSvc
 	secrets  map[string]*[]byte
-	errChan  chan error
+	wg       *sync.WaitGroup
 	monIntvl time.Duration
 }
 
@@ -183,6 +183,7 @@ func NewVarnishController(
 		secrets:  make(map[string]*[]byte),
 		log:      log,
 		monIntvl: monIntvl,
+		wg:       new(sync.WaitGroup),
 	}, nil
 }
 
@@ -195,9 +196,7 @@ func (vc *VarnishController) EvtGenerator(svcEvt interfaces.SvcEventGenerator) {
 
 // Start initiates the Varnish controller and starts the monitor
 // goroutine.
-func (vc *VarnishController) Start(errChan chan error) {
-	vc.errChan = errChan
-	vc.log.Info("Starting Varnish controller")
+func (vc *VarnishController) Start() {
 	fmt.Printf("Varnish controller logging at level: %s\n", vc.log.Level)
 	go vc.monitor(vc.monIntvl)
 }
@@ -212,6 +211,8 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	}
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
+	vc.wg.Add(1)
+	defer vc.wg.Done()
 
 	vc.log.Tracef("Connect to %s, timeout=%v", inst.addr, admTimeout)
 	timer := prometheus.NewTimer(metrics.connectLatency)
@@ -359,6 +360,8 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 	metrics := getInstanceMetrics(inst.addr)
 	inst.admMtx.Lock()
 	defer inst.admMtx.Unlock()
+	vc.wg.Add(1)
+	defer vc.wg.Done()
 
 	vc.log.Tracef("Connect to %s, timeout=%v", inst.addr, admTimeout)
 	timer := prometheus.NewTimer(metrics.connectLatency)
@@ -753,5 +756,7 @@ func (vc *VarnishController) DeleteAdmSecret(name string) {
 
 // Quit stops the Varnish controller.
 func (vc *VarnishController) Quit() {
-	vc.errChan <- nil
+	vc.log.Info("Wait for admin interactions with Varnish instances to " +
+		"finish")
+	vc.wg.Wait()
 }
