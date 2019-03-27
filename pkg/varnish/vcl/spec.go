@@ -459,15 +459,15 @@ const (
 	Prefix
 )
 
-// VCLSubType classifies the VCL subroutine in which a rewrite is
+// SubType classifies the VCL subroutine in which a rewrite is
 // executed.
-type VCLSubType uint8
+type SubType uint8
 
 const (
 	// Unspecified means that the VCL sub was not specified in the
 	// user configuration, and will be inferred from the Source
 	// and Target.
-	Unspecified VCLSubType = iota
+	Unspecified SubType = iota
 	// Recv for vcl_recv
 	Recv
 	// Pipe for vcl_pipe
@@ -626,7 +626,7 @@ type Rewrite struct {
 	Source     string
 	Method     MethodType
 	Compare    RewriteCompare
-	VCLSub     VCLSubType
+	VCLSub     SubType
 	Select     SelectType
 }
 
