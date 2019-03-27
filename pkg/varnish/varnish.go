@@ -66,9 +66,9 @@ var (
 	admTimeout = time.Second * 10
 )
 
-// VarnishAdmError encapsulates an error encountered for an individual
+// AdmError encapsulates an error encountered for an individual
 // Varnish instance, and satisfies the Error interface.
-type VarnishAdmError struct {
+type AdmError struct {
 	addr string
 	err  error
 }
@@ -76,24 +76,24 @@ type VarnishAdmError struct {
 // Error returns an error meesage for an error encountered at a
 // Varnish instance, identifying the instance by its Endpoint address
 // (internal IP) and admin port.
-func (vadmErr VarnishAdmError) Error() string {
+func (vadmErr AdmError) Error() string {
 	return fmt.Sprintf("%s: %v", vadmErr.addr, vadmErr.err)
 }
 
-// VarnishAdmErrors is a collection of errors encountered at Varnish
+// AdmErrors is a collection of errors encountered at Varnish
 // instances. Most attempts to sync the state of Varnish instances do
 // not break off at the first error; the attempt is repeated for each
 // instance in a cluster, collecting error information along the way.
 // This object contains error information for each instance in a
 // cluster that failed to sync. The type satisifies the Error
 // interface.
-type VarnishAdmErrors []VarnishAdmError
+type AdmErrors []AdmError
 
 // Error returns an error message that includes errors for each
 // instance in a Varnish cluster that failed a sync operation, where
 // each instance is identified by it Endpoint (internal IP) and admin
 // port.
-func (vadmErrs VarnishAdmErrors) Error() string {
+func (vadmErrs AdmErrors) Error() string {
 	var sb strings.Builder
 	sb.WriteRune('[')
 	for _, err := range vadmErrs {
@@ -321,7 +321,7 @@ func (vc *VarnishController) updateVarnishSvc(name string) error {
 
 	vc.log.Infof("Update Varnish instances: load config %s", cfgName)
 	vc.log.Tracef("Config %s source: %s", cfgName, vclSrc)
-	var errs VarnishAdmErrors
+	var errs AdmErrors
 	for _, inst := range svc.instances {
 		if inst == nil {
 			vc.log.Errorf("Instance object is nil")
@@ -332,7 +332,7 @@ func (vc *VarnishController) updateVarnishSvc(name string) error {
 		if e := vc.updateVarnishInstance(inst, cfgName, vclSrc,
 			metrics); e != nil {
 
-			admErr := VarnishAdmError{addr: inst.addr, err: e}
+			admErr := AdmError{addr: inst.addr, err: e}
 			errs = append(errs, admErr)
 			metrics.updateErrs.Inc()
 			continue
@@ -352,7 +352,7 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 	cfg, lbl string, mayClose bool) error {
 
 	if inst.admSecret == nil {
-		return VarnishAdmError{
+		return AdmError{
 			addr: inst.addr,
 			err:  fmt.Errorf("No known admin secret"),
 		}
@@ -374,7 +374,7 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 			return nil
 		}
 		metrics.connectFails.Inc()
-		return VarnishAdmError{addr: inst.addr, err: err}
+		return AdmError{addr: inst.addr, err: err}
 	}
 	defer adm.Close()
 	inst.Banner = adm.Banner
@@ -388,7 +388,7 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 					inst.addr)
 				return nil
 			}
-			return VarnishAdmError{addr: inst.addr, err: err}
+			return AdmError{addr: inst.addr, err: err}
 		}
 	}
 	return nil
@@ -396,14 +396,14 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 
 // On Delete for a Varnish instance, we set it to the unready state.
 func (vc *VarnishController) removeVarnishInstances(insts []*varnishInst) error {
-	var errs VarnishAdmErrors
+	var errs AdmErrors
 
 	for _, inst := range insts {
 		// XXX health check for sharding config should fail
 		if err := vc.setCfgLabel(inst, notAvailCfg, readinessLabel,
 			true); err != nil {
 
-			admErr := VarnishAdmError{addr: inst.addr, err: err}
+			admErr := AdmError{addr: inst.addr, err: err}
 			errs = append(errs, admErr)
 			continue
 		}
@@ -418,7 +418,7 @@ func (vc *VarnishController) removeVarnishInstances(insts []*varnishInst) error 
 func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 	addrs []vcl.Address, secrPtr *[]byte, loadVCL bool) error {
 
-	var errs VarnishAdmErrors
+	var errs AdmErrors
 	var newInsts, remInsts, keepInsts []*varnishInst
 
 	svc, exists := vc.svcs[key]
@@ -467,7 +467,7 @@ func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 		if err := vc.setCfgLabel(inst, notAvailCfg, readinessLabel,
 			true); err != nil {
 
-			admErr := VarnishAdmError{addr: inst.addr, err: err}
+			admErr := AdmError{addr: inst.addr, err: err}
 			errs = append(errs, admErr)
 			continue
 		}
@@ -479,7 +479,7 @@ func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 		vc.log.Tracef("Varnish svc %s: load VCL", key)
 		updateErrs := vc.updateVarnishSvc(key)
 		if updateErrs != nil {
-			vadmErrs, ok := updateErrs.(VarnishAdmErrors)
+			vadmErrs, ok := updateErrs.(AdmErrors)
 			if ok {
 				errs = append(errs, vadmErrs...)
 			} else {
@@ -625,12 +625,12 @@ func (vc *VarnishController) SetNotReady(svcKey string) error {
 	}
 	svc.spec = nil
 
-	var errs VarnishAdmErrors
+	var errs AdmErrors
 	for _, inst := range svc.instances {
 		if err := vc.setCfgLabel(inst, notAvailCfg, readinessLabel,
 			false); err != nil {
 
-			admErr := VarnishAdmError{
+			admErr := AdmError{
 				addr: inst.addr,
 				err:  err,
 			}

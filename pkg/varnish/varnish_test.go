@@ -36,24 +36,24 @@ import (
 	"code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl"
 )
 
-func TestVarnishAdmError(t *testing.T) {
-	vadmErr := VarnishAdmError{
+func TestAdmError(t *testing.T) {
+	vadmErr := AdmError{
 		addr: "123.45.67.89:4711",
 		err:  fmt.Errorf("Error message"),
 	}
 	err := vadmErr.Error()
 	want := "123.45.67.89:4711: Error message"
 	if err != want {
-		t.Errorf("VarnishAdmError.Error() want=%s got=%s", want, err)
+		t.Errorf("AdmError.Error() want=%s got=%s", want, err)
 	}
 
-	vadmErrs := VarnishAdmErrors{
+	vadmErrs := AdmErrors{
 		vadmErr,
-		VarnishAdmError{
+		AdmError{
 			addr: "98.76.54.321:815",
 			err:  fmt.Errorf("Error 2"),
 		},
-		VarnishAdmError{
+		AdmError{
 			addr: "192.0.2.255:80",
 			err:  fmt.Errorf("Error 3"),
 		},
@@ -62,7 +62,7 @@ func TestVarnishAdmError(t *testing.T) {
 	want = "[{123.45.67.89:4711: Error message}{98.76.54.321:815: Error 2}" +
 		"{192.0.2.255:80: Error 3}]"
 	if err != want {
-		t.Errorf("VarnishAdmErrors.Error() want=%s got=%s", want, err)
+		t.Errorf("AdmErrors.Error() want=%s got=%s", want, err)
 	}
 }
 
