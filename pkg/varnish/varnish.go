@@ -143,10 +143,10 @@ type varnishSvc struct {
 	cfgLoaded bool
 }
 
-// VarnishController encapsulates information about each Varnish
+// Controller encapsulates information about each Varnish
 // cluster deployed as Ingress implementations in the cluster, and
 // their current states.
-type VarnishController struct {
+type Controller struct {
 	log      *logrus.Logger
 	svcEvt   interfaces.SvcEventGenerator
 	svcs     map[string]*varnishSvc
@@ -155,7 +155,7 @@ type VarnishController struct {
 	monIntvl time.Duration
 }
 
-// NewVarnishController returns an instance of VarnishController.
+// NewVarnishController returns an instance of Controller.
 //
 //    log: logger object initialized at startup
 //    tmplDir: directory containing templates for VCL generation
@@ -163,10 +163,8 @@ type VarnishController struct {
 // If tmplDir is the empty string, use the environment variable
 // TEMPLATE_DIR. If the env variable does not exist, use the current
 // working directory.
-func NewVarnishController(
-	log *logrus.Logger,
-	tmplDir string,
-	monIntvl time.Duration) (*VarnishController, error) {
+func NewVarnishController(log *logrus.Logger, tmplDir string,
+	monIntvl time.Duration) (*Controller, error) {
 
 	if tmplDir == "" {
 		tmplEnv, exists := os.LookupEnv("TEMPLATE_DIR")
@@ -178,7 +176,7 @@ func NewVarnishController(
 		return nil, err
 	}
 	initMetrics()
-	return &VarnishController{
+	return &Controller{
 		svcs:     make(map[string]*varnishSvc),
 		secrets:  make(map[string]*[]byte),
 		log:      log,
@@ -190,19 +188,19 @@ func NewVarnishController(
 // EvtGenerator sets the object that implements interface
 // SvcEventGenerator, and will be used by the monitor goroutine to
 // generate Events for Varnish Services.
-func (vc *VarnishController) EvtGenerator(svcEvt interfaces.SvcEventGenerator) {
+func (vc *Controller) EvtGenerator(svcEvt interfaces.SvcEventGenerator) {
 	vc.svcEvt = svcEvt
 }
 
 // Start initiates the Varnish controller and starts the monitor
 // goroutine.
-func (vc *VarnishController) Start() {
+func (vc *Controller) Start() {
 	fmt.Printf("Varnish controller logging at level: %s\n", vc.log.Level)
 	go vc.monitor(vc.monIntvl)
 }
 
-func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
-	cfgName string, vclSrc string, metrics *instanceMetrics) error {
+func (vc *Controller) updateVarnishInstance(inst *varnishInst, cfgName string,
+	vclSrc string, metrics *instanceMetrics) error {
 
 	vc.log.Infof("Update Varnish instance at %s", inst.addr)
 	vc.log.Tracef("Varnish instance %s: %+v", inst.addr, *inst)
@@ -296,7 +294,7 @@ func (vc *VarnishController) updateVarnishInstance(inst *varnishInst,
 	return nil
 }
 
-func (vc *VarnishController) updateVarnishSvc(name string) error {
+func (vc *Controller) updateVarnishSvc(name string) error {
 	svc, exists := vc.svcs[name]
 	if !exists || svc == nil {
 		return fmt.Errorf("No known Varnish Service %s", name)
@@ -348,8 +346,8 @@ func (vc *VarnishController) updateVarnishSvc(name string) error {
 // Label cfg as lbl at Varnish instance inst. If mayClose is true, then
 // losing the admin connection is not an error (Varnish may be
 // shutting down).
-func (vc *VarnishController) setCfgLabel(inst *varnishInst,
-	cfg, lbl string, mayClose bool) error {
+func (vc *Controller) setCfgLabel(inst *varnishInst, cfg, lbl string,
+	mayClose bool) error {
 
 	if inst.admSecret == nil {
 		return AdmError{
@@ -395,7 +393,7 @@ func (vc *VarnishController) setCfgLabel(inst *varnishInst,
 }
 
 // On Delete for a Varnish instance, we set it to the unready state.
-func (vc *VarnishController) removeVarnishInstances(insts []*varnishInst) error {
+func (vc *Controller) removeVarnishInstances(insts []*varnishInst) error {
 	var errs AdmErrors
 
 	for _, inst := range insts {
@@ -415,8 +413,8 @@ func (vc *VarnishController) removeVarnishInstances(insts []*varnishInst) error 
 	return errs
 }
 
-func (vc *VarnishController) updateVarnishSvcAddrs(key string,
-	addrs []vcl.Address, secrPtr *[]byte, loadVCL bool) error {
+func (vc *Controller) updateVarnishSvcAddrs(key string, addrs []vcl.Address,
+	secrPtr *[]byte, loadVCL bool) error {
 
 	var errs AdmErrors
 	var newInsts, remInsts, keepInsts []*varnishInst
@@ -502,8 +500,8 @@ func (vc *VarnishController) updateVarnishSvcAddrs(key string,
 //              Service
 //    loadVCL: true if the VCL config for the Service should be
 //             reloaded
-func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
-	addrs []vcl.Address, secrName string, loadVCL bool) error {
+func (vc *Controller) AddOrUpdateVarnishSvc(key string, addrs []vcl.Address,
+	secrName string, loadVCL bool) error {
 
 	var secrPtr *[]byte
 	svc, svcExists := vc.svcs[key]
@@ -549,7 +547,7 @@ func (vc *VarnishController) AddOrUpdateVarnishSvc(key string,
 // Service identified by the namespace/name key. The Varnish instance
 // is set to the unready state, and no further action is taken (other
 // resources in the cluster may shut down the Varnish instances).
-func (vc *VarnishController) DeleteVarnishSvc(key string) error {
+func (vc *Controller) DeleteVarnishSvc(key string) error {
 	svc, ok := vc.svcs[key]
 	if !ok {
 		return nil
@@ -562,7 +560,7 @@ func (vc *VarnishController) DeleteVarnishSvc(key string) error {
 	return err
 }
 
-func (vc *VarnishController) updateBeGauges() {
+func (vc *Controller) updateBeGauges() {
 	nBeSvcs := 0
 	nBeEndps := 0
 	for _, svc := range vc.svcs {
@@ -585,7 +583,7 @@ func (vc *VarnishController) updateBeGauges() {
 //    ingsMeta: Ingress meta-data
 //    vcfgMeta: VarnishConfig meta-data
 //    bcfgMeta: BackendConfig meta-data
-func (vc *VarnishController) Update(svcKey string, spec vcl.Spec,
+func (vc *Controller) Update(svcKey string, spec vcl.Spec,
 	ingsMeta map[string]Meta, vcfgMeta Meta,
 	bcfgMeta map[string]Meta) error {
 
@@ -617,7 +615,7 @@ func (vc *VarnishController) Update(svcKey string, spec vcl.Spec,
 // Ingresses remain that are to be implemented by a Varnish Service.
 // The Service is set to the not ready state, by relabelling VCL so
 // that readiness checks are not answered with status 200.
-func (vc *VarnishController) SetNotReady(svcKey string) error {
+func (vc *Controller) SetNotReady(svcKey string) error {
 	svc, ok := vc.svcs[svcKey]
 	if !ok {
 		return fmt.Errorf("Set Varnish Service not ready: %s unknown",
@@ -652,7 +650,7 @@ func (vc *VarnishController) SetNotReady(svcKey string) error {
 //    ingsMeta: Ingress meta-data
 //    vcfgMeta: VarnishConfig meta-data
 //    bcfgMeta: BackendConfig meta-data
-func (vc *VarnishController) HasConfig(svcKey string, spec vcl.Spec,
+func (vc *Controller) HasConfig(svcKey string, spec vcl.Spec,
 	ingsMeta map[string]Meta, vcfgMeta Meta,
 	bcfgMeta map[string]Meta) bool {
 
@@ -699,7 +697,7 @@ func (vc *VarnishController) HasConfig(svcKey string, spec vcl.Spec,
 
 // SetAdmSecret stores the Secret data identified by the
 // namespace/name key.
-func (vc *VarnishController) SetAdmSecret(key string, secret []byte) {
+func (vc *Controller) SetAdmSecret(key string, secret []byte) {
 	secr, exists := vc.secrets[key]
 	if !exists {
 		secretSlice := make([]byte, len(secret))
@@ -713,7 +711,7 @@ func (vc *VarnishController) SetAdmSecret(key string, secret []byte) {
 // UpdateSvcForSecret associates the Secret identified by the
 // namespace/name secretKey with the Varnish Service identified by the
 // namespace/name svcKey. The Service is newly synced if necessary.
-func (vc *VarnishController) UpdateSvcForSecret(svcKey, secretKey string) error {
+func (vc *Controller) UpdateSvcForSecret(svcKey, secretKey string) error {
 	secret, exists := vc.secrets[secretKey]
 	if !exists {
 		secretKey = ""
@@ -746,7 +744,7 @@ func (vc *VarnishController) UpdateSvcForSecret(svcKey, secretKey string) error 
 
 // DeleteAdmSecret removes the secret identified by the namespace/name
 // key.
-func (vc *VarnishController) DeleteAdmSecret(name string) {
+func (vc *Controller) DeleteAdmSecret(name string) {
 	_, exists := vc.secrets[name]
 	if exists {
 		delete(vc.secrets, name)
@@ -755,7 +753,7 @@ func (vc *VarnishController) DeleteAdmSecret(name string) {
 }
 
 // Quit stops the Varnish controller.
-func (vc *VarnishController) Quit() {
+func (vc *Controller) Quit() {
 	vc.log.Info("Wait for admin interactions with Varnish instances to " +
 		"finish")
 	vc.wg.Wait()

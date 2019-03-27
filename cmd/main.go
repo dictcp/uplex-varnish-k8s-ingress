@@ -211,7 +211,7 @@ func main() {
 func handleTermination(
 	log *logrus.Logger,
 	ingc *controller.IngressController,
-	vc *varnish.VarnishController) {
+	vc *varnish.Controller) {
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT)

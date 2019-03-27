@@ -50,31 +50,25 @@ const (
 	monitorGood  = "MonitorGood"
 )
 
-func (vc *VarnishController) infoEvt(svc, reason, msgFmt string,
-	args ...interface{}) {
-
+func (vc *Controller) infoEvt(svc, reason, msgFmt string, args ...interface{}) {
 	vc.log.Infof(msgFmt, args...)
 	vc.svcEvt.SvcInfoEvent(svc, reason, msgFmt, args...)
 	monResultCtr.WithLabelValues(svc, "info", reason).Inc()
 }
 
-func (vc *VarnishController) warnEvt(svc, reason, msgFmt string,
-	args ...interface{}) {
-
+func (vc *Controller) warnEvt(svc, reason, msgFmt string, args ...interface{}) {
 	vc.log.Warnf(msgFmt, args...)
 	vc.svcEvt.SvcWarnEvent(svc, reason, msgFmt, args...)
 	monResultCtr.WithLabelValues(svc, "warning", reason).Inc()
 }
 
-func (vc *VarnishController) errorEvt(svc, reason, msgFmt string,
-	args ...interface{}) {
-
+func (vc *Controller) errorEvt(svc, reason, msgFmt string, args ...interface{}) {
 	vc.log.Errorf(msgFmt, args...)
 	vc.svcEvt.SvcWarnEvent(svc, reason, msgFmt, args...)
 	monResultCtr.WithLabelValues(svc, "error", reason).Inc()
 }
 
-func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
+func (vc *Controller) checkInst(svc string, inst *varnishInst) bool {
 	metrics := getInstanceMetrics(inst.addr)
 	metrics.monitorChecks.Inc()
 
@@ -167,7 +161,7 @@ func (vc *VarnishController) checkInst(svc string, inst *varnishInst) bool {
 	return true
 }
 
-func (vc *VarnishController) monitor(monitorIntvl time.Duration) {
+func (vc *Controller) monitor(monitorIntvl time.Duration) {
 	if monitorIntvl <= 0 {
 		vc.log.Infof("Varnish monitor interval=%v, monitor not running",
 			monitorIntvl)

@@ -66,7 +66,7 @@ type NamespaceWorker struct {
 	namespace   string
 	ingClass    string
 	log         *logrus.Logger
-	vController *varnish.VarnishController
+	vController *varnish.Controller
 	queue       workqueue.RateLimitingInterface
 	listers     *Listers
 	ing         ext_listers.IngressNamespaceLister
@@ -270,7 +270,7 @@ type NamespaceQueues struct {
 	DoneChan    chan struct{}
 	ingClass    string
 	log         *logrus.Logger
-	vController *varnish.VarnishController
+	vController *varnish.Controller
 	workers     map[string]*NamespaceWorker
 	listers     *Listers
 	client      kubernetes.Interface
@@ -289,7 +289,7 @@ type NamespaceQueues struct {
 func NewNamespaceQueues(
 	log *logrus.Logger,
 	ingClass string,
-	vController *varnish.VarnishController,
+	vController *varnish.Controller,
 	listers *Listers,
 	client kubernetes.Interface,
 	recorder record.EventRecorder) *NamespaceQueues {

@@ -100,11 +100,11 @@ type Listers struct {
 }
 
 // IngressController watches Kubernetes API and reconfigures Varnish
-// via VarnishController when needed.
+// via varnish.Controller when needed.
 type IngressController struct {
 	log         *logrus.Logger
 	client      kubernetes.Interface
-	vController *varnish.VarnishController
+	vController *varnish.Controller
 	informers   *infrmrs
 	listers     *Listers
 	nsQs        *NamespaceQueues
@@ -125,7 +125,7 @@ func NewIngressController(
 	log *logrus.Logger,
 	ingClass string,
 	kubeClient kubernetes.Interface,
-	vc *varnish.VarnishController,
+	vc *varnish.Controller,
 	infFactory informers.SharedInformerFactory,
 	vcrInfFactory vcr_informers.SharedInformerFactory,
 ) (*IngressController, error) {

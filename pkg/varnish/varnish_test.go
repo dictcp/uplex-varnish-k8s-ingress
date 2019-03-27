@@ -210,7 +210,7 @@ func TestHasConfig(t *testing.T) {
 		spec:      &spec,
 		cfgLoaded: true,
 	}
-	vc := VarnishController{
+	vc := Controller{
 		svcs: map[string]*varnishSvc{"default/cafe-ingress": &vSvc},
 	}
 	svcKey := "default/cafe-ingress"
