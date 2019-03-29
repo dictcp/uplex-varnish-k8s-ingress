@@ -154,3 +154,7 @@ sub vcl_miss {
 sub vcl_pass {
 	call vk8s_set_backend;
 }
+
+sub vcl_pipe {
+	call vk8s_set_backend;
+}
