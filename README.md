@@ -1,3 +1,5 @@
+[![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg)](https://godoc.org/code.uplex.de/uplex-varnish/k8s-ingress)
+
 # Varnish Ingress Controller
 
 This is an implementation of a [Kubernetes Ingress controller](https://kubernetes.io/docs/concepts/services-networking/ingress/)
