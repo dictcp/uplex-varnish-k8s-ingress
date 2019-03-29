@@ -1,0 +1,28 @@
+image: golang:1.9
+
+cache:
+  paths:
+    - /apt-cache
+    - /go/bin
+    - /go/pkg
+    - /go/src/code.uplex.de
+    - /go/src/github.com
+    - /go/src/golang.org
+    - /go/src/google.golang.org
+    - /go/src/gopkg.in
+    - /go/src/k8s.io
+
+stages:
+  - test
+
+before_script:
+  - go get -u golang.org/x/vgo
+  - go get -d -v github.com/slimhazard/gogitversion
+  - vgo mod download
+  - cd /go/src/github.com/slimhazard/gogitversion
+  - make install
+
+test:
+  stage: test
+  script:
+    - make check
