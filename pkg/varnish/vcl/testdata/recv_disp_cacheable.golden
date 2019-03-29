@@ -1,0 +1,20 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_reqdisp_0_0 = re2.set();
+	vk8s_reqdisp_0_0.add("\.png$");
+	vk8s_reqdisp_0_0.add("\.jpe?g$");
+	vk8s_reqdisp_0_0.add("\.css$");
+	vk8s_reqdisp_0_0.add("\.js$");
+	vk8s_reqdisp_0_0.compile();
+}
+
+
+sub vcl_recv {
+	if (vk8s_reqdisp_0_0.match(req.url)) {
+		return (hash);
+	}
+	return (hash);
+}

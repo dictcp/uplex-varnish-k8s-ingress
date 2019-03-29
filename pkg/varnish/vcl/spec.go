@@ -651,6 +651,113 @@ func (a byVCLSub) Len() int           { return len(a) }
 func (a byVCLSub) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byVCLSub) Less(i, j int) bool { return a[i].VCLSub < a[j].VCLSub }
 
+// ReqCompareType classifies comparison operations performed for the
+// Conditions in a request disposition specification. The relation may
+// be negated, if the Negate field in Condition is true.
+type ReqCompareType uint8
+
+const (
+	// ReqEqual specifies equality -- string equality, numeric
+	// equality, or membership in a set of fixed strings.
+	ReqEqual ReqCompareType = iota
+	// ReqMatch specifies a regular expression match.
+	ReqMatch
+	// ReqPrefix specifies that a string has a prefix in a set of
+	// fixed strings.
+	ReqPrefix
+	// Exists specifies that a request header exists.
+	Exists
+	// Greater specifies the > relation between a VCL variable
+	// with a numeric value and a constant.
+	Greater
+	// GreaterEqual specifies the >= relation for a numeric VCL
+	// variable and a constant.
+	GreaterEqual
+	// Less specifies the < relation for a numeric VCL variable
+	// and a constant.
+	Less
+	// LessEqual specifies the <= relation for a numeric VCL
+	// variable and a constant.
+	LessEqual
+)
+
+// Condition specifies (one of) the conditions that must be true if a
+// client request disposition is to be executed.
+type Condition struct {
+	Values     []string
+	MatchFlags MatchFlagsType
+	Count      *uint
+	Comparand  string
+	Compare    ReqCompareType
+	Negate     bool
+}
+
+// RecvReturn is a name for the disposition of a client request.
+// See: https://varnish-cache.org/docs/6.1/reference/states.html
+type RecvReturn string
+
+const (
+	// RecvHash to invoke cache lookup.
+	RecvHash RecvReturn = "hash"
+	// RecvPass to bypass cache lookup.
+	RecvPass = "pass"
+	// RecvPipe for pipe mode -- Varnish passes data between
+	// client and backend with no further intervention.
+	RecvPipe = "pipe"
+	// RecvPurge to purge a cache object.
+	// See: https://varnish-cache.org/docs/6.1/users-guide/purging.html?highlight=purge#http-purging
+	RecvPurge = "purge"
+	// RecvSynth to generate a synthetic response with a given
+	// HTTP response status.
+	RecvSynth = "synth"
+)
+
+// DispositionType specifies the disposition of a client request when
+// associated Conditions are met.
+//
+// Status is the HTTP response status to set when Action is RecvSynth;
+// ignored for other values of Action.
+type DispositionType struct {
+	Action RecvReturn
+	Status uint16
+}
+
+// DispositionSpec specifies the disposition of a client request when
+// all of the Conditions are met.
+type DispositionSpec struct {
+	Conditions  []Condition
+	Disposition DispositionType
+}
+
+func (reqDisp DispositionSpec) hash(hash hash.Hash) {
+	for _, cond := range reqDisp.Conditions {
+		for _, val := range cond.Values {
+			hash.Write([]byte(val))
+		}
+		cond.MatchFlags.hash(hash)
+		if cond.Count != nil {
+			countBytes := make([]byte, 8)
+			binary.BigEndian.PutUint64(countBytes,
+				uint64(*cond.Count))
+			hash.Write(countBytes)
+		}
+		hash.Write([]byte(cond.Comparand))
+		hash.Write([]byte{byte(cond.Compare)})
+		if cond.Negate {
+			hash.Write([]byte{1})
+		} else {
+			hash.Write([]byte{0})
+		}
+	}
+	hash.Write([]byte(reqDisp.Disposition.Action))
+	if reqDisp.Disposition.Action == RecvSynth {
+		statusBytes := make([]byte, 2)
+		binary.BigEndian.PutUint16(statusBytes,
+			uint16(reqDisp.Disposition.Status))
+		hash.Write(statusBytes)
+	}
+}
+
 // Spec is the specification for a VCL configuration derived from
 // Ingresses and VarnishConfig Custom Resources. This abstracts the
 // VCL to be loaded by all instances of a Varnish Service.
@@ -677,8 +784,9 @@ type Spec struct {
 	// ACLs is a list of specifications for whitelisting or
 	// blacklisting IPs with access control lists, derived from
 	// VarnishConfig.Spec.ACLs.
-	ACLs     []ACL
-	Rewrites []Rewrite
+	ACLs         []ACL
+	Rewrites     []Rewrite
+	Dispositions []DispositionSpec
 }
 
 // DeepHash computes a alphanumerically encoded hash value from a Spec
@@ -712,6 +820,9 @@ func (spec Spec) DeepHash() string {
 	for _, rw := range spec.Rewrites {
 		rw.hash(hash)
 	}
+	for _, reqDisp := range spec.Dispositions {
+		reqDisp.hash(hash)
+	}
 	h := new(big.Int)
 	h.SetBytes(hash.Sum(nil))
 	return h.Text(62)
@@ -731,6 +842,7 @@ func (spec Spec) Canonical() Spec {
 		Auths:          make([]Auth, len(spec.Auths)),
 		ACLs:           make([]ACL, len(spec.ACLs)),
 		Rewrites:       make([]Rewrite, len(spec.Rewrites)),
+		Dispositions:   make([]DispositionSpec, len(spec.Dispositions)),
 	}
 	copy(canon.DefaultService.Addresses, spec.DefaultService.Addresses)
 	sort.Stable(byIPPort(canon.DefaultService.Addresses))
@@ -762,5 +874,11 @@ func (spec Spec) Canonical() Spec {
 	}
 	copy(canon.Rewrites, spec.Rewrites)
 	sort.Stable(byVCLSub(canon.Rewrites))
+	copy(canon.Dispositions, spec.Dispositions)
+	for _, disp := range canon.Dispositions {
+		for _, cond := range disp.Conditions {
+			sort.Strings(cond.Values)
+		}
+	}
 	return canon
 }

@@ -161,6 +161,77 @@ func validateRewrites(rewrites []vcr_v1alpha1.RewriteSpec) error {
 	return nil
 }
 
+// XXX validating webhook should do this
+func validateReqDisps(reqDisps []vcr_v1alpha1.RequestDispSpec) error {
+	for _, disp := range reqDisps {
+		if disp.Disposition.Action == vcr_v1alpha1.RecvSynth &&
+			disp.Disposition.Status == nil {
+
+			return fmt.Errorf("status not set for request " +
+				"disposition synth")
+		}
+		for _, cond := range disp.Conditions {
+			if len(cond.Values) == 0 && cond.Count == nil &&
+				cond.Compare != vcr_v1alpha1.Exists &&
+				cond.Compare != vcr_v1alpha1.NotExists {
+				return fmt.Errorf("no values or count set for "+
+					"request disposition condition "+
+					"(comparand %s)", cond.Comparand)
+			}
+			if len(cond.Values) != 0 && cond.Count != nil {
+				return fmt.Errorf("both values and count set "+
+					"for request disposition condition "+
+					"(comparand %s)", cond.Comparand)
+			}
+			if len(cond.Values) > 0 {
+				switch cond.Compare {
+				case vcr_v1alpha1.Greater,
+					vcr_v1alpha1.GreaterEqual,
+					vcr_v1alpha1.Less,
+					vcr_v1alpha1.LessEqual:
+					return fmt.Errorf("illegal compare "+
+						"(comparand %s, compare %s)",
+						cond.Comparand, cond.Compare)
+				}
+				switch cond.Comparand {
+				case "req.esi_level", "req.restarts":
+					return fmt.Errorf("illegal comparison "+
+						"(comparand %s, values %v)",
+						cond.Comparand, cond.Values)
+				}
+			}
+			if cond.Count != nil {
+				switch cond.Compare {
+				case vcr_v1alpha1.ReqMatch,
+					vcr_v1alpha1.ReqNotMatch,
+					vcr_v1alpha1.ReqPrefix,
+					vcr_v1alpha1.ReqNotPrefix,
+					vcr_v1alpha1.Exists,
+					vcr_v1alpha1.NotExists:
+					return fmt.Errorf("illegal compare "+
+						"(compare %s, count %d)",
+						cond.Compare, *cond.Count)
+				}
+				err := false
+				switch cond.Comparand {
+				case "req.url", "req.method",
+					"req.proto":
+					err = true
+				}
+				if strings.HasPrefix(cond.Comparand, "req.http") {
+					err = true
+				}
+				if err {
+					return fmt.Errorf("illegal comparison "+
+						"(comparand %s, count %d)",
+						cond.Comparand, *cond.Count)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (worker *NamespaceWorker) syncVcfg(key string) error {
 	worker.log.Infof("Syncing VarnishConfig: %s/%s", worker.namespace, key)
 	vcfg, err := worker.vcfg.Get(key)
@@ -187,6 +258,9 @@ func (worker *NamespaceWorker) syncVcfg(key string) error {
 		}
 	}
 	if err = validateRewrites(vcfg.Spec.Rewrites); err != nil {
+		return err
+	}
+	if err = validateReqDisps(vcfg.Spec.ReqDispositions); err != nil {
 		return err
 	}
 

@@ -1,0 +1,22 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_reqdisp_0_0 = selector.set();
+	vk8s_reqdisp_0_0.add("GET");
+	vk8s_reqdisp_0_0.add("HEAD");
+	vk8s_reqdisp_0_0.add("PUT");
+	vk8s_reqdisp_0_0.add("POST");
+	vk8s_reqdisp_0_0.add("TRACE");
+	vk8s_reqdisp_0_0.add("OPTIONS");
+	vk8s_reqdisp_0_0.add("DELETE");
+}
+
+
+sub vcl_recv {
+	if (! vk8s_reqdisp_0_0.match(req.method)) {
+		return (synth(405));
+	}
+	return (hash);
+}

@@ -594,6 +594,37 @@ func (worker *NamespaceWorker) configACL(spec *vcl.Spec,
 	return nil
 }
 
+func configMatchFlags(flags vcr_v1alpha1.MatchFlagsType) vcl.MatchFlagsType {
+	vclFlags := vcl.MatchFlagsType{
+		UTF8:         flags.UTF8,
+		PosixSyntax:  flags.PosixSyntax,
+		LongestMatch: flags.LongestMatch,
+		Literal:      flags.Literal,
+		NeverCapture: flags.NeverCapture,
+		PerlClasses:  flags.PerlClasses,
+		WordBoundary: flags.WordBoundary,
+	}
+	if flags.MaxMem != nil && *flags.MaxMem != 0 {
+		vclFlags.MaxMem = *flags.MaxMem
+	}
+	if flags.CaseSensitive == nil {
+		vclFlags.CaseSensitive = true
+	} else {
+		vclFlags.CaseSensitive = *flags.CaseSensitive
+	}
+	switch flags.Anchor {
+	case vcr_v1alpha1.None:
+		vclFlags.Anchor = vcl.None
+	case vcr_v1alpha1.Start:
+		vclFlags.Anchor = vcl.Start
+	case vcr_v1alpha1.Both:
+		vclFlags.Anchor = vcl.Both
+	default:
+		vclFlags.Anchor = vcl.None
+	}
+	return vclFlags
+}
+
 func (worker *NamespaceWorker) configRewrites(spec *vcl.Spec,
 	vcfg *vcr_v1alpha1.VarnishConfig) error {
 
@@ -715,40 +746,95 @@ func (worker *NamespaceWorker) configRewrites(spec *vcl.Spec,
 		}
 
 		if rw.MatchFlags != nil {
-			vclRw.MatchFlags = vcl.MatchFlagsType{
-				UTF8:         rw.MatchFlags.UTF8,
-				PosixSyntax:  rw.MatchFlags.PosixSyntax,
-				LongestMatch: rw.MatchFlags.LongestMatch,
-				Literal:      rw.MatchFlags.Literal,
-				NeverCapture: rw.MatchFlags.NeverCapture,
-				PerlClasses:  rw.MatchFlags.PerlClasses,
-				WordBoundary: rw.MatchFlags.WordBoundary,
-			}
-			if rw.MatchFlags.MaxMem != nil &&
-				*rw.MatchFlags.MaxMem != 0 {
-
-				vclRw.MatchFlags.MaxMem = *rw.MatchFlags.MaxMem
-			}
-			if rw.MatchFlags.CaseSensitive == nil {
-				vclRw.MatchFlags.CaseSensitive = true
-			} else {
-				vclRw.MatchFlags.CaseSensitive =
-					*rw.MatchFlags.CaseSensitive
-			}
-			switch rw.MatchFlags.Anchor {
-			case vcr_v1alpha1.None:
-				vclRw.MatchFlags.Anchor = vcl.None
-			case vcr_v1alpha1.Start:
-				vclRw.MatchFlags.Anchor = vcl.Start
-			case vcr_v1alpha1.Both:
-				vclRw.MatchFlags.Anchor = vcl.Both
-			default:
-				vclRw.MatchFlags.Anchor = vcl.None
-			}
+			vclRw.MatchFlags = configMatchFlags(*rw.MatchFlags)
+		} else {
+			vclRw.MatchFlags.CaseSensitive = true
 		}
 		spec.Rewrites[i] = vclRw
 	}
 	return nil
+}
+
+func (worker *NamespaceWorker) configReqDisps(spec *vcl.Spec,
+	reqDisps []vcr_v1alpha1.RequestDispSpec, kind, namespace, name string) {
+
+	if len(reqDisps) == 0 {
+		worker.log.Infof("No request disposition specs found for %s "+
+			"%s/%s", kind, namespace, name)
+		return
+	}
+	worker.log.Infof("Configuring request dispositions for %s %s/%s",
+		kind, namespace, name)
+	spec.Dispositions = make([]vcl.DispositionSpec, len(reqDisps))
+	for i, disp := range reqDisps {
+		worker.log.Tracef("ReqDisposition: %+v", disp)
+		vclDisp := vcl.DispositionSpec{
+			Conditions: make([]vcl.Condition, len(disp.Conditions)),
+		}
+		for j, cond := range disp.Conditions {
+			vclCond := vcl.Condition{
+				Comparand: cond.Comparand,
+			}
+			if len(cond.Values) > 0 {
+				vclCond.Values = make([]string, len(cond.Values))
+				copy(vclCond.Values, cond.Values)
+			}
+			if cond.Count != nil {
+				count := uint(*cond.Count)
+				vclCond.Count = &count
+			}
+			switch cond.Compare {
+			case vcr_v1alpha1.ReqEqual:
+				vclCond.Compare = vcl.ReqEqual
+				vclCond.Negate = false
+			case vcr_v1alpha1.ReqNotEqual:
+				vclCond.Compare = vcl.ReqEqual
+				vclCond.Negate = true
+			case vcr_v1alpha1.ReqMatch:
+				vclCond.Compare = vcl.ReqMatch
+				vclCond.Negate = false
+			case vcr_v1alpha1.ReqNotMatch:
+				vclCond.Compare = vcl.ReqMatch
+				vclCond.Negate = true
+			case vcr_v1alpha1.ReqPrefix:
+				vclCond.Compare = vcl.ReqPrefix
+				vclCond.Negate = false
+			case vcr_v1alpha1.ReqNotPrefix:
+				vclCond.Compare = vcl.ReqPrefix
+				vclCond.Negate = true
+			case vcr_v1alpha1.Exists:
+				vclCond.Compare = vcl.Exists
+				vclCond.Negate = false
+			case vcr_v1alpha1.NotExists:
+				vclCond.Compare = vcl.Exists
+				vclCond.Negate = true
+			case vcr_v1alpha1.Greater:
+				vclCond.Compare = vcl.Greater
+			case vcr_v1alpha1.GreaterEqual:
+				vclCond.Compare = vcl.GreaterEqual
+			case vcr_v1alpha1.Less:
+				vclCond.Compare = vcl.Less
+			case vcr_v1alpha1.LessEqual:
+				vclCond.Compare = vcl.LessEqual
+			default:
+				vclCond.Compare = vcl.ReqEqual
+			}
+			if cond.MatchFlags != nil {
+				vclCond.MatchFlags = configMatchFlags(
+					*cond.MatchFlags)
+			} else {
+				vclCond.MatchFlags.CaseSensitive = true
+			}
+			vclDisp.Conditions[j] = vclCond
+		}
+		vclDisp.Disposition.Action = vcl.RecvReturn(
+			disp.Disposition.Action)
+		if disp.Disposition.Action == vcr_v1alpha1.RecvSynth {
+			vclDisp.Disposition.Status = uint16(
+				*disp.Disposition.Status)
+		}
+		spec.Dispositions[i] = vclDisp
+	}
 }
 
 func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
@@ -823,6 +909,8 @@ func (worker *NamespaceWorker) addOrUpdateIng(ing *extensions.Ingress) error {
 		if err = worker.configRewrites(&vclSpec, vcfg); err != nil {
 			return err
 		}
+		worker.configReqDisps(&vclSpec, vcfg.Spec.ReqDispositions,
+			vcfg.Kind, vcfg.Namespace, vcfg.Name)
 		vclSpec.VCL = vcfg.Spec.VCL
 	} else {
 		worker.log.Infof("Found no VarnishConfigs for Varnish Service "+

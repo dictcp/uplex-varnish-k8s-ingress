@@ -1,0 +1,11 @@
+
+import re2;
+import selector;
+
+
+sub vcl_recv {
+	if (req.method == "PURGE") {
+		return (purge);
+	}
+	return (hash);
+}

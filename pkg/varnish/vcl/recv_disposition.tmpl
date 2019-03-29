@@ -1,0 +1,47 @@
+
+import re2;
+import selector;
+
+{{range $didx, $d := .Dispositions -}}
+{{range $cidx, $c := .Conditions -}}
+{{if reqNeedsMatcher $c -}}
+sub vcl_init {
+	new {{reqObj $didx $cidx}} = {{reqVMOD $c}}.set({{reqFlags $c}});
+	{{- range $val := $c.Values}}
+	{{reqObj $didx $cidx}}.add("{{$val}}");
+        {{- end}}
+        {{- if reqNeedsCompile $c}}
+	{{reqObj $didx $cidx}}.compile();
+	{{- end}}
+}
+
+{{end -}}
+{{- end}}
+{{- end}}
+sub vcl_recv {
+	{{- range $didx, $d := .Dispositions}}
+	if (
+	    {{- range $cidx, $cond := .Conditions}}
+	    {{- if ne $cidx 0}} &&
+            {{end}}
+	    {{- if $cond.Negate}}! {{end}}
+	    {{- if reqNeedsMatcher $cond}}
+	    {{- reqObj $didx $cidx}}.{{reqMatch $cond}}({{$cond.Comparand}})
+	    {{- else if exists $cond.Compare}}
+	    {{- $cond.Comparand}}
+	    {{- else}}
+            {{- $cond.Comparand}} {{reqCmpRelation $cond}} {{value $cond}}
+	    {{- end}}
+	    {{- end -}}
+	   ) {
+		return (
+			{{- with .Disposition}}
+			{{- if eq .Action "synth"}}synth({{.Status}})
+			{{- else}}{{.Action}}
+			{{- end}}
+			{{- end -}}
+		       );
+	}
+	{{- end}}
+	return (hash);
+}

@@ -55,6 +55,11 @@ var fMap = template.FuncMap{
 	"rewrMatch":    func(rewr Rewrite) string { return rewrMatch(rewr) },
 	"rewrOp":       func(rewr Rewrite) string { return rewrOp(rewr) },
 	"rewrSelect":   func(rewr Rewrite) string { return rewrSelect(rewr) },
+	"reqVMOD":      func(cond Condition) string { return reqVMOD(cond) },
+	"reqMatch":     func(cond Condition) string { return reqMatch(cond) },
+	"value":        func(cond Condition) string { return reqValue(cond) },
+	"reqFlags":     func(cond Condition) string { return reqFlags(cond) },
+	"exists":       func(cmp ReqCompareType) bool { return cmp == Exists },
 	"aclCmp": func(comparand string) string {
 		return aclCmp(comparand)
 	},
@@ -131,6 +136,18 @@ var fMap = template.FuncMap{
 	"needsSelectEnum": func(rewr Rewrite) bool {
 		return rewr.Select != Unique
 	},
+	"reqObj": func(didx, cidx int) string {
+		return fmt.Sprintf("vk8s_reqdisp_%d_%d", didx, cidx)
+	},
+	"reqNeedsMatcher": func(cond Condition) bool {
+		return reqNeedsMatcher(cond)
+	},
+	"reqNeedsCompile": func(cond Condition) bool {
+		return reqNeedsCompile(cond)
+	},
+	"reqCmpRelation": func(cond Condition) string {
+		return reqCmpRelation(cond)
+	},
 }
 
 const (
@@ -139,6 +156,7 @@ const (
 	authTmplSrc    = "auth.tmpl"
 	aclTmplSrc     = "acl.tmpl"
 	rewriteTmplSrc = "rewrite.tmpl"
+	reqDispTmplSrc = "recv_disposition.tmpl"
 
 	// maxSymLen is a workaround for Varnish issue #2880
 	// https://github.com/varnishcache/varnish-cache/issues/2880
@@ -152,6 +170,7 @@ var (
 	authTmpl    *template.Template
 	aclTmpl     *template.Template
 	rewriteTmpl *template.Template
+	reqDispTmpl *template.Template
 	vclIllegal  = regexp.MustCompile("[^[:word:]-]+")
 )
 
@@ -163,6 +182,7 @@ func InitTemplates(tmplDir string) error {
 	authTmplPath := path.Join(tmplDir, authTmplSrc)
 	aclTmplPath := path.Join(tmplDir, aclTmplSrc)
 	rewriteTmplPath := path.Join(tmplDir, rewriteTmplSrc)
+	reqDispTmplPath := path.Join(tmplDir, reqDispTmplSrc)
 
 	ingressTmpl, err = template.New(ingTmplSrc).
 		Funcs(fMap).ParseFiles(ingTmplPath)
@@ -186,6 +206,11 @@ func InitTemplates(tmplDir string) error {
 	}
 	rewriteTmpl, err = template.New(rewriteTmplSrc).
 		Funcs(fMap).ParseFiles(rewriteTmplPath)
+	if err != nil {
+		return err
+	}
+	reqDispTmpl, err = template.New(reqDispTmplSrc).
+		Funcs(fMap).ParseFiles(reqDispTmplPath)
 	if err != nil {
 		return err
 	}
@@ -224,6 +249,11 @@ func (spec Spec) GetSrc() (string, error) {
 	}
 	if len(spec.Rewrites) > 0 {
 		if err := rewriteTmpl.Execute(&buf, spec); err != nil {
+			return "", err
+		}
+	}
+	if len(spec.Dispositions) > 0 {
+		if err := reqDispTmpl.Execute(&buf, spec); err != nil {
 			return "", err
 		}
 	}
@@ -318,6 +348,26 @@ func cmpRelation(cmp CompareType) string {
 	}
 }
 
+func reqCmpRelation(cond Condition) string {
+	switch cond.Compare {
+	case ReqEqual:
+		if cond.Negate {
+			return "!="
+		}
+		return "=="
+	case Greater:
+		return ">"
+	case GreaterEqual:
+		return ">="
+	case Less:
+		return "<"
+	case LessEqual:
+		return "<="
+	default:
+		return "__INVALID_COMPARISON_TYPE__"
+	}
+}
+
 func dirType(svc Service) string {
 	if svc.Director == nil {
 		return RoundRobin.String()
@@ -338,6 +388,19 @@ func needsMatcher(rewr Rewrite) bool {
 	}
 }
 
+func reqNeedsMatcher(cond Condition) bool {
+	switch cond.Compare {
+	case ReqMatch, ReqPrefix:
+		return true
+	case Exists, Greater, GreaterEqual, Less, LessEqual:
+		return false
+	}
+	if cond.Count != nil || len(cond.Values) == 1 {
+		return false
+	}
+	return true
+}
+
 func rewrName(i int) string {
 	return fmt.Sprintf("vk8s_rewrite_%d", i)
 }
@@ -349,49 +412,57 @@ func rewrVMOD(rewr Rewrite) string {
 	return "selector"
 }
 
-func rewrFlags(rewr Rewrite) string {
-	if rewr.Compare != RewriteMatch {
-		if !rewr.MatchFlags.CaseSensitive {
+func matcherFlags(isSelector bool, flagSpec MatchFlagsType) string {
+	if isSelector {
+		if !flagSpec.CaseSensitive {
 			return "case_sensitive=false"
 		}
 		return ""
 	}
 
 	var flags []string
-	if rewr.MatchFlags.MaxMem != 0 && rewr.MatchFlags.MaxMem != 8388608 {
-		maxMem := fmt.Sprintf("max_mem=%d", rewr.MatchFlags.MaxMem)
+	if flagSpec.MaxMem != 0 && flagSpec.MaxMem != 8388608 {
+		maxMem := fmt.Sprintf("max_mem=%d", flagSpec.MaxMem)
 		flags = append(flags, maxMem)
 	}
-	if rewr.MatchFlags.Anchor != None {
-		switch rewr.MatchFlags.Anchor {
+	if flagSpec.Anchor != None {
+		switch flagSpec.Anchor {
 		case Start:
 			flags = append(flags, "anchor=start")
 		case Both:
 			flags = append(flags, "anchor=both")
 		}
 	}
-	if rewr.MatchFlags.UTF8 {
+	if flagSpec.UTF8 {
 		flags = append(flags, "utf8=true")
 	}
-	if rewr.MatchFlags.PosixSyntax {
+	if flagSpec.PosixSyntax {
 		flags = append(flags, "posix_syntax=true")
 	}
-	if rewr.MatchFlags.LongestMatch {
+	if flagSpec.LongestMatch {
 		flags = append(flags, "longest_match=true")
 	}
-	if rewr.MatchFlags.Literal {
+	if flagSpec.Literal {
 		flags = append(flags, "literal=true")
 	}
-	if !rewr.MatchFlags.CaseSensitive {
+	if !flagSpec.CaseSensitive {
 		flags = append(flags, "case_sensitive=false")
 	}
-	if rewr.MatchFlags.PerlClasses {
+	if flagSpec.PerlClasses {
 		flags = append(flags, "perl_classes=true")
 	}
-	if rewr.MatchFlags.WordBoundary {
+	if flagSpec.WordBoundary {
 		flags = append(flags, "word_boundary=true")
 	}
 	return strings.Join(flags, ",")
+}
+
+func rewrFlags(rewr Rewrite) string {
+	return matcherFlags(rewr.Compare != RewriteMatch, rewr.MatchFlags)
+}
+
+func reqFlags(cond Condition) string {
+	return matcherFlags(cond.Compare != ReqMatch, cond.MatchFlags)
 }
 
 func needsSave(rewr Rewrite) bool {
@@ -408,6 +479,10 @@ func needsSave(rewr Rewrite) bool {
 
 func needsCompile(rewr Rewrite) bool {
 	return rewr.Compare == RewriteMatch
+}
+
+func reqNeedsCompile(cond Condition) bool {
+	return cond.Compare == ReqMatch
 }
 
 func rewrSub(rewr Rewrite) string {
@@ -478,11 +553,23 @@ func rewrOperand2(rewr Rewrite, i int) string {
 	return rewr.Source
 }
 
+// XXX DRY
 func rewrMatch(rewr Rewrite) string {
 	switch rewr.Compare {
 	case RewriteMatch, RewriteEqual:
 		return "match"
 	case Prefix:
+		return "hasprefix"
+	default:
+		return "__INVALID_MATCH_OPERATION__"
+	}
+}
+
+func reqMatch(cond Condition) string {
+	switch cond.Compare {
+	case ReqMatch, ReqEqual:
+		return "match"
+	case ReqPrefix:
 		return "hasprefix"
 	default:
 		return "__INVALID_MATCH_OPERATION__"
@@ -503,4 +590,22 @@ func rewrOp(rewr Rewrite) string {
 	default:
 		return "__INVALID_REWRITE_OPERAION__"
 	}
+}
+
+func reqVMOD(cond Condition) string {
+	switch cond.Compare {
+	case ReqEqual, ReqPrefix:
+		return "selector"
+	case ReqMatch:
+		return "re2"
+	default:
+		return "__INVALID_COMPARISON_FOR_VMOD__"
+	}
+}
+
+func reqValue(cond Condition) string {
+	if cond.Count != nil {
+		return fmt.Sprintf("%d", *cond.Count)
+	}
+	return `"` + cond.Values[0] + `"`
 }

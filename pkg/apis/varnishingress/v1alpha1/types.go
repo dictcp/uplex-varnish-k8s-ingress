@@ -49,12 +49,13 @@ type VarnishConfig struct {
 // VarnishConfigSpec corresponds to the spec section of a
 // VarnishConfig Custom Resource.
 type VarnishConfigSpec struct {
-	Services     []string       `json:"services,omitempty"`
-	SelfSharding *SelfShardSpec `json:"self-sharding,omitempty"`
-	VCL          string         `json:"vcl,omitempty"`
-	Auth         []AuthSpec     `json:"auth,omitempty"`
-	ACLs         []ACLSpec      `json:"acl,omitempty"`
-	Rewrites     []RewriteSpec  `json:"rewrites,omitempty"`
+	Services        []string          `json:"services,omitempty"`
+	SelfSharding    *SelfShardSpec    `json:"self-sharding,omitempty"`
+	VCL             string            `json:"vcl,omitempty"`
+	Auth            []AuthSpec        `json:"auth,omitempty"`
+	ACLs            []ACLSpec         `json:"acl,omitempty"`
+	Rewrites        []RewriteSpec     `json:"rewrites,omitempty"`
+	ReqDispositions []RequestDispSpec `json:"req-disposition,omitempty"`
 }
 
 // SelfShardSpec specifies self-sharding in a Varnish cluster.
@@ -331,6 +332,91 @@ type RewriteSpec struct {
 	Compare    RewriteCompare  `json:"compare,omitempty"`
 	VCLSub     VCLSubType      `json:"vcl-sub,omitempty"`
 	Select     SelectType      `json:"select,omitempty"`
+}
+
+// ReqCompareType classifies comparison operations performed for the
+// Conditions in a request disposition specification.
+type ReqCompareType string
+
+const (
+	// ReqEqual specifies equality -- string equality, numeric
+	// equality, or membership in a set of fixed strings.
+	ReqEqual ReqCompareType = "equal"
+	// ReqNotEqual specifies non-equality.
+	ReqNotEqual = "not-equal"
+	// ReqMatch specifies a regular expression match.
+	ReqMatch = "match"
+	// ReqNotMatch specifies a regular expression non-match.
+	ReqNotMatch = "not-match"
+	// ReqPrefix specifies that a string has a prefix in a set of
+	// fixed strings.
+	ReqPrefix = "prefix"
+	// ReqNotPrefix specifies that a string does not have a prefix
+	// in a set of fixed strings.
+	ReqNotPrefix = "not-prefix"
+	// Exists specifies that a request header exists.
+	Exists = "exists"
+	// NotExists specifies that a request header does not exist.
+	NotExists = "not-exists"
+	// Greater specifies the > relation between a VCL variable
+	// with a numeric value and a constant.
+	Greater = "greater"
+	// GreaterEqual specifies the >= relation for a numeric VCL
+	// variable and a constant.
+	GreaterEqual = "greater-equal"
+	// Less specifies the < relation for a numeric VCL variable
+	// and a constant.
+	Less = "less"
+	// LessEqual specifies the <= relation for a numeric VCL
+	// variable and a constant.
+	LessEqual = "less-equal"
+)
+
+// ReqCondition specifies (one of) the conditions that must be true if
+// a client request disposition is to be executed.
+type ReqCondition struct {
+	Values     []string        `json:"values,omitempty"`
+	MatchFlags *MatchFlagsType `json:"match-flags,omitempty"`
+	Count      *int64          `json:"count,omitempty"`
+	Comparand  string          `json:"comparand"`
+	Compare    ReqCompareType  `json:"compare,omitempty"`
+}
+
+// RecvReturn is a name for the disposition of a client request.
+// See: https://varnish-cache.org/docs/6.1/reference/states.html
+type RecvReturn string
+
+const (
+	// RecvHash to invoke cache lookup.
+	RecvHash RecvReturn = "hash"
+	// RecvPass to bypass cache lookup.
+	RecvPass = "pass"
+	// RecvPipe for pipe mode -- Varnish passes data between
+	// client and backend with no further intervention.
+	RecvPipe = "pipe"
+	// RecvPurge to purge a cache object.
+	// See: https://varnish-cache.org/docs/6.1/users-guide/purging.html?highlight=purge#http-purging
+	RecvPurge = "purge"
+	// RecvSynth to generate a synthetic response with a given
+	// HTTP response status.
+	RecvSynth = "synth"
+)
+
+// DispositionSpec specifies the disposition of a client request when
+// associated Conditions are met.
+//
+// Status is the HTTP response status to set when Action is RecvSynth;
+// ignored for other values of Action.
+type DispositionSpec struct {
+	Action RecvReturn `json:"action"`
+	Status *int64     `json:"status,omitempty"`
+}
+
+// RequestDispSpec specifies the disposition of a client request when
+// all of the Conditions are met.
+type RequestDispSpec struct {
+	Conditions  []ReqCondition  `json:"conditions"`
+	Disposition DispositionSpec `json:"disposition"`
 }
 
 // VarnishConfigStatus is the status for a VarnishConfig resource

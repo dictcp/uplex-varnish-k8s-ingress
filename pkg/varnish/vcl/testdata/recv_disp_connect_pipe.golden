@@ -1,0 +1,11 @@
+
+import re2;
+import selector;
+
+
+sub vcl_recv {
+	if (req.method == "CONNECT") {
+		return (pipe);
+	}
+	return (hash);
+}

@@ -278,6 +278,94 @@ spec:
                         type: boolean
                       word-boundary:
                         type: boolean
+            req-disposition:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                required:
+                  - conditions
+                  - disposition
+                properties:
+                  conditions:
+                    type: array
+                    minItems: 1
+                    items:
+                      type: object
+                      required:
+                        - comparand
+                      properties:
+                        comparand:
+                          type: string
+                          pattern: "^req\\.(url|method|proto|esi_level|restarts|http\\.[a-zA-Z0-9!#$%&'*+.^_`|~-]+)$"
+                        compare:
+                          enum:
+                          - equal
+                          - not-equal
+                          - match
+                          - not-match
+                          - prefix
+                          - not-prefix
+                          - exists
+                          - not-exists
+                          - greater
+                          - greater-equal
+                          - less
+                          - less-equal
+                          type: string
+                        values:
+                          type: array
+                          minItems: 1
+                          items:
+                            type: string
+                        count:
+                          type: integer
+                          minimum: 0
+                        match-flags:
+                          type: object
+                          properties:
+                            max-mem:
+                              type: integer
+                              min: 0
+                            anchor:
+                              type: string
+                              enum:
+                                - none
+                                - start
+                                - both
+                            utf8:
+                              type: boolean
+                            posix-syntax:
+                              type: boolean
+                            longest-match:
+                              type: boolean
+                            literal:
+                              type: boolean
+                            never-capture:
+                              type: boolean
+                            case-sensitive:
+                              type: boolean
+                            perl-classes:
+                              type: boolean
+                            word-boundary:
+                              type: boolean
+                  disposition:
+                    type: object
+                    required:
+                      - action
+                    properties:
+                      action:
+                        enum:
+                          - hash
+                          - pass
+                          - pipe
+                          - purge
+                          - synth
+                        type: string
+                      status:
+                        type: integer
+                        minimum: 200
+                        maximum: 599
 status:
   acceptedNames:
     kind: VarnishConfig

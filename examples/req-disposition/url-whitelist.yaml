@@ -1,0 +1,66 @@
+# Configuration for disposition of client requests that permits cache
+# lookups for requests with Cookie or Authorization headers, and
+# defines a whitelist for requests based on URL path prefixes.
+
+apiVersion: "ingress.varnish-cache.org/v1alpha1"
+kind: VarnishConfig
+metadata:
+  name: url-whitelist-cfg
+spec:
+  # The services array is required and must have at least one element.
+  # Lists the Service names of Varnish services in the same namespace
+  # to which this config is to be applied.
+  services:
+    - varnish-ingress
+
+  req-disposition:
+
+    - conditions:
+      - comparand: req.http.Host
+        compare: not-exists
+      - comparand: req.esi_level
+        count: 0
+      - comparand: req.proto
+        compare: prefix
+        values:
+          - HTTP/1.1
+        match-flags:
+          case-insensitive: true
+      disposition:
+        action: synth
+        status: 400
+
+    - conditions:
+      - comparand: req.method
+        compare: not-equal
+        values:
+          - GET
+          - HEAD
+          - PUT
+          - POST
+          - TRACE
+          - OPTIONS
+          - DELETE
+          - PATCH
+      disposition:
+        action: synth
+        status: 405
+
+    - conditions:
+      - comparand: req.method
+        compare: not-equal
+        values:
+          - GET
+          - HEAD
+      disposition:
+        action: pass
+
+    - conditions:
+      - comparand: req.url
+        compare: not-prefix
+        values:
+          - /tea/
+          - /coffee/
+      disposition:
+        action: synth
+        status: 403

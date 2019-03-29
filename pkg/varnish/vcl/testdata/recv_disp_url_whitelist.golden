@@ -1,0 +1,19 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_reqdisp_0_0 = selector.set();
+	vk8s_reqdisp_0_0.add("/foo");
+	vk8s_reqdisp_0_0.add("/bar");
+	vk8s_reqdisp_0_0.add("/baz");
+	vk8s_reqdisp_0_0.add("/quux");
+}
+
+
+sub vcl_recv {
+	if (! vk8s_reqdisp_0_0.hasprefix(req.url)) {
+		return (synth(403));
+	}
+	return (hash);
+}

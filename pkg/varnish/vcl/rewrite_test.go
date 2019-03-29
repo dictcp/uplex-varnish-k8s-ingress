@@ -32,12 +32,13 @@ import (
 	"bytes"
 	"io/ioutil"
 	"testing"
+	"text/template"
 )
 
-func testTemplate(t *testing.T, spec Spec, gold string) {
+func testTemplate(t *testing.T, tmpl *template.Template, spec Spec, gold string) {
 	var buf bytes.Buffer
 
-	if err := rewriteTmpl.Execute(&buf, spec); err != nil {
+	if err := tmpl.Execute(&buf, spec); err != nil {
 		t.Fatal("Execute():", err)
 	}
 
@@ -68,7 +69,7 @@ var replaceFromStringTest = Spec{
 
 func TestReplaceFromString(t *testing.T) {
 	gold := "rewrite_replace_from_string.golden"
-	testTemplate(t, replaceFromStringTest, gold)
+	testTemplate(t, rewriteTmpl, replaceFromStringTest, gold)
 }
 
 var replaceFromSourceTest = Spec{
@@ -84,7 +85,7 @@ var replaceFromSourceTest = Spec{
 
 func TestReplaceFromSource(t *testing.T) {
 	gold := "rewrite_replace_from_source.golden"
-	testTemplate(t, replaceFromSourceTest, gold)
+	testTemplate(t, rewriteTmpl, replaceFromSourceTest, gold)
 }
 
 var replaceFromRewriteTest = Spec{
@@ -111,7 +112,7 @@ var replaceFromRewriteTest = Spec{
 
 func TestReplaceFromRewrite(t *testing.T) {
 	gold := "rewrite_replace_from_rewrite.golden"
-	testTemplate(t, replaceFromRewriteTest, gold)
+	testTemplate(t, rewriteTmpl, replaceFromRewriteTest, gold)
 }
 
 var rewriteSubTest = Spec{
@@ -139,7 +140,7 @@ var rewriteSubTest = Spec{
 
 func TestRewriteSub(t *testing.T) {
 	gold := "rewrite_sub.golden"
-	testTemplate(t, rewriteSubTest, gold)
+	testTemplate(t, rewriteTmpl, rewriteSubTest, gold)
 }
 
 var rewriteAppendTest = Spec{
@@ -158,7 +159,7 @@ var rewriteAppendTest = Spec{
 
 func TestRewriteAppend(t *testing.T) {
 	gold := "rewrite_append.golden"
-	testTemplate(t, rewriteAppendTest, gold)
+	testTemplate(t, rewriteTmpl, rewriteAppendTest, gold)
 }
 
 var rewritePrependTest = Spec{
@@ -177,7 +178,7 @@ var rewritePrependTest = Spec{
 
 func TestRewritePrepend(t *testing.T) {
 	gold := "rewrite_prepend.golden"
-	testTemplate(t, rewritePrependTest, gold)
+	testTemplate(t, rewriteTmpl, rewritePrependTest, gold)
 }
 
 var rewriteDeleteTest = Spec{
@@ -193,7 +194,7 @@ var rewriteDeleteTest = Spec{
 
 func TestRewriteDelete(t *testing.T) {
 	gold := "rewrite_delete.golden"
-	testTemplate(t, rewriteDeleteTest, gold)
+	testTemplate(t, rewriteTmpl, rewriteDeleteTest, gold)
 }
 
 var conditionalDeleteTest = Spec{
@@ -216,7 +217,7 @@ var conditionalDeleteTest = Spec{
 
 func TestConditionalDelete(t *testing.T) {
 	gold := "rewrite_conditional_delete.golden"
-	testTemplate(t, conditionalDeleteTest, gold)
+	testTemplate(t, rewriteTmpl, conditionalDeleteTest, gold)
 }
 
 var rewriteExtractTest = Spec{
@@ -237,7 +238,7 @@ var rewriteExtractTest = Spec{
 
 func TestRewriteExtract(t *testing.T) {
 	gold := "rewrite_extract.golden"
-	testTemplate(t, rewriteExtractTest, gold)
+	testTemplate(t, rewriteTmpl, rewriteExtractTest, gold)
 }
 
 var rewriteFixedPrefixTest = Spec{
@@ -264,7 +265,7 @@ var rewriteFixedPrefixTest = Spec{
 
 func TestRewriteFixedPrefix(t *testing.T) {
 	gold := "rewrite_fixed_prefix.golden"
-	testTemplate(t, rewriteFixedPrefixTest, gold)
+	testTemplate(t, rewriteTmpl, rewriteFixedPrefixTest, gold)
 }
 
 var rewriteFixedEqualTest = Spec{
@@ -291,7 +292,7 @@ var rewriteFixedEqualTest = Spec{
 
 func TestRewriteFixedEqual(t *testing.T) {
 	gold := "rewrite_fixed_equal.golden"
-	testTemplate(t, rewriteFixedEqualTest, gold)
+	testTemplate(t, rewriteTmpl, rewriteFixedEqualTest, gold)
 }
 
 var rewriteFixedSuballTest = Spec{
@@ -318,7 +319,7 @@ var rewriteFixedSuballTest = Spec{
 
 func TestRewriteFixedSuball(t *testing.T) {
 	gold := "rewrite_fixed_suball.golden"
-	testTemplate(t, rewriteFixedSuballTest, gold)
+	testTemplate(t, rewriteTmpl, rewriteFixedSuballTest, gold)
 }
 
 var rewritePrefixRegex = Spec{
@@ -347,7 +348,7 @@ var rewritePrefixRegex = Spec{
 
 func TestRewritePrefixRegex(t *testing.T) {
 	gold := "rewrite_prefix_regex.golden"
-	testTemplate(t, rewritePrefixRegex, gold)
+	testTemplate(t, rewriteTmpl, rewritePrefixRegex, gold)
 }
 
 var rewritePrependIfExists = Spec{
@@ -370,7 +371,7 @@ var rewritePrependIfExists = Spec{
 
 func TestRewritePrependIfExists(t *testing.T) {
 	gold := "rewrite_prepend_if_exists.golden"
-	testTemplate(t, rewritePrependIfExists, gold)
+	testTemplate(t, rewriteTmpl, rewritePrependIfExists, gold)
 }
 
 var rewriteExtractCookie = Spec{
@@ -391,7 +392,7 @@ var rewriteExtractCookie = Spec{
 
 func TestExtractCookie(t *testing.T) {
 	gold := "rewrite_extract_cookie.golden"
-	testTemplate(t, rewriteExtractCookie, gold)
+	testTemplate(t, rewriteTmpl, rewriteExtractCookie, gold)
 }
 
 var rewriteXCacheHdr = Spec{
@@ -442,7 +443,7 @@ var rewriteXCacheHdr = Spec{
 
 func TestXCacheHdr(t *testing.T) {
 	gold := "rewrite_x_cache_hdr.golden"
-	testTemplate(t, rewriteXCacheHdr, gold)
+	testTemplate(t, rewriteTmpl, rewriteXCacheHdr, gold)
 }
 
 var rewriteAppendFromSrcTest = Spec{
@@ -455,7 +456,7 @@ var rewriteAppendFromSrcTest = Spec{
 
 func TestRewriteAppendFromSrcTest(t *testing.T) {
 	gold := "rewrite_append_from_src.golden"
-	testTemplate(t, rewriteAppendFromSrcTest, gold)
+	testTemplate(t, rewriteTmpl, rewriteAppendFromSrcTest, gold)
 }
 
 var rewriteAppendRule = Spec{
@@ -475,7 +476,7 @@ var rewriteAppendRule = Spec{
 
 func TestRewriteAppendRule(t *testing.T) {
 	gold := "rewrite_append_rule.golden"
-	testTemplate(t, rewriteAppendRule, gold)
+	testTemplate(t, rewriteTmpl, rewriteAppendRule, gold)
 }
 
 var rewritePrependHdr = Spec{
@@ -491,7 +492,7 @@ var rewritePrependHdr = Spec{
 
 func TestRewritePrependHdr(t *testing.T) {
 	gold := "rewrite_prepend_hdr.golden"
-	testTemplate(t, rewritePrependHdr, gold)
+	testTemplate(t, rewriteTmpl, rewritePrependHdr, gold)
 }
 
 var rewriteSelectFirst = Spec{
@@ -526,7 +527,7 @@ var rewriteSelectFirst = Spec{
 
 func TestRewriteSelectFirst(t *testing.T) {
 	gold := "rewrite_select_first.golden"
-	testTemplate(t, rewriteSelectFirst, gold)
+	testTemplate(t, rewriteTmpl, rewriteSelectFirst, gold)
 }
 
 var rewriteSelectPermutations = Spec{
@@ -614,7 +615,7 @@ var rewriteSelectPermutations = Spec{
 
 func TestRewriteSelectPermutations(t *testing.T) {
 	gold := "rewrite_select_permute.golden"
-	testTemplate(t, rewriteSelectPermutations, gold)
+	testTemplate(t, rewriteTmpl, rewriteSelectPermutations, gold)
 }
 
 var rewriteSelectOperations = Spec{
@@ -691,7 +692,7 @@ var rewriteSelectOperations = Spec{
 
 func TestRewriteSelectOperations(t *testing.T) {
 	gold := "rewrite_select_ops.golden"
-	testTemplate(t, rewriteSelectOperations, gold)
+	testTemplate(t, rewriteTmpl, rewriteSelectOperations, gold)
 }
 
 // Test the use case that Auth should be executed, but the

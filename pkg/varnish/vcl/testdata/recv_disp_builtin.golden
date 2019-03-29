@@ -1,0 +1,50 @@
+
+import re2;
+import selector;
+
+sub vcl_init {
+	new vk8s_reqdisp_1_2 = selector.set(case_sensitive=false);
+	vk8s_reqdisp_1_2.add("HTTP/1.1");
+}
+
+sub vcl_init {
+	new vk8s_reqdisp_2_0 = selector.set();
+	vk8s_reqdisp_2_0.add("GET");
+	vk8s_reqdisp_2_0.add("HEAD");
+	vk8s_reqdisp_2_0.add("PUT");
+	vk8s_reqdisp_2_0.add("POST");
+	vk8s_reqdisp_2_0.add("TRACE");
+	vk8s_reqdisp_2_0.add("OPTIONS");
+	vk8s_reqdisp_2_0.add("DELETE");
+}
+
+sub vcl_init {
+	new vk8s_reqdisp_3_0 = selector.set();
+	vk8s_reqdisp_3_0.add("GET");
+	vk8s_reqdisp_3_0.add("HEAD");
+}
+
+
+sub vcl_recv {
+	if (req.method == "PRI") {
+		return (synth(405));
+	}
+	if (! req.http.Host &&
+            req.esi_level == 0 &&
+            vk8s_reqdisp_1_2.hasprefix(req.proto)) {
+		return (synth(400));
+	}
+	if (! vk8s_reqdisp_2_0.match(req.method)) {
+		return (pipe);
+	}
+	if (! vk8s_reqdisp_3_0.match(req.method)) {
+		return (pass);
+	}
+	if (req.http.Cookie) {
+		return (pass);
+	}
+	if (req.http.Authorization) {
+		return (pass);
+	}
+	return (hash);
+}
