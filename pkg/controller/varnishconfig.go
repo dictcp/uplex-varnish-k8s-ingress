@@ -122,7 +122,7 @@ func validateRewrites(rewrites []vcr_v1alpha1.RewriteSpec) error {
 			return fmt.Errorf("select value %s not permitted with "+
 				"compare value %s", rw.Select, rw.Compare)
 		}
-		if rw.Compare != vcr_v1alpha1.RewriteMatch &&
+		if rw.Compare != vcr_v1alpha1.Match &&
 			rw.MatchFlags != nil &&
 			((rw.MatchFlags.MaxMem != nil &&
 				*rw.MatchFlags.MaxMem != 0) ||
@@ -202,10 +202,10 @@ func validateReqDisps(reqDisps []vcr_v1alpha1.RequestDispSpec) error {
 			}
 			if cond.Count != nil {
 				switch cond.Compare {
-				case vcr_v1alpha1.ReqMatch,
-					vcr_v1alpha1.ReqNotMatch,
-					vcr_v1alpha1.ReqPrefix,
-					vcr_v1alpha1.ReqNotPrefix,
+				case vcr_v1alpha1.Match,
+					vcr_v1alpha1.NotMatch,
+					vcr_v1alpha1.Prefix,
+					vcr_v1alpha1.NotPrefix,
 					vcr_v1alpha1.Exists,
 					vcr_v1alpha1.NotExists:
 					return fmt.Errorf("illegal compare "+

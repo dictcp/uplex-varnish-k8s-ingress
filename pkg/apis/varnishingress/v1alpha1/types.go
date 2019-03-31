@@ -138,18 +138,44 @@ const (
 	Blacklist = "blacklist"
 )
 
-// CompareType classifies a string comparison.
+// CompareType classifies comparison operations performed for
+// conditional configurations. Some of these are not permitted for
+// certain config types; the custom resource defines which values are
+// available.
 type CompareType string
 
 const (
-	// Equal means compare strings with ==.
+	// Equal specifies equality -- string equality, numeric
+	// equality, or membership in a set of fixed strings.
 	Equal CompareType = "equal"
-	// NotEqual means compare with !=.
+	// NotEqual specifies non-equality.
 	NotEqual = "not-equal"
-	// Match means compare with ~ (the Value is a regex).
+	// Match specifies a regular expression match.
 	Match = "match"
-	// NotMatch means compare with !~.
+	// NotMatch specifies a regular expression non-match.
 	NotMatch = "not-match"
+	// Prefix specifies that a string has a prefix in a set of
+	// fixed strings.
+	Prefix = "prefix"
+	// NotPrefix specifies that a string does not have a prefix
+	// in a set of fixed strings.
+	NotPrefix = "not-prefix"
+	// Exists specifies that a request header exists.
+	Exists = "exists"
+	// NotExists specifies that a request header does not exist.
+	NotExists = "not-exists"
+	// Greater specifies the > relation between a VCL variable
+	// with a numeric value and a constant.
+	Greater = "greater"
+	// GreaterEqual specifies the >= relation for a numeric VCL
+	// variable and a constant.
+	GreaterEqual = "greater-equal"
+	// Less specifies the < relation for a numeric VCL variable
+	// and a constant.
+	Less = "less"
+	// LessEqual specifies the <= relation for a numeric VCL
+	// variable and a constant.
+	LessEqual = "less-equal"
 )
 
 // ResultHdrType describes the configuration for writing a header as
@@ -238,19 +264,6 @@ const (
 	Delete = "delete"
 )
 
-// RewriteCompare classifies the comparison operation used to evaluate
-// the conditions for a rewrite.
-type RewriteCompare string
-
-const (
-	// RewriteMatch means that a regex match is executed.
-	RewriteMatch RewriteCompare = "match"
-	// RewriteEqual means that fixed strings are tested for equality.
-	RewriteEqual = "equal"
-	// Prefix indicates a fixed-string prefix match.
-	Prefix = "prefix"
-)
-
 // VCLSubType classifies the VCL subroutine in which a rewrite is
 // executed.
 type VCLSubType string
@@ -329,48 +342,10 @@ type RewriteSpec struct {
 	Target     string          `json:"target,omitempty"`
 	Source     string          `json:"source,omitempty"`
 	Method     MethodType      `json:"method,omitempty"`
-	Compare    RewriteCompare  `json:"compare,omitempty"`
+	Compare    CompareType     `json:"compare,omitempty"`
 	VCLSub     VCLSubType      `json:"vcl-sub,omitempty"`
 	Select     SelectType      `json:"select,omitempty"`
 }
-
-// ReqCompareType classifies comparison operations performed for the
-// Conditions in a request disposition specification.
-type ReqCompareType string
-
-const (
-	// ReqEqual specifies equality -- string equality, numeric
-	// equality, or membership in a set of fixed strings.
-	ReqEqual ReqCompareType = "equal"
-	// ReqNotEqual specifies non-equality.
-	ReqNotEqual = "not-equal"
-	// ReqMatch specifies a regular expression match.
-	ReqMatch = "match"
-	// ReqNotMatch specifies a regular expression non-match.
-	ReqNotMatch = "not-match"
-	// ReqPrefix specifies that a string has a prefix in a set of
-	// fixed strings.
-	ReqPrefix = "prefix"
-	// ReqNotPrefix specifies that a string does not have a prefix
-	// in a set of fixed strings.
-	ReqNotPrefix = "not-prefix"
-	// Exists specifies that a request header exists.
-	Exists = "exists"
-	// NotExists specifies that a request header does not exist.
-	NotExists = "not-exists"
-	// Greater specifies the > relation between a VCL variable
-	// with a numeric value and a constant.
-	Greater = "greater"
-	// GreaterEqual specifies the >= relation for a numeric VCL
-	// variable and a constant.
-	GreaterEqual = "greater-equal"
-	// Less specifies the < relation for a numeric VCL variable
-	// and a constant.
-	Less = "less"
-	// LessEqual specifies the <= relation for a numeric VCL
-	// variable and a constant.
-	LessEqual = "less-equal"
-)
 
 // ReqCondition specifies (one of) the conditions that must be true if
 // a client request disposition is to be executed.
@@ -379,7 +354,7 @@ type ReqCondition struct {
 	MatchFlags *MatchFlagsType `json:"match-flags,omitempty"`
 	Count      *int64          `json:"count,omitempty"`
 	Comparand  string          `json:"comparand"`
-	Compare    ReqCompareType  `json:"compare,omitempty"`
+	Compare    CompareType     `json:"compare,omitempty"`
 }
 
 // RecvReturn is a name for the disposition of a client request.

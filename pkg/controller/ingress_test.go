@@ -217,7 +217,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.method",
-					Compare:   vcr_v1alpha1.ReqEqual,
+					Compare:   vcr_v1alpha1.Equal,
 					Values:    []string{"PRI"},
 				},
 			},
@@ -238,7 +238,7 @@ var reqDispHarness = []struct {
 				},
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.proto",
-					Compare:   vcr_v1alpha1.ReqPrefix,
+					Compare:   vcr_v1alpha1.Prefix,
 					Values:    []string{"HTTP/1.1"},
 					MatchFlags: &vcr_v1alpha1.MatchFlagsType{
 						CaseSensitive: &nope,
@@ -254,7 +254,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.method",
-					Compare:   vcr_v1alpha1.ReqNotEqual,
+					Compare:   vcr_v1alpha1.NotEqual,
 					Values: []string{
 						"GET",
 						"HEAD",
@@ -275,7 +275,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.method",
-					Compare:   vcr_v1alpha1.ReqNotEqual,
+					Compare:   vcr_v1alpha1.NotEqual,
 					Values: []string{
 						"GET",
 						"HEAD",
@@ -435,7 +435,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.method",
-					Compare:   vcr_v1alpha1.ReqEqual,
+					Compare:   vcr_v1alpha1.Equal,
 					Values:    []string{"CONNECT"},
 				},
 			},
@@ -447,7 +447,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.method",
-					Compare:   vcr_v1alpha1.ReqNotEqual,
+					Compare:   vcr_v1alpha1.NotEqual,
 					Values: []string{
 						"GET",
 						"HEAD",
@@ -515,7 +515,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.url",
-					Compare:   vcr_v1alpha1.ReqMatch,
+					Compare:   vcr_v1alpha1.Match,
 					Values: []string{
 						`\.png$`,
 						`\.jpe?g$`,
@@ -532,7 +532,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.url",
-					Compare:   vcr_v1alpha1.ReqPrefix,
+					Compare:   vcr_v1alpha1.Prefix,
 					Values: []string{
 						"/interactive/",
 						"/basket/",
@@ -594,7 +594,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.method",
-					Compare:   vcr_v1alpha1.ReqEqual,
+					Compare:   vcr_v1alpha1.Equal,
 					Values:    []string{"PURGE"},
 				},
 			},
@@ -626,7 +626,7 @@ var reqDispHarness = []struct {
 			Conditions: []vcr_v1alpha1.ReqCondition{
 				vcr_v1alpha1.ReqCondition{
 					Comparand: "req.url",
-					Compare:   vcr_v1alpha1.ReqNotPrefix,
+					Compare:   vcr_v1alpha1.NotPrefix,
 					Values: []string{
 						"/foo/",
 						"/bar/",

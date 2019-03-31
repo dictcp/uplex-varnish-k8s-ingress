@@ -689,9 +689,9 @@ func (worker *NamespaceWorker) configRewrites(spec *vcl.Spec,
 		}
 
 		switch rw.Compare {
-		case vcr_v1alpha1.RewriteMatch:
+		case vcr_v1alpha1.Match:
 			vclRw.Compare = vcl.RewriteMatch
-		case vcr_v1alpha1.RewriteEqual:
+		case vcr_v1alpha1.Equal:
 			vclRw.Compare = vcl.RewriteEqual
 		case vcr_v1alpha1.Prefix:
 			vclRw.Compare = vcl.Prefix
@@ -784,22 +784,22 @@ func (worker *NamespaceWorker) configReqDisps(spec *vcl.Spec,
 				vclCond.Count = &count
 			}
 			switch cond.Compare {
-			case vcr_v1alpha1.ReqEqual:
+			case vcr_v1alpha1.Equal:
 				vclCond.Compare = vcl.ReqEqual
 				vclCond.Negate = false
-			case vcr_v1alpha1.ReqNotEqual:
+			case vcr_v1alpha1.NotEqual:
 				vclCond.Compare = vcl.ReqEqual
 				vclCond.Negate = true
-			case vcr_v1alpha1.ReqMatch:
+			case vcr_v1alpha1.Match:
 				vclCond.Compare = vcl.ReqMatch
 				vclCond.Negate = false
-			case vcr_v1alpha1.ReqNotMatch:
+			case vcr_v1alpha1.NotMatch:
 				vclCond.Compare = vcl.ReqMatch
 				vclCond.Negate = true
-			case vcr_v1alpha1.ReqPrefix:
+			case vcr_v1alpha1.Prefix:
 				vclCond.Compare = vcl.ReqPrefix
 				vclCond.Negate = false
-			case vcr_v1alpha1.ReqNotPrefix:
+			case vcr_v1alpha1.NotPrefix:
 				vclCond.Compare = vcl.ReqPrefix
 				vclCond.Negate = true
 			case vcr_v1alpha1.Exists:

@@ -48,7 +48,7 @@ func TestValidateReqDisps(t *testing.T) {
 			},
 			Conditions: []vcr_v1alpha1.ReqCondition{{
 				Comparand: "req.url",
-				Compare:   vcr_v1alpha1.ReqEqual,
+				Compare:   vcr_v1alpha1.Equal,
 			}},
 		}},
 		{{
@@ -57,7 +57,7 @@ func TestValidateReqDisps(t *testing.T) {
 			},
 			Conditions: []vcr_v1alpha1.ReqCondition{{
 				Comparand: "req.url",
-				Compare:   vcr_v1alpha1.ReqEqual,
+				Compare:   vcr_v1alpha1.Equal,
 				Count:     &zero,
 				Values:    []string{"/foo"},
 			}},
@@ -88,7 +88,7 @@ func TestValidateReqDisps(t *testing.T) {
 			},
 			Conditions: []vcr_v1alpha1.ReqCondition{{
 				Comparand: "req.url",
-				Compare:   vcr_v1alpha1.ReqEqual,
+				Compare:   vcr_v1alpha1.Equal,
 				Count:     &zero,
 			}},
 		}},
@@ -98,7 +98,7 @@ func TestValidateReqDisps(t *testing.T) {
 			},
 			Conditions: []vcr_v1alpha1.ReqCondition{{
 				Comparand: "req.http.Host",
-				Compare:   vcr_v1alpha1.ReqEqual,
+				Compare:   vcr_v1alpha1.Equal,
 				Count:     &zero,
 			}},
 		}},
@@ -108,7 +108,7 @@ func TestValidateReqDisps(t *testing.T) {
 			},
 			Conditions: []vcr_v1alpha1.ReqCondition{{
 				Comparand: "req.restarts",
-				Compare:   vcr_v1alpha1.ReqEqual,
+				Compare:   vcr_v1alpha1.Equal,
 				Values:    []string{"/foo"},
 			}},
 		}},
