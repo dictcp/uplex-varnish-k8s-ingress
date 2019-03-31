@@ -20,8 +20,9 @@ before_script:
   - go get -u golang.org/x/lint/golint
   - go get -d -v github.com/slimhazard/gogitversion
   - vgo mod download
-  - cd /go/src/github.com/slimhazard/gogitversion
+  - pushd /go/src/github.com/slimhazard/gogitversion
   - make install
+  - popd
 
 test:
   stage: test
