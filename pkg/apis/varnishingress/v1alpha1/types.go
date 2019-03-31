@@ -400,6 +400,10 @@ const (
 	// RecvSynth to generate a synthetic response with a given
 	// HTTP response status.
 	RecvSynth = "synth"
+	// RecvFail to invoke VCL failure.
+	RecvFail = "fail"
+	// RecvRestart to invoke request restart.
+	RecvRestart = "restart"
 )
 
 // DispositionSpec specifies the disposition of a client request when

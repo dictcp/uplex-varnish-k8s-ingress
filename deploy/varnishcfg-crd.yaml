@@ -361,6 +361,8 @@ spec:
                           - pipe
                           - purge
                           - synth
+                          - fail
+                          - restart
                         type: string
                       status:
                         type: integer
