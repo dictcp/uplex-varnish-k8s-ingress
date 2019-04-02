@@ -772,8 +772,13 @@ type Spec struct {
 	// ACLs is a list of specifications for whitelisting or
 	// blacklisting IPs with access control lists, derived from
 	// VarnishConfig.Spec.ACLs.
-	ACLs         []ACL
-	Rewrites     []Rewrite
+	ACLs []ACL
+	// Rewrites is a list of specifications for header and URL
+	// rewriting, derived from VarnishConfig.Spec.Rewrites.
+	Rewrites []Rewrite
+	// Dispositions is a list of specifications for the
+	// disposition of client requests, derived from
+	// VarnishConfig.Spec.ReqDispositions.
 	Dispositions []DispositionSpec
 }
 
