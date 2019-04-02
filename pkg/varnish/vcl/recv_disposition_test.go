@@ -37,7 +37,7 @@ var builtinRecvSpec = Spec{
 		{
 			Conditions: []Condition{{
 				Comparand: "req.method",
-				Compare:   ReqEqual,
+				Compare:   Equal,
 				Values:    []string{"PRI"},
 			}},
 			Disposition: DispositionType{
@@ -54,12 +54,12 @@ var builtinRecvSpec = Spec{
 				},
 				{
 					Comparand: "req.esi_level",
-					Compare:   ReqEqual,
+					Compare:   Equal,
 					Count:     &zero,
 				},
 				{
 					Comparand: "req.proto",
-					Compare:   ReqPrefix,
+					Compare:   Prefix,
 					Values:    []string{"HTTP/1.1"},
 					MatchFlags: MatchFlagsType{
 						CaseSensitive: false,
@@ -74,7 +74,7 @@ var builtinRecvSpec = Spec{
 		{
 			Conditions: []Condition{{
 				Comparand: "req.method",
-				Compare:   ReqEqual,
+				Compare:   Equal,
 				Negate:    true,
 				Values: []string{
 					"GET",
@@ -96,7 +96,7 @@ var builtinRecvSpec = Spec{
 		{
 			Conditions: []Condition{{
 				Comparand: "req.method",
-				Compare:   ReqEqual,
+				Compare:   Equal,
 				Negate:    true,
 				Values: []string{
 					"GET",
@@ -140,7 +140,7 @@ var pipeOnConnectSpec = Spec{
 	Dispositions: []DispositionSpec{{
 		Conditions: []Condition{{
 			Comparand: "req.method",
-			Compare:   ReqEqual,
+			Compare:   Equal,
 			Values:    []string{"CONNECT"},
 		}},
 		Disposition: DispositionType{
@@ -158,7 +158,7 @@ var methodNotAllowedSpec = Spec{
 	Dispositions: []DispositionSpec{{
 		Conditions: []Condition{{
 			Comparand: "req.method",
-			Compare:   ReqEqual,
+			Compare:   Equal,
 			Negate:    true,
 			Values: []string{
 				"GET",
@@ -189,7 +189,7 @@ var urlWhitelistSpec = Spec{
 	Dispositions: []DispositionSpec{{
 		Conditions: []Condition{{
 			Comparand: "req.url",
-			Compare:   ReqPrefix,
+			Compare:   Prefix,
 			Negate:    true,
 			Values: []string{
 				"/foo",
@@ -217,7 +217,7 @@ var purgeMethodSpec = Spec{
 	Dispositions: []DispositionSpec{{
 		Conditions: []Condition{{
 			Comparand: "req.method",
-			Compare:   ReqEqual,
+			Compare:   Equal,
 			Values:    []string{"PURGE"},
 		}},
 		Disposition: DispositionType{
@@ -235,7 +235,7 @@ var cacheableSpec = Spec{
 	Dispositions: []DispositionSpec{{
 		Conditions: []Condition{{
 			Comparand: "req.url",
-			Compare:   ReqMatch,
+			Compare:   Match,
 			Values: []string{
 				`\.png$`,
 				`\.jpe?g$`,
@@ -261,7 +261,7 @@ var nonCacheableSpec = Spec{
 	Dispositions: []DispositionSpec{{
 		Conditions: []Condition{{
 			Comparand: "req.url",
-			Compare:   ReqPrefix,
+			Compare:   Prefix,
 			Values: []string{
 				"/interactive/",
 				"/basket/",

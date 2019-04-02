@@ -377,12 +377,14 @@ var acls = Spec{
 			Conditions: []MatchTerm{
 				MatchTerm{
 					Comparand: "req.http.Host",
-					Compare:   NotEqual,
+					Compare:   Equal,
+					Negate:    true,
 					Value:     "cafe.example.com",
 				},
 				MatchTerm{
 					Comparand: "req.url",
-					Compare:   NotMatch,
+					Compare:   Match,
+					Negate:    true,
 					Value:     `^/tea(/|$)`,
 				},
 			},

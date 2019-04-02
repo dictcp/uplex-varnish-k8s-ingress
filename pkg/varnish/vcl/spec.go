@@ -315,19 +315,34 @@ func (a byACLAddr) Len() int           { return len(a) }
 func (a byACLAddr) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byACLAddr) Less(i, j int) bool { return a[i].Addr < a[j].Addr }
 
-// CompareType classifies comparisons for MatchTerm.
+// CompareType classifies comparison operations performed for
+// conditional configurations. The comparison may be negated if the
+// boolean Negate field is true.
 type CompareType uint8
 
 const (
-	// Equal means compare strings for equality (==).
+	// Equal specifies equality -- string equality, numeric
+	// equality, or membership in a set of fixed strings.
 	Equal CompareType = iota
-	// NotEqual means compare with !=.
-	NotEqual
-	// Match means compare for regex match (~) -- the MatchTerm
-	// Value is a regular expression.
+	// Match specifies a regular expression match.
 	Match
-	// NotMatch means compare with !~.
-	NotMatch
+	// Prefix specifies that a string has a prefix in a set of
+	// fixed strings.
+	Prefix
+	// Exists specifies that a request header exists.
+	Exists
+	// Greater specifies the > relation between a VCL variable
+	// with a numeric value and a constant.
+	Greater
+	// GreaterEqual specifies the >= relation for a numeric VCL
+	// variable and a constant.
+	GreaterEqual
+	// Less specifies the < relation for a numeric VCL variable
+	// and a constant.
+	Less
+	// LessEqual specifies the <= relation for a numeric VCL
+	// variable and a constant.
+	LessEqual
 )
 
 // MatchTerm is a term describing the comparison of a VCL object with
@@ -336,12 +351,18 @@ type MatchTerm struct {
 	Comparand string
 	Value     string
 	Compare   CompareType
+	Negate    bool
 }
 
 func (match MatchTerm) hash(hash hash.Hash) {
 	hash.Write([]byte(match.Comparand))
 	hash.Write([]byte(match.Value))
 	hash.Write([]byte{byte(match.Compare)})
+	if match.Negate {
+		hash.Write([]byte{byte(1)})
+	} else {
+		hash.Write([]byte{byte(0)})
+	}
 }
 
 // interface for sorting []MatchTerm
@@ -444,19 +465,6 @@ const (
 	Prepend
 	// Delete means that the target object is deleted.
 	Delete
-)
-
-// RewriteCompare classifies the comparison operation used to evaluate
-// the conditions for a rewrite.
-type RewriteCompare uint8
-
-const (
-	// RewriteMatch means that a regex match is executed.
-	RewriteMatch RewriteCompare = iota
-	// RewriteEqual means that fixed strings are tested for equality.
-	RewriteEqual
-	// Prefix indicates a fixed-string prefix match.
-	Prefix
 )
 
 // SubType classifies the VCL subroutine in which a rewrite is
@@ -625,7 +633,8 @@ type Rewrite struct {
 	Target     string
 	Source     string
 	Method     MethodType
-	Compare    RewriteCompare
+	Compare    CompareType
+	Negate     bool
 	VCLSub     SubType
 	Select     SelectType
 }
@@ -640,6 +649,11 @@ func (rw Rewrite) hash(hash hash.Hash) {
 	hash.Write([]byte(rw.Source))
 	hash.Write([]byte{byte(rw.Method)})
 	hash.Write([]byte{byte(rw.Compare)})
+	if rw.Negate {
+		hash.Write([]byte{byte(1)})
+	} else {
+		hash.Write([]byte{byte(0)})
+	}
 	hash.Write([]byte{byte(rw.VCLSub)})
 	hash.Write([]byte{byte(rw.Select)})
 }
@@ -651,36 +665,6 @@ func (a byVCLSub) Len() int           { return len(a) }
 func (a byVCLSub) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byVCLSub) Less(i, j int) bool { return a[i].VCLSub < a[j].VCLSub }
 
-// ReqCompareType classifies comparison operations performed for the
-// Conditions in a request disposition specification. The relation may
-// be negated, if the Negate field in Condition is true.
-type ReqCompareType uint8
-
-const (
-	// ReqEqual specifies equality -- string equality, numeric
-	// equality, or membership in a set of fixed strings.
-	ReqEqual ReqCompareType = iota
-	// ReqMatch specifies a regular expression match.
-	ReqMatch
-	// ReqPrefix specifies that a string has a prefix in a set of
-	// fixed strings.
-	ReqPrefix
-	// Exists specifies that a request header exists.
-	Exists
-	// Greater specifies the > relation between a VCL variable
-	// with a numeric value and a constant.
-	Greater
-	// GreaterEqual specifies the >= relation for a numeric VCL
-	// variable and a constant.
-	GreaterEqual
-	// Less specifies the < relation for a numeric VCL variable
-	// and a constant.
-	Less
-	// LessEqual specifies the <= relation for a numeric VCL
-	// variable and a constant.
-	LessEqual
-)
-
 // Condition specifies (one of) the conditions that must be true if a
 // client request disposition is to be executed.
 type Condition struct {
@@ -688,7 +672,7 @@ type Condition struct {
 	MatchFlags MatchFlagsType
 	Count      *uint
 	Comparand  string
-	Compare    ReqCompareType
+	Compare    CompareType
 	Negate     bool
 }
 

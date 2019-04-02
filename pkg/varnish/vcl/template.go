@@ -47,24 +47,22 @@ var fMap = template.FuncMap{
 	"dirType":      func(svc Service) string { return dirType(svc) },
 	"rewrName":     func(i int) string { return rewrName(i) },
 	"needsMatcher": func(rewr Rewrite) bool { return needsMatcher(rewr) },
-	"rewrVMOD":     func(rewr Rewrite) string { return rewrVMOD(rewr) },
 	"rewrFlags":    func(rewr Rewrite) string { return rewrFlags(rewr) },
 	"needsSave":    func(rewr Rewrite) bool { return needsSave(rewr) },
-	"needsCompile": func(rewr Rewrite) bool { return needsCompile(rewr) },
 	"rewrSub":      func(rewr Rewrite) string { return rewrSub(rewr) },
-	"rewrMatch":    func(rewr Rewrite) string { return rewrMatch(rewr) },
 	"rewrOp":       func(rewr Rewrite) string { return rewrOp(rewr) },
 	"rewrSelect":   func(rewr Rewrite) string { return rewrSelect(rewr) },
-	"reqVMOD":      func(cond Condition) string { return reqVMOD(cond) },
-	"reqMatch":     func(cond Condition) string { return reqMatch(cond) },
 	"value":        func(cond Condition) string { return reqValue(cond) },
 	"reqFlags":     func(cond Condition) string { return reqFlags(cond) },
-	"exists":       func(cmp ReqCompareType) bool { return cmp == Exists },
+	"needsCompile": func(cmp CompareType) bool { return cmp == Match },
+	"exists":       func(cmp CompareType) bool { return cmp == Exists },
+	"match":        func(cmp CompareType) string { return match(cmp) },
+	"vmod":         func(cmp CompareType) string { return vmod(cmp) },
 	"aclCmp": func(comparand string) string {
 		return aclCmp(comparand)
 	},
-	"cmpRelation": func(cmp CompareType) string {
-		return cmpRelation(cmp)
+	"cmpRelation": func(cmp CompareType, negate bool) string {
+		return cmpRelation(cmp, negate)
 	},
 	"backendName": func(svc Service, addr string) string {
 		return backendName(svc, addr)
@@ -97,7 +95,7 @@ var fMap = template.FuncMap{
 		return rewr.Method == Replace
 	},
 	"needsRegex": func(rewr Rewrite) bool {
-		return rewr.Compare != RewriteMatch &&
+		return rewr.Compare != Match &&
 			(rewr.Method == Sub || rewr.Method == Suball)
 	},
 	"saveRegex": func(rewr Rewrite, rule RewriteRule) string {
@@ -108,11 +106,10 @@ var fMap = template.FuncMap{
 		return regex + "$"
 	},
 	"needsAll": func(rewr Rewrite) bool {
-		return rewr.Compare != RewriteMatch && rewr.Method == Suball
+		return rewr.Compare != Match && rewr.Method == Suball
 	},
 	"needsNeverCapture": func(rewr Rewrite) bool {
-		return rewr.Compare == RewriteMatch &&
-			rewr.MatchFlags.NeverCapture
+		return rewr.Compare == Match && rewr.MatchFlags.NeverCapture
 	},
 	"rewrOperand1": func(rewr Rewrite) string {
 		return rewrOperand1(rewr)
@@ -121,7 +118,7 @@ var fMap = template.FuncMap{
 		return rewrOperand2(rewr, i)
 	},
 	"needsUniqueCheck": func(rewr Rewrite) bool {
-		if rewr.Compare == RewriteEqual || rewr.Select != Unique {
+		if rewr.Compare == Equal || rewr.Select != Unique {
 			return false
 		}
 		switch rewr.Method {
@@ -141,12 +138,6 @@ var fMap = template.FuncMap{
 	},
 	"reqNeedsMatcher": func(cond Condition) bool {
 		return reqNeedsMatcher(cond)
-	},
-	"reqNeedsCompile": func(cond Condition) bool {
-		return reqNeedsCompile(cond)
-	},
-	"reqCmpRelation": func(cond Condition) string {
-		return reqCmpRelation(cond)
 	},
 }
 
@@ -333,28 +324,18 @@ func hasXFF(acls []ACL) bool {
 	return false
 }
 
-func cmpRelation(cmp CompareType) string {
+func cmpRelation(cmp CompareType, negate bool) string {
 	switch cmp {
 	case Equal:
-		return "=="
-	case NotEqual:
-		return "!="
-	case Match:
-		return "~"
-	case NotMatch:
-		return "!~"
-	default:
-		return "__INVALID_COMPARISON_TYPE__"
-	}
-}
-
-func reqCmpRelation(cond Condition) string {
-	switch cond.Compare {
-	case ReqEqual:
-		if cond.Negate {
+		if negate {
 			return "!="
 		}
 		return "=="
+	case Match:
+		if negate {
+			return "!~"
+		}
+		return "~"
 	case Greater:
 		return ">"
 	case GreaterEqual:
@@ -390,7 +371,7 @@ func needsMatcher(rewr Rewrite) bool {
 
 func reqNeedsMatcher(cond Condition) bool {
 	switch cond.Compare {
-	case ReqMatch, ReqPrefix:
+	case Match, Prefix:
 		return true
 	case Exists, Greater, GreaterEqual, Less, LessEqual:
 		return false
@@ -405,11 +386,15 @@ func rewrName(i int) string {
 	return fmt.Sprintf("vk8s_rewrite_%d", i)
 }
 
-func rewrVMOD(rewr Rewrite) string {
-	if rewr.Compare == RewriteMatch {
+func vmod(cmp CompareType) string {
+	switch cmp {
+	case Equal, Prefix:
+		return "selector"
+	case Match:
 		return "re2"
+	default:
+		return "__INVALID_COMPARISON_FOR_VMOD__"
 	}
-	return "selector"
 }
 
 func matcherFlags(isSelector bool, flagSpec MatchFlagsType) string {
@@ -458,15 +443,15 @@ func matcherFlags(isSelector bool, flagSpec MatchFlagsType) string {
 }
 
 func rewrFlags(rewr Rewrite) string {
-	return matcherFlags(rewr.Compare != RewriteMatch, rewr.MatchFlags)
+	return matcherFlags(rewr.Compare != Match, rewr.MatchFlags)
 }
 
 func reqFlags(cond Condition) string {
-	return matcherFlags(cond.Compare != ReqMatch, cond.MatchFlags)
+	return matcherFlags(cond.Compare != Match, cond.MatchFlags)
 }
 
 func needsSave(rewr Rewrite) bool {
-	if rewr.Compare != RewriteMatch {
+	if rewr.Compare != Match {
 		return false
 	}
 	switch rewr.Method {
@@ -475,14 +460,6 @@ func needsSave(rewr Rewrite) bool {
 	default:
 		return false
 	}
-}
-
-func needsCompile(rewr Rewrite) bool {
-	return rewr.Compare == RewriteMatch
-}
-
-func reqNeedsCompile(cond Condition) bool {
-	return cond.Compare == ReqMatch
 }
 
 func rewrSub(rewr Rewrite) string {
@@ -553,23 +530,11 @@ func rewrOperand2(rewr Rewrite, i int) string {
 	return rewr.Source
 }
 
-// XXX DRY
-func rewrMatch(rewr Rewrite) string {
-	switch rewr.Compare {
-	case RewriteMatch, RewriteEqual:
+func match(cmp CompareType) string {
+	switch cmp {
+	case Match, Equal:
 		return "match"
 	case Prefix:
-		return "hasprefix"
-	default:
-		return "__INVALID_MATCH_OPERATION__"
-	}
-}
-
-func reqMatch(cond Condition) string {
-	switch cond.Compare {
-	case ReqMatch, ReqEqual:
-		return "match"
-	case ReqPrefix:
 		return "hasprefix"
 	default:
 		return "__INVALID_MATCH_OPERATION__"
@@ -581,7 +546,7 @@ func rewrOp(rewr Rewrite) string {
 	case Sub:
 		return "sub"
 	case Suball:
-		if rewr.Compare == RewriteMatch {
+		if rewr.Compare == Match {
 			return "suball"
 		}
 		return "sub"
@@ -589,17 +554,6 @@ func rewrOp(rewr Rewrite) string {
 		return "extract"
 	default:
 		return "__INVALID_REWRITE_OPERAION__"
-	}
-}
-
-func reqVMOD(cond Condition) string {
-	switch cond.Compare {
-	case ReqEqual, ReqPrefix:
-		return "selector"
-	case ReqMatch:
-		return "re2"
-	default:
-		return "__INVALID_COMPARISON_FOR_VMOD__"
 	}
 }
 

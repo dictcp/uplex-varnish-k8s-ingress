@@ -5,7 +5,7 @@ import selector;
 {{range $i, $r := .Rewrites -}}
 {{if needsMatcher $r -}}
 sub vcl_init {
-	new {{rewrName $i}} = {{rewrVMOD $r}}.set({{rewrFlags $r}});
+	new {{rewrName $i}} = {{vmod $r.Compare}}.set({{rewrFlags $r}});
 	{{- range $rule := $r.Rules}}
 	{{rewrName $i}}.add("{{$rule.Value}}", string="{{$rule.Rewrite}}"
 		{{- if needsSave $r}}, save=true{{end -}}
@@ -13,7 +13,7 @@ sub vcl_init {
 		{{- if needsNeverCapture $r}}, never_capture=true{{end -}}
 		);
         {{- end}}
-        {{- if needsCompile $r}}
+        {{- if needsCompile $r.Compare}}
 	{{rewrName $i}}.compile();
 	{{- end}}
 }
@@ -21,7 +21,7 @@ sub vcl_init {
 
 sub vcl_{{rewrSub $r}} {
 	{{- if needsMatcher $r}}
-	if ({{rewrName $i}}.{{rewrMatch $r}}({{$r.Source}})) {
+	if ({{rewrName $i}}.{{match $r.Compare}}({{$r.Source}})) {
 		{{- if needsUniqueCheck $r}}
 		if ({{rewrName $i}}.nmatches() != 1) {
 			std.log({{$r.Source}} + " had " +

@@ -315,7 +315,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.method",
-						Compare:   vcl.ReqEqual,
+						Compare:   vcl.Equal,
 						Values:    []string{"PRI"},
 						MatchFlags: vcl.MatchFlagsType{
 							CaseSensitive: true,
@@ -339,7 +339,7 @@ var reqDispHarness = []struct {
 					},
 					vcl.Condition{
 						Comparand: "req.esi_level",
-						Compare:   vcl.ReqEqual,
+						Compare:   vcl.Equal,
 						Count:     &uintZero,
 						MatchFlags: vcl.MatchFlagsType{
 							CaseSensitive: true,
@@ -347,7 +347,7 @@ var reqDispHarness = []struct {
 					},
 					vcl.Condition{
 						Comparand: "req.proto",
-						Compare:   vcl.ReqPrefix,
+						Compare:   vcl.Prefix,
 						Values:    []string{"HTTP/1.1"},
 					},
 				},
@@ -360,7 +360,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.method",
-						Compare:   vcl.ReqEqual,
+						Compare:   vcl.Equal,
 						Negate:    true,
 						Values: []string{
 							"GET",
@@ -385,7 +385,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.method",
-						Compare:   vcl.ReqEqual,
+						Compare:   vcl.Equal,
 						Negate:    true,
 						Values: []string{
 							"GET",
@@ -471,7 +471,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.method",
-						Compare:   vcl.ReqEqual,
+						Compare:   vcl.Equal,
 						Values:    []string{"CONNECT"},
 						MatchFlags: vcl.MatchFlagsType{
 							CaseSensitive: true,
@@ -486,7 +486,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.method",
-						Compare:   vcl.ReqEqual,
+						Compare:   vcl.Equal,
 						Negate:    true,
 						Values: []string{
 							"GET",
@@ -551,7 +551,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.url",
-						Compare:   vcl.ReqMatch,
+						Compare:   vcl.Match,
 						Values: []string{
 							`\.png$`,
 							`\.jpe?g$`,
@@ -571,7 +571,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.url",
-						Compare:   vcl.ReqPrefix,
+						Compare:   vcl.Prefix,
 						Values: []string{
 							"/interactive/",
 							"/basket/",
@@ -608,7 +608,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.method",
-						Compare:   vcl.ReqEqual,
+						Compare:   vcl.Equal,
 						Values:    []string{"PURGE"},
 						MatchFlags: vcl.MatchFlagsType{
 							CaseSensitive: true,
@@ -646,7 +646,7 @@ var reqDispHarness = []struct {
 				Conditions: []vcl.Condition{
 					vcl.Condition{
 						Comparand: "req.url",
-						Compare:   vcl.ReqPrefix,
+						Compare:   vcl.Prefix,
 						Negate:    true,
 						Values: []string{
 							"/foo/",

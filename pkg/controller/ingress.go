@@ -454,6 +454,37 @@ func (worker *NamespaceWorker) configSharding(spec *vcl.Spec,
 	return nil
 }
 
+func configComparison(cmp vcr_v1alpha1.CompareType) (vcl.CompareType, bool) {
+	switch cmp {
+	case vcr_v1alpha1.Equal:
+		return vcl.Equal, false
+	case vcr_v1alpha1.NotEqual:
+		return vcl.Equal, true
+	case vcr_v1alpha1.Match:
+		return vcl.Match, false
+	case vcr_v1alpha1.NotMatch:
+		return vcl.Match, true
+	case vcr_v1alpha1.Prefix:
+		return vcl.Prefix, false
+	case vcr_v1alpha1.NotPrefix:
+		return vcl.Prefix, true
+	case vcr_v1alpha1.Exists:
+		return vcl.Exists, false
+	case vcr_v1alpha1.NotExists:
+		return vcl.Exists, true
+	case vcr_v1alpha1.Greater:
+		return vcl.Greater, false
+	case vcr_v1alpha1.GreaterEqual:
+		return vcl.GreaterEqual, false
+	case vcr_v1alpha1.Less:
+		return vcl.Less, false
+	case vcr_v1alpha1.LessEqual:
+		return vcl.LessEqual, false
+	default:
+		return vcl.Equal, false
+	}
+}
+
 func configConditions(vclConds []vcl.MatchTerm,
 	vcfgConds []vcr_v1alpha1.Condition) {
 
@@ -465,18 +496,8 @@ func configConditions(vclConds []vcl.MatchTerm,
 			Comparand: cond.Comparand,
 			Value:     cond.Value,
 		}
-		switch cond.Compare {
-		case vcr_v1alpha1.Equal:
-			vclMatch.Compare = vcl.Equal
-		case vcr_v1alpha1.NotEqual:
-			vclMatch.Compare = vcl.NotEqual
-		case vcr_v1alpha1.Match:
-			vclMatch.Compare = vcl.Match
-		case vcr_v1alpha1.NotMatch:
-			vclMatch.Compare = vcl.NotMatch
-		default:
-			vclMatch.Compare = vcl.Equal
-		}
+		vclMatch.Compare, vclMatch.Negate =
+			configComparison(cond.Compare)
 		vclConds[i] = vclMatch
 	}
 }
@@ -688,16 +709,10 @@ func (worker *NamespaceWorker) configRewrites(spec *vcl.Spec,
 			return fmt.Errorf("Illegal method %s", rw.Method)
 		}
 
-		switch rw.Compare {
-		case vcr_v1alpha1.Match:
-			vclRw.Compare = vcl.RewriteMatch
-		case vcr_v1alpha1.Equal:
-			vclRw.Compare = vcl.RewriteEqual
-		case vcr_v1alpha1.Prefix:
-			vclRw.Compare = vcl.Prefix
-		default:
-			vclRw.Compare = vcl.RewriteMatch
+		if rw.Compare == "" {
+			rw.Compare = vcr_v1alpha1.Match
 		}
+		vclRw.Compare, vclRw.Negate = configComparison(rw.Compare)
 
 		switch rw.VCLSub {
 		case vcr_v1alpha1.Recv:
@@ -783,42 +798,8 @@ func (worker *NamespaceWorker) configReqDisps(spec *vcl.Spec,
 				count := uint(*cond.Count)
 				vclCond.Count = &count
 			}
-			switch cond.Compare {
-			case vcr_v1alpha1.Equal:
-				vclCond.Compare = vcl.ReqEqual
-				vclCond.Negate = false
-			case vcr_v1alpha1.NotEqual:
-				vclCond.Compare = vcl.ReqEqual
-				vclCond.Negate = true
-			case vcr_v1alpha1.Match:
-				vclCond.Compare = vcl.ReqMatch
-				vclCond.Negate = false
-			case vcr_v1alpha1.NotMatch:
-				vclCond.Compare = vcl.ReqMatch
-				vclCond.Negate = true
-			case vcr_v1alpha1.Prefix:
-				vclCond.Compare = vcl.ReqPrefix
-				vclCond.Negate = false
-			case vcr_v1alpha1.NotPrefix:
-				vclCond.Compare = vcl.ReqPrefix
-				vclCond.Negate = true
-			case vcr_v1alpha1.Exists:
-				vclCond.Compare = vcl.Exists
-				vclCond.Negate = false
-			case vcr_v1alpha1.NotExists:
-				vclCond.Compare = vcl.Exists
-				vclCond.Negate = true
-			case vcr_v1alpha1.Greater:
-				vclCond.Compare = vcl.Greater
-			case vcr_v1alpha1.GreaterEqual:
-				vclCond.Compare = vcl.GreaterEqual
-			case vcr_v1alpha1.Less:
-				vclCond.Compare = vcl.Less
-			case vcr_v1alpha1.LessEqual:
-				vclCond.Compare = vcl.LessEqual
-			default:
-				vclCond.Compare = vcl.ReqEqual
-			}
+			vclCond.Compare, vclCond.Negate =
+				configComparison(cond.Compare)
 			if cond.MatchFlags != nil {
 				vclCond.MatchFlags = configMatchFlags(
 					*cond.MatchFlags)

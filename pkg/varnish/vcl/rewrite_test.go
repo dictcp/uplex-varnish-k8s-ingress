@@ -92,7 +92,7 @@ var replaceFromRewriteTest = Spec{
 	Rewrites: []Rewrite{{
 		Target:  "req.http.Host",
 		Source:  "req.http.Host",
-		Compare: RewriteEqual,
+		Compare: Equal,
 		Rules: []RewriteRule{
 			{
 				Value:   "cafe.example.com",
@@ -119,7 +119,7 @@ var rewriteSubTest = Spec{
 	Rewrites: []Rewrite{{
 		Target:  "req.url",
 		Source:  "req.url",
-		Compare: RewriteMatch,
+		Compare: Match,
 		Rules: []RewriteRule{
 			{
 				Value:   `/foo(/|$)`,
@@ -202,7 +202,7 @@ var conditionalDeleteTest = Spec{
 		Target:  "resp.http.Via",
 		Source:  "req.http.Delete-Via",
 		Method:  Delete,
-		Compare: RewriteEqual,
+		Compare: Equal,
 		Rules: []RewriteRule{
 			{Value: "true"},
 			{Value: "yes"},
@@ -222,9 +222,10 @@ func TestConditionalDelete(t *testing.T) {
 
 var rewriteExtractTest = Spec{
 	Rewrites: []Rewrite{{
-		Target: "req.url",
-		Source: "req.url",
-		Method: RewriteMethod,
+		Target:  "req.url",
+		Source:  "req.url",
+		Method:  RewriteMethod,
+		Compare: Match,
 		Rules: []RewriteRule{{
 			Value:   `/([^/]+)/([^/]+)(.*)`,
 			Rewrite: `/\2/\1\3`,
@@ -272,7 +273,7 @@ var rewriteFixedEqualTest = Spec{
 	Rewrites: []Rewrite{{
 		Target:  "bereq.url",
 		Source:  "bereq.url",
-		Compare: RewriteEqual,
+		Compare: Equal,
 		Method:  Sub,
 		Rules: []RewriteRule{
 			{
@@ -326,7 +327,7 @@ var rewritePrefixRegex = Spec{
 	Rewrites: []Rewrite{{
 		Target:  "bereq.url",
 		Source:  "bereq.url",
-		Compare: RewriteMatch,
+		Compare: Match,
 		Method:  Sub,
 		Rules: []RewriteRule{
 			{
@@ -355,7 +356,7 @@ var rewritePrependIfExists = Spec{
 	Rewrites: []Rewrite{{
 		Target:  "resp.http.X-Bazz",
 		Source:  "req.http.X-Bazz",
-		Compare: RewriteMatch,
+		Compare: Match,
 		Method:  Prepend,
 		Rules: []RewriteRule{
 			{
@@ -378,7 +379,7 @@ var rewriteExtractCookie = Spec{
 	Rewrites: []Rewrite{{
 		Target:  "req.http.Session-Token",
 		Source:  "req.http.Cookie",
-		Compare: RewriteMatch,
+		Compare: Match,
 		Method:  RewriteMethod,
 		Rules: []RewriteRule{{
 			Value:   `\bmysession\s*=\s*([^,;[:space:]]+)`,
@@ -461,9 +462,10 @@ func TestRewriteAppendFromSrcTest(t *testing.T) {
 
 var rewriteAppendRule = Spec{
 	Rewrites: []Rewrite{{
-		Target: "resp.http.Append-Rule-Target",
-		Source: "req.http.Append-Rule-Src",
-		Method: Append,
+		Target:  "resp.http.Append-Rule-Target",
+		Source:  "req.http.Append-Rule-Src",
+		Method:  Append,
+		Compare: Match,
 		Rules: []RewriteRule{{
 			Value:   `.`,
 			Rewrite: `AppendString`,
@@ -649,10 +651,11 @@ var rewriteSelectOperations = Spec{
 			},
 		},
 		{
-			Target: "resp.http.Hdr",
-			Source: "req.url",
-			Select: First,
-			Method: Sub,
+			Target:  "resp.http.Hdr",
+			Source:  "req.url",
+			Compare: Match,
+			Select:  First,
+			Method:  Sub,
 			Rules: []RewriteRule{{
 				Value:   `/foo`,
 				Rewrite: `foo`,
@@ -662,10 +665,11 @@ var rewriteSelectOperations = Spec{
 			},
 		},
 		{
-			Target: "resp.http.Hdr",
-			Source: "req.url",
-			Select: Last,
-			Method: Suball,
+			Target:  "resp.http.Hdr",
+			Source:  "req.url",
+			Compare: Match,
+			Select:  Last,
+			Method:  Suball,
 			Rules: []RewriteRule{{
 				Value:   `/foo`,
 				Rewrite: `foo`,
@@ -675,10 +679,11 @@ var rewriteSelectOperations = Spec{
 			},
 		},
 		{
-			Target: "resp.http.Hdr",
-			Source: "req.url",
-			Select: First,
-			Method: RewriteMethod,
+			Target:  "resp.http.Hdr",
+			Source:  "req.url",
+			Compare: Match,
+			Select:  First,
+			Method:  RewriteMethod,
 			Rules: []RewriteRule{{
 				Value:   `/foo`,
 				Rewrite: `foo`,

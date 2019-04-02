@@ -6,11 +6,11 @@ import selector;
 {{range $cidx, $c := .Conditions -}}
 {{if reqNeedsMatcher $c -}}
 sub vcl_init {
-	new {{reqObj $didx $cidx}} = {{reqVMOD $c}}.set({{reqFlags $c}});
+	new {{reqObj $didx $cidx}} = {{vmod $c.Compare}}.set({{reqFlags $c}});
 	{{- range $val := $c.Values}}
 	{{reqObj $didx $cidx}}.add("{{$val}}");
         {{- end}}
-        {{- if reqNeedsCompile $c}}
+        {{- if needsCompile $c.Compare}}
 	{{reqObj $didx $cidx}}.compile();
 	{{- end}}
 }
@@ -24,13 +24,13 @@ sub vcl_recv {
 	    {{- range $cidx, $cond := .Conditions}}
 	    {{- if ne $cidx 0}} &&
             {{end}}
-	    {{- if $cond.Negate}}! {{end}}
+	    {{- if .Negate}}! {{end}}
 	    {{- if reqNeedsMatcher $cond}}
-	    {{- reqObj $didx $cidx}}.{{reqMatch $cond}}({{$cond.Comparand}})
-	    {{- else if exists $cond.Compare}}
-	    {{- $cond.Comparand}}
+	    {{- reqObj $didx $cidx}}.{{match .Compare}}({{.Comparand}})
+	    {{- else if exists .Compare}}
+	    {{- .Comparand}}
 	    {{- else}}
-            {{- $cond.Comparand}} {{reqCmpRelation $cond}} {{value $cond}}
+            {{- .Comparand}} {{cmpRelation .Compare .Negate}} {{value $cond}}
 	    {{- end}}
 	    {{- end -}}
 	   ) {
