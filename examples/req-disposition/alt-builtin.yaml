@@ -13,8 +13,11 @@ spec:
   services:
     - varnish-ingress
 
+  # Configure the disposition of client requests.
   req-disposition:
 
+    # Requests for HTTP/1.1. without a Host header are rejected with
+    # 400 Bad Request, as in builtin.yaml and built-in vcl_recv.
     - conditions:
       - comparand: req.http.Host
         compare: not-exists
@@ -30,6 +33,10 @@ spec:
         action: synth
         status: 400
 
+    # Requests with the CONNECT method invoke pipe mode. This may be
+    # appropriate for a WebSockets application. If you don't need pipe
+    # mode for any purpose, just include CONNECT in the array of
+    # request method names in the next stanza.
     - conditions:
       - comparand: req.method
         compare: equal
@@ -38,6 +45,8 @@ spec:
       disposition:
         action: pipe
 
+    # Requests with any non-standard method get a synthetic 405 Method
+    # Not Allowed response.
     - conditions:
       - comparand: req.method
         compare: not-equal
@@ -54,6 +63,8 @@ spec:
         action: synth
         status: 405
 
+    # Cache lookup is bypassed for requests whose method is neither of
+    # GET or HEAD.
     - conditions:
       - comparand: req.method
         compare: not-equal

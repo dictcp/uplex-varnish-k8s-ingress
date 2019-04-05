@@ -29,6 +29,19 @@ requirements.
 * Specifying [rewrite rules](/examples/rewrite) for request headers,
   response headers, and URL paths.
 
+* Specifying the [disposition of client requests](/example/req-disposition).
+  This can enable a number of features, such as:
+
+    * allowing caching for requests that use cookies or basic
+      authentication.
+
+    * defining cacheability based on properties of the client request,
+      such as URL path patterns.
+
+    * defining white- and blacklists for requests.
+
+    * defining the means to purge cache entries via a request.
+
 * The [BackendConfig](/examples/backend-config) Custom Resource, to
   configure properties such as timeouts, health probes and
   load-balancing for Services to which requests are routed according

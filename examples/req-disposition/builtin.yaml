@@ -12,8 +12,26 @@ spec:
   services:
     - varnish-ingress
 
+  # req-disposition configures the disposition of client requests, as
+  # an array of objects with the conditions and disposition fields. If
+  # all of the conditions for such an object are true for a request,
+  # then the request is processed further as specified in the
+  # corresponding disposition field. The disposition specifies the
+  # next state of request processing, see:
+  # https://varnish-cache.org/docs/6.1/reference/states.html
+  #
+  # The conditions are evaluated in order, and the first set of
+  # conditions that evaluate to true invoke the corresponding
+  # disposition. If none of the conditions match, the request
+  # proceeds to cache lookup -- return(hash) from vcl_recv.
+  #
+  # This configuration reconstructs vcl_recv from builtin.vcl,
+  # see:
+  # https://github.com/varnishcache/varnish-cache/blob/6.1/bin/varnishd/builtin.vcl
   req-disposition:
 
+    # If the request method is "PRI", then send a synthetic "405
+    # Method Not Allowed" response.
     - conditions:
       - comparand: req.method
         compare: equal
@@ -23,6 +41,8 @@ spec:
         action: synth
         status: 405
 
+    # Reject an HTTP/1.1 request with a synthetic "400 Bad Request"
+    # response if it doesn't have a Host header.
     - conditions:
       - comparand: req.http.Host
         compare: not-exists
@@ -38,6 +58,8 @@ spec:
         action: synth
         status: 400
 
+    # Go to pipe mode for any request whose method is CONNECT, or a
+    # non-standard method.
     - conditions:
       - comparand: req.method
         compare: not-equal
@@ -53,6 +75,10 @@ spec:
       disposition:
         action: pipe
 
+    # Bypass cache lookup if the request method is neither of GET or
+    # HEAD.  Note that we only get here if the previous conditions did
+    # not evaluate to true, so the method must be one of PUT, POST,
+    # TRACE, OPTIONS, DELETE or PATCH.
     - conditions:
       - comparand: req.method
         compare: not-equal
@@ -62,14 +88,21 @@ spec:
       disposition:
         action: pass
 
+    # Bypass cache lookup if the request has a Cookie header.
     - conditions:
       - comparand: req.http.Cookie
         compare: exists
       disposition:
         action: pass
 
+    # Bypass cache lookup if the request has an Authorization header;
+    # that is, if it is sending credentials for basic or proxy
+    # authentication.
     - conditions:
       - comparand: req.http.Authorization
         compare: exists
       disposition:
         action: pass
+
+# If none of the conditions evaluate to true, then the request
+# proceeds to cache lookup.

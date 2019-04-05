@@ -779,87 +779,10 @@ Elements of the ``rewrites`` array may have these fields, of which
     that a synthetic response with status 503 and the reason "VCL
     failed" is returned for the request.
 
-* ``match-flags`` is an object with configuration to control comparison
-  operations. If ``match-flags`` is absent, then comparisons are executed
-  with default options.
-
-    Only the ``case-sensitive`` field may be set if ``compare`` is
-    ``equal`` or ``prefix``; all of the other fields are permitted
-    only if ``compare`` is ``match``. In other words, case
-    insensitivity can be specified for all comparison operations, but
-    the other fields apply only to regex matching. The fields are:
-
-    * ``case-sensitive`` (default ``true``): if ``false``, then regex
-      and fixed-string comparisons are case insensitive.
-
-    * ``anchor`` (default ``none``): sets anchoring at start-of-string
-      or end-of-string for every pattern in the ``rules`` array;
-      equivalent to using the ``^`` and ``$`` for start- and
-      end-of-string in the notation for each pattern. Possible values
-      are:
-
-        * ``start``: each pattern is anchored at the start
-
-        * ``both``: each pattern is anchored at both start and end.
-
-        * ``none`` (default): no implicit anchoring (but ``^`` and/or
-          ``$`` may be used in individual patterns)
-
-    * ``literal`` (default ``false``): if ``true``, then the strings
-      in the ``value`` fields of the ``rules`` are matched literally,
-      with no special meaning for regex metacharacters.
-
-    * ``never-capture`` (default ``false``): if ``true``, then
-      substring capturing is not executed for regex matches. Consider
-      setting ``never-capture`` to ``true`` if your patterns have
-      round parentheses ``()`` for grouping only, and backreferences
-      are not used in rewrite strings, since regex matches are faster
-      without the captures.
-
-    * ``utf8`` (default ``false``): if ``true``, then characters in
-      each pattern match UTF8 code points; otherwise, the patterns and
-      the strings to be matched are interpreted as Latin-1
-      (ISO-8859-1). Note that characters in header values and URL
-      paths almost always fall in the ASCII range, so the default is
-      usually sufficient.
-
-    * ``longest-match`` (default ``false``): if ``true``, then the
-      matcher searches for the longest possible match where
-      alternatives are possible. For example with the pattern
-      ``a(b|bb)`` and the string ``abb``, ``abb`` matches when
-      ``longest-match`` is ``true``, and backref 1 is
-      ``bb``. Otherwise, ``ab`` matches, and backref 1 is ``b``.
-
-    * ``posix-syntax`` (default ``false``): if ``true``, then patterns
-      are restricted to POSIX (egrep) syntax. Otherwise, the full
-      range of [RE2](https://github.com/google/re2/wiki/Syntax) is
-      available. The next two flags (``perl-classes`` and
-      ``word-boundary``) are only consulted when ``posix-syntax`` is
-      ``true``.
-
-    * ``perl-classes`` (default ``false``): if ``true`` and
-      ``posix-syntax`` is also ``true``, then the perl character
-      classes ``\d``, ``\s``, ``\w``, ``\D``, ``\S`` and ``\W`` are
-      permitted in a pattern. When ``posix-syntax`` is ``false``, the
-      perl classes are always permitted.
-
-    * ``word-boundary`` (default ``false``): if ``true`` and
-      ``posix-syntax`` is also ``true``, then the perl assertions
-      ``\b`` and ``\B`` (word boundary and not a word boundary) are
-      permitted in a pattern. When ``posix-syntax`` is ``false``, the
-      word boundary assertions are always permitted.
-
-    * ``max-mem`` (integer, default 8MB): an upper bound (in bytes)
-      for the size of the compiled pattern. If ``max-mem`` is too
-      small, the matcher may fall back to less efficient algorithms,
-      or the pattern may fail to compile.
-
-        This field very rarely needs to be set; the default is the RE2
-        default, and is sufficient for typical patterns. Increasing
-        ``max-mem`` is usually only necessary if VCL loads fail due to
-        failed regex compiles, and the error message (shown in Event
-        notifications and the controller log) indicates that the
-        pattern is too large.
+* ``match-flags`` is an object with configuration to control
+  comparison operations. If ``match-flags`` is absent, then
+  comparisons are executed with default options. See the
+  [``match-flags`` reference](/docs/ref-match-flags.md) for details.
 
 * ``vcl-sub`` is an enum indicating the
   [VCL subroutine](https://varnish-cache.org/docs/6.1/reference/states.html)
@@ -914,3 +837,11 @@ Elements of the ``rewrites`` array may have these fields, of which
     If more than one rewrite in the ``rewrites`` array specifies the
     same VCL subroutine, then they are executed in that subroutine in
     the order in which they appear in the array.
+
+## ``spec.req-disposition``
+
+The ``req-disposition`` is optional, and if present contains a
+configuration of the disposition of client requests -- how client
+requests are processed further after request headers have been
+received. See the [``req-disposition``
+reference](/docs/ref-req-disposition.md) for details.

@@ -1,12 +1,10 @@
-# Configuration for disposition of client requests that permits cache
-# lookups for requests with Cookie or Authorization headers, and
-# defines URL path patterns for which cache lookups are invoked or
-# bypassed.
+# Configuration for disposition of client requests that illustrates
+# bypassing cache lookups for specific cookies.
 
 apiVersion: "ingress.varnish-cache.org/v1alpha1"
 kind: VarnishConfig
 metadata:
-  name: cacheability-cfg
+  name: pass-on-session-cookie-cfg
 spec:
   # The services array is required and must have at least one element.
   # Lists the Service names of Varnish services in the same namespace
@@ -48,9 +46,22 @@ spec:
           - OPTIONS
           - DELETE
           - PATCH
+          - CONNECT
       disposition:
         action: synth
         status: 405
+
+    # Cache lookup is bypassed if the Cookie header includes either of
+    # the SESSION or LOGINID cookies, with their values constrained to
+    # specific forms. Cache lookup is permitted otherwise.
+    - conditions:
+      - comparand: req.http.Cookie
+        compare: match
+        values:
+          - \bSESSIONID\s*=\s*[[:xdigit:]]{32}\b
+          - \bLOGIN\s*=\s*\w+\b
+      disposition:
+        action: pass
 
     # Cache lookup is bypassed for requests whose method is neither of
     # GET or HEAD.
@@ -60,31 +71,5 @@ spec:
         values:
           - GET
           - HEAD
-      disposition:
-        action: pass
-
-    # Go to cache lookup (hash) if the URL ends in any of the patterns
-    # listed in values.
-    - conditions:
-      - comparand: req.url
-        compare: match
-        values:
-          - \.png$
-          - \.jpe?g$
-          - \.css$
-          - \.js$
-      disposition:
-        action: hash
-
-    # Bypass cache lookup (pass) if the URL begins with any of the
-    # prefixes listed in values.
-    - conditions:
-      - comparand: req.url
-        compare: prefix
-        values:
-          - /interactive/
-          - /basket/
-          - /personal/
-          - /dynamic/
       disposition:
         action: pass
