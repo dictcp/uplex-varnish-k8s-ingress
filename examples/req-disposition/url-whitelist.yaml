@@ -75,6 +75,7 @@ spec:
       disposition:
         action: synth
         status: 403
+        reason: Blacklisted
 
     # Cache lookup is bypassed for requests whose method is neither of
     # GET or HEAD.

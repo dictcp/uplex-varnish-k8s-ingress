@@ -87,7 +87,7 @@ then the request proceeds to cache lookup (``return(hash)``).
 
 ``disposition`` is an object with these two fields:
 
-* ``action`` (required): one of the following strings, corresponnding
+* ``action`` (required): one of the following strings, corresponding
   to a [``return()`` keyword for
   ``vcl_recv``](https://varnish-cache.org/docs/6.1/users-guide/vcl-built-in-subs.html#vcl-recv);
 
@@ -115,6 +115,13 @@ then the request proceeds to cache lookup (``return(hash)``).
   ``action`` is ``synth``. Required for ``synth``, and ignored for
   other values of ``action``. ``status`` MUST be in the range 200 to
   599, inclusive.
+
+* ``reason``: if present, and if the ``action`` is ``synth``,
+  ``reason`` is the "reason string" that appears in the HTTP response
+  line. The reason string is, for example, "OK" in response status
+  "200 OK", or "Not Found" in "404 Not Found". By default, Varnish
+  sets the standard reason string for a standard HTTP status code, or
+  "Unknown HTTP Status" for a non-standard status.
 
 It is not possible to use ``action`` to specify branching to a VCL label.
 

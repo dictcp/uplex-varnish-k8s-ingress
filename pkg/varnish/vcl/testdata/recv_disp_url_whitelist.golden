@@ -13,7 +13,7 @@ sub vcl_init {
 
 sub vcl_recv {
 	if (! vk8s_reqdisp_0_0.hasprefix(req.url)) {
-		return (synth(403));
+		return (synth(403, "Not whitelisted"));
 	}
 	return (hash);
 }

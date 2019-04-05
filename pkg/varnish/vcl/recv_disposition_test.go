@@ -204,6 +204,7 @@ var urlWhitelistSpec = Spec{
 		Disposition: DispositionType{
 			Action: RecvSynth,
 			Status: 403,
+			Reason: "Not whitelisted",
 		},
 	}},
 }

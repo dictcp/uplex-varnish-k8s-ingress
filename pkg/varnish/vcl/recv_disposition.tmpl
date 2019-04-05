@@ -36,7 +36,8 @@ sub vcl_recv {
 	   ) {
 		return (
 			{{- with .Disposition}}
-			{{- if eq .Action "synth"}}synth({{.Status}})
+			{{- if eq .Action "synth"}}synth({{.Status}}
+				{{- if .Reason}}, "{{.Reason}}"{{end -}})
 			{{- else}}{{.Action}}
 			{{- end}}
 			{{- end -}}

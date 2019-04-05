@@ -389,6 +389,7 @@ const (
 type DispositionSpec struct {
 	Action RecvReturn `json:"action"`
 	Status *int64     `json:"status,omitempty"`
+	Reason string     `json:"reason,omitempty"`
 }
 
 // RequestDispSpec specifies the disposition of a client request when

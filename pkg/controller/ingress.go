@@ -813,6 +813,7 @@ func (worker *NamespaceWorker) configReqDisps(spec *vcl.Spec,
 		if disp.Disposition.Action == vcr_v1alpha1.RecvSynth {
 			vclDisp.Disposition.Status = uint16(
 				*disp.Disposition.Status)
+			vclDisp.Disposition.Reason = disp.Disposition.Reason
 		}
 		spec.Dispositions[i] = vclDisp
 	}

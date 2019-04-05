@@ -708,6 +708,7 @@ const (
 type DispositionType struct {
 	Action RecvReturn
 	Status uint16
+	Reason string
 }
 
 // DispositionSpec specifies the disposition of a client request when

@@ -728,12 +728,18 @@ The blacklist is defined with:
       disposition:
         action: synth
         status: 403
+        reason: Blacklisted
 ```
 
-In this case, the synthetic 403 Forbidden response is generated for
-requests whose URL path does begin with one of the prefixes in
-``values``.  The combined effect is that requests are only permitted
-for URLs in the whitelist, but not for URLs in the blacklist.
+In this case, the synthetic 403 response is generated for requests
+whose URL path does begin with one of the prefixes in ``values``.
+The ``reason`` setting sets the response line to "403 Blacklisted"
+rather than the standard "403 Forbidden". In most cases, you can
+leave out ``reason``, and Varnish sets the standard reason string
+corresponding to the response code.
+
+The combined effect is that requests are only permitted for URLs in
+the whitelist, but not for URLs in the blacklist.
 
 Of course your configuration can characterize the requests by other
 means available in ``conditions``, for example by specifying regex
@@ -781,14 +787,15 @@ $ curl -x $IP:$PORT -v http://cafe.example.com/tea/quux
 < HTTP/1.1 403 Forbidden
 [...]
 
-# Requests matching the blacklist are also forbidden:
+# Requests matching the blacklist are also forbidden. Notice that the
+# "Blacklisted" reason string is used for these cases.
 $ curl -x $IP:$PORT -v http://cafe.example.com/coffee/sugar/black/foo
 [...]
 > GET http://cafe.example.com/coffee/sugar/black/foo HTTP/1.1
 > Host: cafe.example.com
 [...]
 > 
-< HTTP/1.1 403 Forbidden
+< HTTP/1.1 403 Blacklisted
 [...]
 
 $ curl -x $IP:$PORT -v http://cafe.example.com/tea/sugar/black/foo
@@ -797,7 +804,7 @@ $ curl -x $IP:$PORT -v http://cafe.example.com/tea/sugar/black/foo
 > Host: cafe.example.com
 [...]
 > 
-< HTTP/1.1 403 Forbidden
+< HTTP/1.1 403 Blacklisted
 [...]
 
 ```

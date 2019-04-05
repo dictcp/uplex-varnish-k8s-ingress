@@ -368,6 +368,9 @@ spec:
                         type: integer
                         minimum: 200
                         maximum: 599
+                      reason:
+                        type: string
+                        minLength: 1
 status:
   acceptedNames:
     kind: VarnishConfig
