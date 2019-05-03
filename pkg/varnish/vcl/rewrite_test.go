@@ -733,10 +733,8 @@ func TestRewriteDeleteAuth(t *testing.T) {
 		t.Fatal("WriteFile():", err)
 	}
 	if !bytes.Equal(goldbytes, []byte(src)) {
-		t.Fatalf("Generated VCL does not match gold file: %s", gold)
-		if testing.Verbose() {
-			t.Logf("Generated: %s", src)
-		}
+		t.Fatalf("Generated VCL does not match gold file: %s\n%s", gold,
+			src)
 	}
 }
 

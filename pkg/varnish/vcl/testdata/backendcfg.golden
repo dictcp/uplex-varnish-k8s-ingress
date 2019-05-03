@@ -182,3 +182,10 @@ sub vcl_pass {
 sub vcl_pipe {
 	call vk8s_set_backend;
 }
+
+sub vcl_hit {
+	if (obj.ttl < 0s) {
+		# Set a backend for a background fetch.
+		call vk8s_set_backend;
+	}
+}
