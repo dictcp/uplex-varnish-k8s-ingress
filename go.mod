@@ -26,15 +26,12 @@ require (
 	github.com/prometheus/client_golang v0.9.2
 	github.com/sirupsen/logrus v1.2.0
 	github.com/spf13/pflag v1.0.3 // indirect
+	golang.org/x/net v0.0.0-20190311183353-d8887717615a // indirect
 	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4 // indirect
-	golang.org/x/tools v0.0.0-20190327011446-79af862e6737 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 	k8s.io/api v0.0.0-20181221193117-173ce66c1e39
 	k8s.io/apimachinery v0.0.0-20180925215425-1926e7bb5c13
 	k8s.io/client-go v6.0.1-0.20180515144434-1692bdde78a6+incompatible
-	k8s.io/code-generator v0.0.0-20180510141822-0ab89e584187 // indirect
-	k8s.io/gengo v0.0.0-20190319205223-bc9033e9ec9e // indirect
-	k8s.io/klog v0.2.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20181114233023-0317810137be // indirect
 )
