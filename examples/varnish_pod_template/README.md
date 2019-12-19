@@ -49,7 +49,7 @@ of variables that set port numbers (``HTTP_PORT`` and ``ADMIN_PORT``)
 must match ``targetPort`` values set for the Service:
 
 ```
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 [...]
 spec:
