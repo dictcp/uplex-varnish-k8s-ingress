@@ -20,7 +20,7 @@ COPY ./.git/ /go/src/code.uplex.de/uplex-varnish/k8s-ingress/.git/
 RUN go generate ./cmd/... && go build ./pkg/... ./cmd/... && \
     CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o k8s-ingress cmd/*.go
 
-FROM alpine:3.8
+FROM alpine:3.11.0
 COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/k8s-ingress /k8s-ingress
 COPY --from=builder /go/src/code.uplex.de/uplex-varnish/k8s-ingress/pkg/varnish/vcl/*.tmpl /
 ENTRYPOINT ["/k8s-ingress"]
