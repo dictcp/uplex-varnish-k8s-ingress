@@ -72,7 +72,7 @@ func (c *FakeVarnishConfigs) List(opts v1.ListOptions) (result *v1alpha1.Varnish
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &v1alpha1.VarnishConfigList{}
+	list := &v1alpha1.VarnishConfigList{ListMeta: obj.(*v1alpha1.VarnishConfigList).ListMeta}
 	for _, item := range obj.(*v1alpha1.VarnishConfigList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
@@ -129,7 +129,7 @@ func (c *FakeVarnishConfigs) DeleteCollection(options *v1.DeleteOptions, listOpt
 // Patch applies the patch and returns the patched varnishConfig.
 func (c *FakeVarnishConfigs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.VarnishConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(varnishconfigsResource, c.ns, name, data, subresources...), &v1alpha1.VarnishConfig{})
+		Invokes(testing.NewPatchSubresourceAction(varnishconfigsResource, c.ns, name, pt, data, subresources...), &v1alpha1.VarnishConfig{})
 
 	if obj == nil {
 		return nil, err

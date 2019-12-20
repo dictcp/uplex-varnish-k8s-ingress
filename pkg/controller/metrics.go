@@ -75,7 +75,7 @@ func (promProvider) NewAddsMetric(name string) workqueue.CounterMetric {
 	return adds
 }
 
-func (promProvider) NewLatencyMetric(name string) workqueue.SummaryMetric {
+func (promProvider) NewLatencyMetric(name string) workqueue.HistogramMetric {
 	label := make(map[string]string)
 	label["namespace"] = name
 	latency := prometheus.NewSummary(prometheus.SummaryOpts{
@@ -90,7 +90,9 @@ func (promProvider) NewLatencyMetric(name string) workqueue.SummaryMetric {
 	return latency
 }
 
-func (promProvider) NewWorkDurationMetric(name string) workqueue.SummaryMetric {
+func (promProvider) NewWorkDurationMetric(
+	name string) workqueue.HistogramMetric {
+
 	label := make(map[string]string)
 	label["namespace"] = name
 	workDuration := prometheus.NewSummary(prometheus.SummaryOpts{
@@ -117,6 +119,40 @@ func (promProvider) NewRetriesMetric(name string) workqueue.CounterMetric {
 	})
 	prometheus.Register(retries)
 	return retries
+}
+
+func (promProvider) NewLongestRunningProcessorSecondsMetric(
+	name string) workqueue.SettableGaugeMetric {
+
+	label := make(map[string]string)
+	label["namespace"] = name
+	longest := prometheus.NewGauge(prometheus.GaugeOpts{
+		Subsystem: workqSubsystem,
+		Namespace: namespace,
+		Name:      "longest_running_seconds",
+		Help: "Time (in secs) spent by the longest running " +
+			"processor in the workqueue",
+		ConstLabels: label,
+	})
+	prometheus.Register(longest)
+	return longest
+}
+
+func (promProvider) NewUnfinishedWorkSecondsMetric(
+	name string) workqueue.SettableGaugeMetric {
+
+	label := make(map[string]string)
+	label["namespace"] = name
+	unfinished := prometheus.NewGauge(prometheus.GaugeOpts{
+		Subsystem: workqSubsystem,
+		Namespace: namespace,
+		Name:      "unfinished_work_seconds",
+		Help: "Time (in secs) for work in the workqueue that is not " +
+			"yet observed by work_duration_useconds",
+		ConstLabels: label,
+	})
+	prometheus.Register(unfinished)
+	return unfinished
 }
 
 var (

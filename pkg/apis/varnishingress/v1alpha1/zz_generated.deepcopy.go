@@ -145,7 +145,7 @@ func (in *BackendConfig) DeepCopyObject() runtime.Object {
 func (in *BackendConfigList) DeepCopyInto(out *BackendConfigList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]BackendConfig, len(*in))
@@ -501,7 +501,7 @@ func (in *VarnishConfig) DeepCopyObject() runtime.Object {
 func (in *VarnishConfigList) DeepCopyInto(out *VarnishConfigList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]VarnishConfig, len(*in))

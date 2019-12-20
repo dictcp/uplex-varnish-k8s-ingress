@@ -26,7 +26,7 @@
 
 all: k8s-ingress
 
-KUBEVER=kubernetes-1.9.11
+KUBEVER=kubernetes-1.16.4
 install-code-gen:
 	go get k8s.io/code-generator/cmd/client-gen@$(KUBEVER)
 	go get k8s.io/code-generator/cmd/deepcopy-gen@$(KUBEVER)
