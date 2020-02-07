@@ -34,7 +34,7 @@ spec:
         status: 400
 
     # Divert to purge when the request method is PURGE.
-    # See: https://varnish-cache.org/docs/6.1/users-guide/purging.html
+    # See: https://varnish-cache.org/docs/6.3/users-guide/purging.html
     - conditions:
       - comparand: req.method
         compare: equal

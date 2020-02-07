@@ -130,17 +130,17 @@ following:
 * Connect to the admin port
 
 * Issue the
-  [``ping`` command](https://varnish-cache.org/docs/6.1/reference/varnish-cli.html#ping-timestamp)
+  [``ping`` command](https://varnish-cache.org/docs/6.3/reference/varnish-cli.html#ping-timestamp)
 
 * Issue the
-  [``status`` command](https://varnish-cache.org/docs/6.1/reference/varnish-cli.html#status)
+  [``status`` command](https://varnish-cache.org/docs/6.3/reference/varnish-cli.html#status)
   to read the state of the Varnish cache process.
 
 * Check if a
-  [panic](https://varnish-cache.org/docs/6.1/reference/varnish-cli.html#panic-show)
+  [panic](https://varnish-cache.org/docs/6.3/reference/varnish-cli.html#panic-show)
   has occurred
 
-* [Discard](https://varnish-cache.org/docs/6.1/reference/varnish-cli.html#vcl-discard-configname-label)
+* [Discard](https://varnish-cache.org/docs/6.3/reference/varnish-cli.html#vcl-discard-configname-label)
   configurations that were loaded by the controller and have gone cold.
 
 * Update to the instance with a configuration for the current desired state,

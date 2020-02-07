@@ -13,7 +13,7 @@ environment variables in ``env``. You may want to do this in order to:
   for the Varnish listener
 
 * set
-  [Varnish runtime parameters and tunables](https://varnish-cache.org/docs/6.1/reference/varnishd.html)
+  [Varnish runtime parameters and tunables](https://varnish-cache.org/docs/6.3/reference/varnishd.html)
   such as the cache size, default TTLs and timeouts, thread pool
   dimensions, workspace sizes (and many more)
 
@@ -28,7 +28,7 @@ document describes what may, and what may not be customized.
 ## varnishd Command-Line options
 
 See
-[``varnishd(1)``](https://varnish-cache.org/docs/6.1/reference/varnishd.html#options)
+[``varnishd(1)``](https://varnish-cache.org/docs/6.3/reference/varnishd.html#options)
 for details about available options.
 
 ```
@@ -94,10 +94,10 @@ option:
 You may of course choose a different path name. Note that this use of
 ``-n`` means that other commands in the Varnish container that access
 shared memory, such as
-[``varnishlog``](https://varnish-cache.org/docs/6.1/reference/varnishlog.html),
-[``varnishstat``](https://varnish-cache.org/docs/6.1/reference/varnishstat.html)
+[``varnishlog``](https://varnish-cache.org/docs/6.3/reference/varnishlog.html),
+[``varnishstat``](https://varnish-cache.org/docs/6.3/reference/varnishstat.html)
 or
-[``varnishadm``](https://varnish-cache.org/docs/6.1/reference/varnishadm.html),
+[``varnishadm``](https://varnish-cache.org/docs/6.3/reference/varnishadm.html),
 must also be called with the ``-n`` option set to the Varnish home
 directory (for example when executed via ``kubectl exec``).
 
@@ -145,7 +145,7 @@ These environment variables can be used to change the configuration
 from defaults:
 
 * ``PROTO``: sets the
-  [PROTO sub-argument](https://varnish-cache.org/docs/6.1/reference/varnishd.html#basic-options)
+  [PROTO sub-argument](https://varnish-cache.org/docs/6.3/reference/varnishd.html#basic-options)
   for the HTTP listener. Legal values are ``HTTP`` or ``PROXY``,
   default ``HTTP``.
 
@@ -156,7 +156,7 @@ from defaults:
   readiness checks, default 8080.
 
 * ``ADMIN_PORT``: sets the port at which Varnish listens for
-  [CLI commands](https://varnish-cache.org/docs/6.1/reference/varnish-cli.html),
+  [CLI commands](https://varnish-cache.org/docs/6.3/reference/varnish-cli.html),
   used by the controller; default 6081.
 
 * ``SECRET_PATH``: sets the path mounted to the volume that is

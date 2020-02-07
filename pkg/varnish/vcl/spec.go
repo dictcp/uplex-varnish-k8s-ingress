@@ -71,7 +71,7 @@ func (a byIPPort) Less(i, j int) bool {
 }
 
 // DirectorType corresponds to a class of director, see:
-// https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html
+// https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html
 type DirectorType uint8
 
 const (
@@ -677,7 +677,7 @@ type Condition struct {
 }
 
 // RecvReturn is a name for the disposition of a client request.
-// See: https://varnish-cache.org/docs/6.1/reference/states.html
+// See: https://varnish-cache.org/docs/6.3/reference/states.html
 type RecvReturn string
 
 const (
@@ -689,7 +689,7 @@ const (
 	// client and backend with no further intervention.
 	RecvPipe = "pipe"
 	// RecvPurge to purge a cache object.
-	// See: https://varnish-cache.org/docs/6.1/users-guide/purging.html?highlight=purge#http-purging
+	// See: https://varnish-cache.org/docs/6.3/users-guide/purging.html?highlight=purge#http-purging
 	RecvPurge = "purge"
 	// RecvSynth to generate a synthetic response with a given
 	// HTTP response status.

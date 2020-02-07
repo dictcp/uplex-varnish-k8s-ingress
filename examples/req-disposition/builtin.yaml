@@ -18,7 +18,7 @@ spec:
   # then the request is processed further as specified in the
   # corresponding disposition field. The disposition specifies the
   # next state of request processing, see:
-  # https://varnish-cache.org/docs/6.1/reference/states.html
+  # https://varnish-cache.org/docs/6.3/reference/states.html
   #
   # The conditions are evaluated in order, and the first set of
   # conditions that evaluate to true invoke the corresponding
@@ -27,7 +27,7 @@ spec:
   #
   # This configuration reconstructs vcl_recv from builtin.vcl,
   # see:
-  # https://github.com/varnishcache/varnish-cache/blob/6.1/bin/varnishd/builtin.vcl
+  # https://github.com/varnishcache/varnish-cache/blob/6.3/bin/varnishd/builtin.vcl
   req-disposition:
 
     # If the request method is "PRI", then send a synthetic "405

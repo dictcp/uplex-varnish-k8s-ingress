@@ -593,7 +593,7 @@ $ curl -x $IP:$PORT -v http://cafe.example.com/coffee
 > 
 < HTTP/1.1 200 OK
 [...]
-< Via: 1.1 varnish (Varnish/6.1)
+< Via: 1.1 varnish (Varnish/6.3)
 [...]
 
 # With an appropriate value for the Delete-Via request header, the Via

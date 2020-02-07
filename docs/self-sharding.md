@@ -98,7 +98,7 @@ required -- it can, for example, continue distributing requests to
 Varnishen in round-robin order.
 
 This is done by applying Varnish's
-[shard director](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html#new-xshard-directors-shard)
+[shard director](https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html#new-xshard-directors-shard)
 to the Varnish instances in the cluster. If an instance finds that the
 director shards the request to itself, then it handles the request
 itself as the primary cache for the request. See the documentation at
@@ -207,7 +207,7 @@ TTLs serves to reduce the total memory load for caching in the
 cluster.
 
 The ``probe`` object specfies properties of the
-[health probes](https://varnish-cache.org/docs/6.1/reference/vcl.html#probes),
+[health probes](https://varnish-cache.org/docs/6.3/reference/vcl.html#probes),
 that Varnish instances in the cluster send to one another (since they
 are backends for one another when self-sharding is implemented).
 

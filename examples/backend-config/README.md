@@ -49,7 +49,7 @@ spec:
 ```
 
 These top-level properties of ``spec`` correspond to attributes of a
-[Varnish backend definition](https://varnish-cache.org/docs/6.1/reference/vcl.html#backend-definition).
+[Varnish backend definition](https://varnish-cache.org/docs/6.3/reference/vcl.html#backend-definition).
 The configuration in the example means that:
 
 * The Host header of a backend request is set to ``cafe.example.com``
@@ -67,7 +67,7 @@ The configuration in the example means that:
 * No more than 200 connections to an Endpoint may be opened.
 
 The properties of ``spec.probe`` correspond to attributes of a
-[Varnish health probe](https://varnish-cache.org/docs/6.1/reference/vcl.html#probes):
+[Varnish health probe](https://varnish-cache.org/docs/6.3/reference/vcl.html#probes):
 
 ```
 spec:
@@ -98,7 +98,7 @@ that:
 * At startup, one probe is implicitly assumed to be good.
 
 The last part of the BackendConfig for ``tea-svc`` selects the
-[random](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html#new-xrandom-directors-random)
+[random](https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html#new-xrandom-directors-random)
 director -- load-balancing requests to Endpoints is random (the
 default is round-robin):
 

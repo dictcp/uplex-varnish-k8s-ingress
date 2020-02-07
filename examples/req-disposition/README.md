@@ -5,10 +5,10 @@ client requests -- how client requests are further processed after
 request headers have been received. The ``req-disposition`` field of
 the [``VarnishConfig`` custom resource](/docs/ref-varnish-cfg.md)
 determines the next [processing
-state](https://varnish-cache.org/docs/6.1/reference/states.html) for a
+state](https://varnish-cache.org/docs/6.3/reference/states.html) for a
 request, subject to properties of the request.  It overrides the
 implementation of ``vcl_recv`` in
-[``builtin.vcl``](https://github.com/varnishcache/varnish-cache/blob/6.1/bin/varnishd/builtin.vcl).
+[``builtin.vcl``](https://github.com/varnishcache/varnish-cache/blob/6.3/bin/varnishd/builtin.vcl).
 
 A common use case for ``req-disposition`` is to allow caching for
 requests that use cookies or basic authentication, since the Varnish
@@ -28,7 +28,7 @@ A variety of other features can be implemented with
 * white- and blacklisting requests
 
 * defining a means to use the
-  [purge](https://varnish-cache.org/docs/6.1/users-guide/purging.html)
+  [purge](https://varnish-cache.org/docs/6.3/users-guide/purging.html)
   facility via client requets, for example by defining a ``PURGE``
   request method.
 
@@ -119,7 +119,7 @@ synthetic response with status ``400 Bad Request`` -- an HTTP/1.1
 request without a ``Host`` header is illegal.
 
 The next element specifies that the request is processed in [pipe
-mode](https://varnish-cache.org/docs/6.1/users-guide/vcl-built-in-subs.html#vcl-pipe)
+mode](https://varnish-cache.org/docs/6.3/users-guide/vcl-built-in-subs.html#vcl-pipe)
 for request method ``CONNECT``, or any non-standard request method:
 
 ```
@@ -167,7 +167,7 @@ requests, for example, bypass cache lookup:
 Setting the ``disposition`` to ``pass`` for requests whose responses
 are known to be uncacheable can be advantageous, because potential
 waiting due to [request
-coalescing](https://varnish-cache.org/docs/6.1/users-guide/increasing-your-hitrate.html#passing-client-requests)
+coalescing](https://varnish-cache.org/docs/6.3/users-guide/increasing-your-hitrate.html#passing-client-requests)
 is avoided.
 
 The next two elements are the ones that most commonly require an override
@@ -812,7 +812,7 @@ $ curl -x $IP:$PORT -v http://cafe.example.com/tea/sugar/black/foo
 ## Defining a PURGE method
 
 The final example demonstrates a way to make the Varnish
-[purge](https://varnish-cache.org/docs/6.1/users-guide/purging.html)
+[purge](https://varnish-cache.org/docs/6.3/users-guide/purging.html)
 facility available via a ``PURGE`` request method. When the processing
 state is set to ``purge``, and the request is a cache hit, the cached
 object and all of its variants are invlaidated, and Varnish send a

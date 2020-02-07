@@ -7,7 +7,7 @@ for Services that are named as a ``backend`` in an Ingress definition;
 that is, the Services to which requests are routed according to an
 Ingress based on the Host header and/or URL path. These are implemented
 as
-[backends](https://varnish-cache.org/docs/6.1/users-guide/vcl-backends.html)
+[backends](https://varnish-cache.org/docs/6.3/users-guide/vcl-backends.html)
 in Varnish, and BackendConfig allows you to set features for them
 such as timeouts, health probes, and the load balancing algorithm.
 
@@ -89,12 +89,12 @@ Service that forms a ``backend`` in an Ingress.
 
 The ``spec`` object may have any of these properties, all optional,
 which correspond to attributes of a
-[Varnish backend configuration](https://varnish-cache.org/docs/6.1/reference/vcl.html#backend-definition):
+[Varnish backend configuration](https://varnish-cache.org/docs/6.3/reference/vcl.html#backend-definition):
 
 * ``host-header``: non-empty string
 
 * ``connect-timeout``: MUST have the form of a
-  [VCL DURATION](https://varnish-cache.org/docs/6.1/reference/vcl.html#durations)
+  [VCL DURATION](https://varnish-cache.org/docs/6.3/reference/vcl.html#durations)
 
 * ``first-byte-timeout``: VCL DURATION
 
@@ -124,7 +124,7 @@ spec:
 ### ``spec.probe``
 
 The ``probe`` object is optional, and if present it specifies a
-[health probe](https://varnish-cache.org/docs/6.1/reference/vcl.html#probes)
+[health probe](https://varnish-cache.org/docs/6.3/reference/vcl.html#probes)
 for the backend. Its properties correspond to attributes of a Varnish
 probe:
 
@@ -137,7 +137,7 @@ probe:
 * ``expected_response``: 3-digit HTTP response code
 
 * ``timeout``: MUST have the form of a
-  [VCL DURATION](https://varnish-cache.org/docs/6.1/reference/vcl.html#durations)
+  [VCL DURATION](https://varnish-cache.org/docs/6.3/reference/vcl.html#durations)
 
 * ``interval``: VCL DURATION
 
@@ -200,7 +200,7 @@ Example:
 ```
 spec:
   # Health probe config
-  # see: https://varnish-cache.org/docs/6.1/reference/vcl.html#probes
+  # see: https://varnish-cache.org/docs/6.3/reference/vcl.html#probes
   probe:
     url: /tea/healthz
     expected-response: 204
@@ -215,7 +215,7 @@ spec:
 
 The ``director`` object is optional, and if present it specifies
 properties of the
-[Varnish director](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html)
+[Varnish director](https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html)
 that corresponds to the backend Service. Varnish directors implement
 load-balancing for a group of backends; for the Ingress
 implementation, Varnish routes requests to one of the Endpoints of the
@@ -228,20 +228,20 @@ All of the properties of ``spec.director`` are optional:
   ``round-robin``
 
 * ``warmup`` (integer 0 to 100): the
-  [``warmup`` parameter](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html#func-shard-set-warmup)
+  [``warmup`` parameter](https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html#func-shard-set-warmup)
   of the ``shard`` director, expressed as a probability in percent.
   Ignored for the other directors.
 
-* ``rampup`` ([VCL DURATION](https://varnish-cache.org/docs/6.1/reference/vcl.html#durations)):
+* ``rampup`` ([VCL DURATION](https://varnish-cache.org/docs/6.3/reference/vcl.html#durations)):
   the
-  [``rampup`` parameter](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html#void-xshard-set-rampup-duration-duration-0)
+  [``rampup`` parameter](https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html#void-xshard-set-rampup-duration-duration-0)
   of the ``shard`` director. Ignored for the other directors.
 
 With ``type`` you can choose the
-[round-robin](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html#obj-round-robin),
-[random](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html#obj-random)
+[round-robin](https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html#obj-round-robin),
+[random](https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html#obj-random)
 or
-[shard](https://varnish-cache.org/docs/6.1/reference/vmod_directors.generated.html#obj-shard)
+[shard](https://varnish-cache.org/docs/6.3/reference/vmod_directors.generated.html#obj-shard)
 director, default round-robin. The shard director shards requests
 to Endpoints by URL path.
 

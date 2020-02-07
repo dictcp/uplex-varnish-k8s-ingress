@@ -27,7 +27,7 @@ also used for other types of controllers, such as DaemonSets.
 ```
 
 See
-[``varnishd(1)``](https://varnish-cache.org/docs/6.1/reference/varnishd.html#options)
+[``varnishd(1)``](https://varnish-cache.org/docs/6.3/reference/varnishd.html#options)
 for details.
 
 [``proxy.yaml``](proxy.yaml) just sets the ``PROTO`` environment

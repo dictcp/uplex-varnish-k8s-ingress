@@ -243,7 +243,7 @@ properly:
 
 The Deployment configuration in the current folder shows the default
 Pod template for running Varnish, but it can be customized by setting
-[varnishd command-line options](https://varnish-cache.org/docs/6.1/reference/varnishd.html#options)
+[varnishd command-line options](https://varnish-cache.org/docs/6.3/reference/varnishd.html#options)
 in ``args`` and/or environment variables in ``env``. You may need to
 do so, for example, to set the PROXY protocol for the HTTP listener,
 change container port numbers, or configure Varnish tunables. See the

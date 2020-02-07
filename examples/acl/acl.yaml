@@ -44,7 +44,7 @@ spec:
         mask-bits: 16
 
     # This is the ACL shown as an example in vcl(7):
-    # https://varnish-cache.org/docs/6.1/reference/vcl.html#access-control-list-acl
+    # https://varnish-cache.org/docs/6.3/reference/vcl.html#access-control-list-acl
     # The ACL matches:
     # - the IP resolved for "localhost" at VCL load time
     # - 192.0.2.0/24

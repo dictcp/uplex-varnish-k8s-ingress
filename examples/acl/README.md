@@ -49,14 +49,14 @@ do not match the ACL.
 
 The ``comparand`` has the default value ``client.ip``. This means that
 the ACL is matched against the VCL
-[``client.ip`` object](https://varnish-cache.org/docs/6.1/reference/vcl.html#local-server-remote-and-client),
+[``client.ip`` object](https://varnish-cache.org/docs/6.3/reference/vcl.html#local-server-remote-and-client),
 which is the client address sent in the PROXY header if the PROXY
 protocol is in use, or the peer address of the connection if not.
 (See the [docs](/docs/varnish-pod-template.md) about how to use the
 PROXY protocol.) If ``comparand`` is set to any of ``server.ip``,
 ``remote.ip`` or ``local.ip``, then the IP address to be matched is
 also evaluated as in VCL -- see the
-[docs](https://varnish-cache.org/docs/6.1/reference/vcl.html#local-server-remote-and-client)
+[docs](https://varnish-cache.org/docs/6.3/reference/vcl.html#local-server-remote-and-client)
 for details.
 
 The ``conditions`` field is not set in this example, so the ACL match
@@ -65,7 +65,7 @@ is executed for every client request.
 ## ACL restricted to requests for a Service
 
 The next example re-creates the ACL shown as an example in
-[vcl(7)](https://varnish-cache.org/docs/6.1/reference/vcl.html#access-control-list-acl):
+[vcl(7)](https://varnish-cache.org/docs/6.3/reference/vcl.html#access-control-list-acl):
 
 ```
     - name: man-vcl-example

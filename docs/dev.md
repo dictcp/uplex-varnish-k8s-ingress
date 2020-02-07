@@ -121,7 +121,7 @@ of concerns for the controller:
   realize configurations from Ingress and VarnishConfig resources.
   This package imports ``code.uplex.de/uplex-varnish/varnishapi/admin``,
   which is a client for the
-  [Varnish CLI](https://varnish-cache.org/docs/6.1/reference/varnish-cli.html),
+  [Varnish CLI](https://varnish-cache.org/docs/6.3/reference/varnish-cli.html),
   used to load VCL and administer Varnish instances.
 
 * ``pkg/varnish/vcl`` encapsulates the use of templates to generate
