@@ -11,9 +11,10 @@ Varnish. For more information, see:
 * Kubernetes: https://kubernetes.io/
 * Varnish: http://www.varnish-cache.org
 
-The Ingress controller currently supports Kubernetes version 1.9, and
-has also been tested succesfully with 1.10. The Varnish container runs
-version 6.1.1.
+The Ingress controller currently supports Kubernetes version 1.16.
+The Varnish container runs version 6.3.2. See the
+[source code repository](#repositories) for branches and tags that
+support other versions.
 
 ## WORK IN PROGRESS
 
