@@ -17,8 +17,9 @@ spec:
   # failure status is matched, or all of them run without failing.
   acl:
 
-    # This ACL defines the address ranges for private IPv4 networks:
-    # 10.0.0.0/24, 172.16.0.0/12 and 192.168.0.0/16
+    # This ACL defines the address ranges for IPv4 loopback addresses
+    # and private networks:
+    # 127.0.0.0/8, 10.0.0.0/24, 172.16.0.0/12 and 192.168.0.0/16
     #
     # comparand is the default: client.ip, as interpreted in VCL
     # (either the client IP forwarded by the PROXY protocol, or
@@ -31,8 +32,10 @@ spec:
     #
     # The conditions field is not defined -- this ACL is matched for
     # all client requests.
-    - name: private-ip4
+    - name: local-private-ip4
       addrs:
+      - addr: 127.0.0.0
+        mask-bits: 8
       - addr: 10.0.0.0
         mask-bits: 24
       - addr: 172.16.0.0

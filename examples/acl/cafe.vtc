@@ -1,0 +1,50 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, access control lists"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /tea -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 403
+	expect resp.reason == "Forbidden"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "X-Real-IP: 198.51.100.47"
+	rxresp
+	expect resp.status == 403
+	expect resp.reason == "Forbidden"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "X-Real-IP: 192.0.2.120"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /coffee/black -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /coffee/black -hdr "Host: cafe.example.com" \
+		-hdr "X-Forwarded-For: 203.0.113.47, 192.0.2.11"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /coffee/black -hdr "Host: cafe.example.com" \
+		-hdr "X-Forwarded-For: 192.0.2.11"
+	rxresp
+	expect resp.status == 404
+
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "X-Forwarded-For: 203.0.113.47, 192.0.2.11"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "X-Forwarded-For: 203.0.113.47"
+	rxresp
+	expect resp.status == 403
+	expect resp.reason == "Forbidden"
+
+	txreq -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+} -run
