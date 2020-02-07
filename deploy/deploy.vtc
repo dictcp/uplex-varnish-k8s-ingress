@@ -1,0 +1,9 @@
+# looks like -*- vcl -*-
+
+varnishtest "verify deployment in the not ready state"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq
+	rxresp
+	expect resp.status == 503
+} -run
