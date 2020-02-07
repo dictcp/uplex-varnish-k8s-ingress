@@ -1,0 +1,17 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, proxy authentication"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 407
+	expect resp.reason == "Proxy Authentication Required"
+	expect resp.http.Proxy-Authenticate == {Basic realm="ingress"}
+
+	# credentials proxy-admin:studly
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "Proxy-Authorization: Basic cHJveHktYWRtaW46c3R1ZGx5"
+	rxresp
+	expect resp.status == 200
+} -run

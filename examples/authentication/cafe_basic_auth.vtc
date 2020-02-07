@@ -1,0 +1,33 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, basic authentication"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 401
+	expect resp.reason == "Unauthorized"
+	expect resp.http.WWW-Authenticate == {Basic realm="coffee", charset="UTF-8"}
+
+	txreq -url /tea -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 401
+	expect resp.reason == "Unauthorized"
+	expect resp.http.WWW-Authenticate == {Basic realm="tea"}
+
+	# credentials foo:bar
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "Authorization: Basic Zm9vOmJhcg=="
+	rxresp
+	expect resp.status == 200
+
+	# credentials tea-admin:awesomeness
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Authorization: Basic dGVhLWFkbWluOmF3ZXNvbWVuZXNz"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /milk -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 404
+} -run
