@@ -1,0 +1,20 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example in separate namespaces"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /foo -hdr "Host: coffee.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: coffee-[a-z0-9]+-[a-z0-9]+$"
+
+	txreq -url /bar -hdr "Host: tea.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: tea-[a-z0-9]+-[a-z0-9]+$"
+
+	txreq -url /baz -hdr "Host: anything.else"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: other-[a-z0-9]+-[a-z0-9]+$"
+} -run
