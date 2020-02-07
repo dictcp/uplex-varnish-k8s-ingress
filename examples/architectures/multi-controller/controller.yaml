@@ -12,6 +12,7 @@ spec:
     metadata:
       labels:
         app: varnish-ingress-controller
+        example: coffee
     spec:
       serviceAccountName: varnish-ingress-controller
       containers:
