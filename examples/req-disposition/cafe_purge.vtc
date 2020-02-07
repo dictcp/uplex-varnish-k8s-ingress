@@ -1,0 +1,10 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, PURGE method"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -req PURGE -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.reason == "Purged"
+} -run

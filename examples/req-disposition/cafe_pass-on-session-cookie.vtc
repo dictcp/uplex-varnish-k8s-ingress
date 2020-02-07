@@ -1,0 +1,51 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, pass on some cookies but not others"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^URI: /coffee$"
+	expect resp.body ~ "(?m)^Server name: coffee-[a-z0-9]+-[a-z0-9]+$"
+
+	txreq -url /tea -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^URI: /tea$"
+	expect resp.body ~ "(?m)^Server name: tea-[a-z0-9]+-[a-z0-9]+$"
+
+	txreq -url /beer
+	rxresp
+	expect resp.status == 404
+
+	txreq -req PRI -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 405
+	expect resp.reason == "Method Not Allowed"
+
+	txreq -url /coffee -nohost
+	rxresp
+	expect resp.status == 400
+	expect resp.reason == "Bad Request"
+
+	txreq -req PUT -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+
+	# XXX verify pass or lookup
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "Cookie: SESSIONID=0123456789abcdef0123456789abcdef"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "Cookie: LOGIN=foobar"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "Cookie: foo=bar"
+	rxresp
+	expect resp.status == 200
+} -run

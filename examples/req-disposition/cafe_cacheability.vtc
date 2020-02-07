@@ -1,0 +1,22 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, cacheability rules based on URL patterns"
+
+client c1 -connect "${localhost} ${localport}" {
+	# XXX verify pass or lookup
+	txreq -url /coffee/black.js -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /tea/sugar.css -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /interactive/foo/bar -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 404
+
+	txreq -url /dynamic/baz/quux -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 404
+} -run

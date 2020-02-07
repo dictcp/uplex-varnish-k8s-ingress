@@ -1,0 +1,33 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, white-/blacklisting based on URL patterns"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /coffee/sugar/foo -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /tea/sugar/bar -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /coffee/baz -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 403
+	expect resp.reason == "Forbidden"
+
+	txreq -url /tea/quux -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 403
+	expect resp.reason == "Forbidden"
+
+	txreq -url /coffee/sugar/black/foo -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 403
+	expect resp.reason == "Blacklisted"
+
+	txreq -url /tea/sugar/black/bar -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 403
+	expect resp.reason == "Blacklisted"
+} -run
