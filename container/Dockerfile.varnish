@@ -1,4 +1,4 @@
-FROM centos:centos7.6.1810
+FROM centos:centos7.7.1908
 
 COPY varnishcache_varnish63.repo /etc/yum.repos.d/
 COPY uplex_varnish.repo /etc/yum.repos.d/
