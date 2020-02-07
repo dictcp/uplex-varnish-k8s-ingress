@@ -1,0 +1,25 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example (hello world for Ingress)"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /coffee/foo/bar -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^URI: /coffee/foo/bar$"
+	expect resp.body ~ "(?m)^Server name: coffee-[a-z0-9]+-[a-z0-9]+$"
+
+	txreq -url /tea/baz/quux -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^URI: /tea/baz/quux$"
+	expect resp.body ~ "(?m)^Server name: tea-[a-z0-9]+-[a-z0-9]+$"
+
+	txreq -url /coffee/foo/bar
+	rxresp
+	expect resp.status == 404
+
+	txreq -url /milk -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 404
+} -run
