@@ -6,12 +6,14 @@ Source code for the controller executable ``k8s-ingress`` is in the
 targets for code generation, and for building and maintaining the
 controller.
 
-The controller is currently built with Go 1.10. Currently Kubernetes
-version 1.9 is supported (it has been also tested successfully with
-1.10). This means that the code must be compatible with version 6.0.0
-of k8s [client-go](https://github.com/kubernetes/client-go), which in
-turn means that it must be compatible with other k8s code required for
-client-go 6.0.0.
+The controller is currently built with Go 1.11. Currently Kubernetes
+version 1.16. This means that the code must be compatible with version
+0.16 of k8s [client-go](https://github.com/kubernetes/client-go).
+
+Code dependencies are managed with
+[Go modules](https://github.com/golang/go/wiki/Modules); hence ``go``
+commands in development MUST be run with the ``GO111MODULE``
+environment variable set to ``on``.
 
 The controller is deployed in a cluster as the image
 ``varnish-ingress/controller``, built by the
@@ -23,17 +25,6 @@ minikube without rebuilding the image):
 
 ```
 $ ./k8s-ingress -kubeconfig=$HOME/.kube/config
-```
-
-Builds are executed with the [``vgo``](https://github.com/golang/vgo)
-tool, in anticipation of the
-[modules](https://github.com/golang/go/wiki/Modules) feature for
-dependency management that is experimental in Go 1.11, and expected to
-be finalized in 1.12. ``vgo`` must be installed before you begin with
-development:
-
-```
-$ go get -u golang.org/x/vgo
 ```
 
 ## Code generation
@@ -54,7 +45,7 @@ suffices:
 
 ```
 $ go get -d github.com/slimhazard/gogitversion
-$ cd $GOPATH/src/github.com/slimhazard/gogitversion
+$ cd $GOPATH/pkg/mod/github.com/slimhazard/gogitversion*
 $ make install
 ```
 
@@ -142,24 +133,23 @@ of concerns for the controller:
 
 Targets in the Makefile:
 
-* ``vgo``: runs ``go get`` for ``vgo``
-
 * ``install-code-gen``: installs the k8s API code generators at the
-  versions needed for compatibility with Kubernetes 1.9 (client-go 6.0.0)
+  versions needed for compatibility with the targeted Kubernetes
+  version.
 
 * ``generate``: run the k8s API code generators. Since this is only
   done occasionally, the target is *not* a dependency for any other
   target; run only when needed, for example when types in ``types.go``
   have been updated, or when a new API version is introduced.
 
-* ``build``: runs ``vgo generate`` (to run ``gogitversion``),
-  ``vgo fmt``, and builds the code in ``pkg/`` and ``cmd/``. The
+* ``build``: runs ``go generate`` (to run ``gogitversion``),
+  ``go fmt``, and builds the code in ``pkg/`` and ``cmd/``. The
   executable is *not* built.
 
 * ``k8s-ingress``: runs the ``build`` target, and builds the
   controller executable.
 
 * ``check``, ``test``: build the ``k8s-ingress`` executable if
-  necessary, and run ``golint`` and ``vgo test``.
+  necessary, and run ``golint`` and ``go test``.
 
-* ``clean``: run ``vgo clean``, and clean up other generated artifacts
+* ``clean``: run ``go clean``, and clean up other generated artifacts
