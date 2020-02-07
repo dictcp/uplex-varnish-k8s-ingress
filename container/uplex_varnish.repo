@@ -1,0 +1,9 @@
+[uplex_varnish]
+name=pkg_uplex_de
+baseurl=https://pkg.uplex.de/rpm/7/uplex-varnish/$basearch
+repo_gpgcheck=0
+gpgcheck=0
+enabled=1
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+metadata_expire=300

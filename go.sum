@@ -1,8 +1,8 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
-code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181209154204-43826850baae h1:rV0/WL/NvJ8/TAQwmcSxFUyI5TVA5GM0KBXXfnWrsFY=
-code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181209154204-43826850baae/go.mod h1:J0znUDkk1j5lNWKZZ6zfISZWbA2fXvsxCM+FpDUxG9g=
+code.uplex.de/uplex-varnish/varnishapi v0.0.0-20191205154529-31e610a4139d h1:W1qDaGvBh7aBY30jCGpnt4m9eSCwgczD8YFNqseq7Kg=
+code.uplex.de/uplex-varnish/varnishapi v0.0.0-20191205154529-31e610a4139d/go.mod h1:J0znUDkk1j5lNWKZZ6zfISZWbA2fXvsxCM+FpDUxG9g=
 github.com/Azure/go-autorest/autorest v0.9.0/go.mod h1:xyHB1BMZT0cuDHU7I0+g046+BFDTQ8rEZB0s4Yfa6bI=
 github.com/Azure/go-autorest/autorest/adal v0.5.0/go.mod h1:8Z9fGy2MpX0PvDjB1pEgQTmVqjGhiHBW7RJJEciWzS0=
 github.com/Azure/go-autorest/autorest/date v0.1.0/go.mod h1:plvfp3oPSKwf2DNjlBjWF/7vwR+cUD/ELuzDCXwHUVA=

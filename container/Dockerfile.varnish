@@ -1,20 +1,30 @@
-FROM centos:centos7
-COPY varnishcache_varnish61.repo /etc/yum.repos.d/
-RUN yum install -y epel-release && yum update -y -q && \
-    yum -q makecache -y --disablerepo='*' --enablerepo='varnishcache_varnish61' && \
-    yum-config-manager --add-repo https://pkg.uplex.de/rpm/7/uplex-varnish/x86_64/ && \
-    yum install -y -q varnish-6.1.1 && \
-    yum install -y -q --nogpgcheck vmod-re2-1.6.1 && \
-    yum install -y -q --nogpgcheck vmod-selector-1.0.0 && \
-    yum clean all && rm -rf /var/cache/yum
+FROM centos:centos7.6.1810
+
+COPY varnishcache_varnish63.repo /etc/yum.repos.d/
+COPY uplex_varnish.repo /etc/yum.repos.d/
+
+# yum update with --exclude=shadow-utils because the cap_set_file
+# capability is needed to extract the RPM, and that fails in a
+# docker build.
+RUN yum install -y -q epel-release && yum -q makecache -y fast && \
+    yum update -y -q --exclude=shadow-utils && \
+    yum install -y -q varnish-6.3.1 && \
+    yum install -y -q --nogpgcheck vmod-re2-1.8.0 && \
+    yum install -y -q --nogpgcheck vmod-selector-1.3.1 && \
+    yum -q clean all && rm -rf /var/cache/yum && rm -rf /usr/share/man && \
+    rm -rf /usr/share/doc && rm /etc/varnish/*
+
 RUN /bin/mkdir /var/run/varnish
 COPY bogo_backend.vcl /etc/varnish/
 COPY ready.vcl /etc/varnish/
 COPY notavailable.vcl /etc/varnish
 COPY boot.vcl /etc/varnish
 COPY start.cli /etc/varnish
+
 COPY varnishd_exec.sh /
 RUN /bin/chmod 755 /varnishd_exec.sh
+
 ENV HTTP_PORT=80 PROTO=HTTP READY_PORT=8080 SECRET_PATH=/var/run/varnish \
     SECRET_FILE=_.secret ADMIN_PORT=6081
+
 ENTRYPOINT ["/varnishd_exec.sh"]

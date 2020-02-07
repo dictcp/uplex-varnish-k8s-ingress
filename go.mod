@@ -1,7 +1,7 @@
 module code.uplex.de/uplex-varnish/k8s-ingress
 
 require (
-	code.uplex.de/uplex-varnish/varnishapi v0.0.0-20181209154204-43826850baae
+	code.uplex.de/uplex-varnish/varnishapi v0.0.0-20191205154529-31e610a4139d
 	github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff // indirect
 	github.com/google/go-cmp v0.3.0
 	github.com/googleapis/gnostic v0.2.0 // indirect
