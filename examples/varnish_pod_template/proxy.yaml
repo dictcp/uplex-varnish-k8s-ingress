@@ -11,6 +11,7 @@ spec:
     metadata:
       labels:
         app: varnish-ingress
+        example: proxy
     spec:
       containers:
       - image: varnish-ingress/varnish
