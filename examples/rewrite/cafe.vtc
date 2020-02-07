@@ -1,0 +1,194 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, rewrite for headers and URLs"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /espresso -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: coffee-[a-z0-9]+-[a-z0-9]+$"
+	expect resp.body ~ "(?m)^URI: /coffee$"
+
+	txreq -url /capuccino/ -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: coffee-[a-z0-9]+-[a-z0-9]+$"
+	expect resp.body ~ "(?m)^URI: /coffee/$"
+
+	txreq -url /latte/grande/ -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: coffee-[a-z0-9]+-[a-z0-9]+$"
+	expect resp.body ~ "(?m)^URI: /coffee/grande/$"
+
+	txreq -url /camomille -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: tea-[a-z0-9]+-[a-z0-9]+$"
+	expect resp.body ~ "(?m)^URI: /tea$"
+
+	txreq -url /earl-grey/ -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: tea-[a-z0-9]+-[a-z0-9]+$"
+	expect resp.body ~ "(?m)^URI: /tea/$"
+
+	txreq -url /chai/link -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: tea-[a-z0-9]+-[a-z0-9]+$"
+	expect resp.body ~ "(?m)^URI: /tea/link$"
+
+	txreq -url /chain/link -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: tea-[a-z0-9]+-[a-z0-9]+$"
+	expect resp.body ~ "(?m)^URI: /tean/link$"
+
+	txreq -url /coffee -hdr "Host: my-cafe.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: coffee-[a-z0-9]+-[a-z0-9]+$"
+
+	txreq -url /tea -hdr "Host: my-example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^Server name: tea-[a-z0-9]+-[a-z0-9]+$"
+
+	txreq -url /coffee -hdr "Host: ricks.cafe.americain.com"
+	rxresp
+	expect resp.status == 404
+
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "Cookie: foo=bar; mysession=4711; baz=quux"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Session-Token == "4711"
+
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "Cookie: foo=bar; mysession=bazquux"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Session-Token == "bazquux"
+
+	txreq -url /tea -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.X-Cache == "MISS"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" -hdr "Cookie: foo=bar"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.X-Cache == "PASS"
+
+	txreq -url /coffee/foo/bar -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^URI: /coffee/bar/foo$"
+
+	txreq -url /coffee/baz/quux -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ "(?m)^URI: /coffee/quux/baz$"
+
+	txreq -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Via ~ {^1.1 varnish \(Varnish/\d\.\d\)$}
+
+	txreq -url /coffee -hdr "Host: cafe.example.com" \
+		-hdr "Delete-Via: TRUE"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Via == <undef>
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Replace-Hdr-Src: the replacements"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Replace-Hdr-Target == "the replacements"
+
+	txreq -url /tea -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Replace-String-Target == "ReplaceString"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Append-String-Src: foobar"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Append-String-Target == "foobarAppendString"
+
+	txreq -url /tea -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Append-String-Target == "AppendString"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Append-Rule-Src: bazquux"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Append-Rule-Target == "bazquuxAppendString"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Append-Hdr-Target: foo" \
+		-hdr "Append-Hdr-Src: bar"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Prepend-String-Src: foobar"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Prepend-String-Target == "PrependStringfoobar"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Prepend-Rule-Src: bazquux"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Prepend-Rule-Target == "PrependStringbazquux"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Prepend-Hdr-Target: foo" \
+		-hdr "Prepend-Hdr-Src: bar"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url /tea/foo/bar/baz/quux/4711 -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Select-First == "Quux"
+
+	txreq -url /tea/foo/bar -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Select-First == "Bar"
+
+	txreq -url /tea/foo/4711/0815 -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Select-First == "Foo"
+
+	txreq -url /tea/foo/bar/a/b/ -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Select-First == "Bar"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Cookie: cookie2=val2; cookie3=val3; cookie1=val1"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Cookie-Select == "cookie3:val3"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Cookie: cookie3=val3; cookie4=val4"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Cookie-Select == "cookie4:val4"
+
+	txreq -url /tea -hdr "Host: cafe.example.com" \
+		-hdr "Cookie: cookie5=val5; cookie4=val4; cookie3=val3"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Cookie-Select == "cookie5:val5"
+} -run
