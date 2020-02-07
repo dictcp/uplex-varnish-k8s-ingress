@@ -1,0 +1,12 @@
+# looks like -*- vcl -*-
+
+varnishtest "cafe example, custom VCL"
+
+client c1 -connect "${localhost} ${localport}" {
+	txreq -url /coffee -hdr "Host: cafe.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.Backend ~ {^vk8s_default_2f_coffee-svc_\d+_\d+_\d+_\d+$}
+	expect resp.http.Hello == "world"
+	expect resp.body ~ "(?m)^Server name: coffee-[a-z0-9]+-[a-z0-9]+$"
+} -run
