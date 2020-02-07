@@ -540,6 +540,11 @@ func (vc *Controller) AddOrUpdateVarnishSvc(key string, addrs []vcl.Address,
 
 	vc.log.Tracef("Update Varnish svc %s: addrs=%+v secret=%s reloadVCL=%v",
 		key, addrs, secrName, loadVCL)
+	if secrPtr != nil {
+		vc.log.Tracef("secret contents = %v", *secrPtr)
+	} else {
+		vc.log.Trace("secret is nil")
+	}
 	return vc.updateVarnishSvcAddrs(key, addrs, secrPtr, loadVCL)
 }
 

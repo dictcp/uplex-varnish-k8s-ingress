@@ -202,9 +202,18 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 		}
 	}
 	if secrName != "" {
-		secrName = worker.namespace + "/" + secrName
-		worker.log.Infof("Found secret name %s for Service %s/%s",
-			secrName, svc.Namespace, svc.Name)
+		worker.log.Infof("Found secret name %s/%s for Service %s/%s",
+			worker.namespace, secrName, svc.Namespace, svc.Name)
+
+		if secret, err := worker.secr.Get(secrName); err == nil {
+			err = worker.setSecret(secret)
+			if err != nil {
+				return err
+			}
+		} else {
+			worker.log.Warnf("Cannot get Secret %s: %v", secrName,
+				err)
+		}
 	} else {
 		worker.log.Warnf("No secret found for Service %s/%s",
 			svc.Namespace, svc.Name)
@@ -235,7 +244,8 @@ func (worker *NamespaceWorker) syncSvc(key string) error {
 	worker.log.Tracef("Varnish service %s/%s addresses: %+v", svc.Namespace,
 		svc.Name, addrs)
 	return worker.vController.AddOrUpdateVarnishSvc(
-		svc.Namespace+"/"+svc.Name, addrs, secrName, !updateVCL)
+		svc.Namespace+"/"+svc.Name, addrs,
+		worker.namespace+"/"+secrName, !updateVCL)
 }
 
 func (worker *NamespaceWorker) addSvc(key string) error {

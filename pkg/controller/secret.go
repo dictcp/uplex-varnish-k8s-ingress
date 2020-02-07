@@ -117,6 +117,18 @@ func (worker *NamespaceWorker) updateVarnishSvcsForSecret(
 	return nil
 }
 
+func (worker *NamespaceWorker) setSecret(secret *api_v1.Secret) error {
+	secretData, exists := secret.Data[admSecretKey]
+	if !exists {
+		return fmt.Errorf("Secret %s/%s does not have key %s",
+			secret.Namespace, secret.Name, admSecretKey)
+	}
+	secretKey := secret.Namespace + "/" + secret.Name
+	worker.log.Tracef("Setting secret %s", secretKey)
+	worker.vController.SetAdmSecret(secretKey, secretData)
+	return nil
+}
+
 func (worker *NamespaceWorker) syncSecret(key string) error {
 	worker.log.Infof("Syncing Secret: %s/%s", worker.namespace, key)
 	secret, err := worker.secr.Get(key)
@@ -145,15 +157,11 @@ func (worker *NamespaceWorker) syncSecret(key string) error {
 		return worker.updateVcfgsForSecret(secret.Name)
 	}
 
-	secretData, exists := secret.Data[admSecretKey]
-	if !exists {
-		return fmt.Errorf("Secret %s/%s does not have key %s",
-			secret.Namespace, secret.Name, admSecretKey)
+	err = worker.setSecret(secret)
+	if err != nil {
+		return err
 	}
 	secretKey := secret.Namespace + "/" + secret.Name
-	worker.log.Tracef("Setting secret %s", secretKey)
-	worker.vController.SetAdmSecret(secretKey, secretData)
-
 	return worker.updateVarnishSvcsForSecret(svcs, secretKey)
 }
 
