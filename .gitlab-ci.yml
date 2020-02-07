@@ -1,4 +1,4 @@
-image: golang:1.10.5
+image: golang:1.11.6
 
 cache:
   paths:
@@ -16,10 +16,9 @@ stages:
   - test
 
 before_script:
-  - go get -u golang.org/x/vgo
   - go get -u golang.org/x/lint/golint
   - go get -d -v github.com/slimhazard/gogitversion
-  - vgo mod download
+  - go mod download
   - pushd /go/src/github.com/slimhazard/gogitversion
   - make install
   - popd
